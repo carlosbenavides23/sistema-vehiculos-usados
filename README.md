@@ -136,7 +136,7 @@ Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persist
 
 ## Preparación de Vercel
 
-`vercel.json` declara el framework Flask y `app.py` como función con 60 segundos. `.python-version` selecciona Python 3.14. El build `python scripts/preparar_vercel.py` copia `static/` a `public/static/` para servir los recursos desde el CDN. Esos archivos generados están ignorados. `.vercelignore` excluye secretos, entornos, pruebas y evidencia local.
+`vercel.json` declara el framework Flask y `app.py` como función con 60 segundos. `.python-version` selecciona Python 3.14. Flask referencia `/static/...` en sus plantillas; Vercel sirve esos recursos desde su CDN, así que las copias correspondientes deben permanecer versionadas en `public/static/`. Ejecuta `python scripts/preparar_vercel.py` al actualizar CSS, JavaScript o imágenes y confirma juntas las copias sincronizadas. No ignores `public/static/` ni lo excluyas en `.vercelignore`.
 
 Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. **Preview siempre permite solo lectura**: no configura administración ni sirve para probar escrituras contra producción. Para una futura Preview con escrituras se necesita un entorno de datos/Storage separado y una revisión explícita de esa protección. No se crea automáticamente un servicio adicional.
 
