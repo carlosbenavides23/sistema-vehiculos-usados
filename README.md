@@ -133,15 +133,17 @@ TEST_DATABASE_URL='postgresql://postgres@127.0.0.1:5432/grupo7_test' ./.venv/bin
 
 La fixture rechaza hosts remotos y bases de control que no empiecen por `grupo7_test`. Crea bases adicionales con UUID, aplica las migraciones y elimina exclusivamente esas bases desechables. Nunca usa la base de control ni Supabase para escribir pruebas. El flujo HTTP de integración usa PostgreSQL real y **Storage simulado**; no demuestra una carga al servicio remoto.
 
-Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persistencia.py persistencia_fotos.py limites_login.py imagenes.py almacenamiento.py scripts tests`, `python -m pip check`, `node --check` para los tres archivos JavaScript y `git diff --check`. Node solo es una herramienta de verificación, no un requisito para ejecutar Flask.
+Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persistencia.py persistencia_fotos.py limites_login.py imagenes.py almacenamiento.py scripts tests`, `python -m pip check`, `node --check` para los tres archivos JavaScript, `node --test tests/test_interfaz_catalogo.mjs` y `git diff --check`. Node solo es una herramienta de verificación, no un requisito para ejecutar Flask.
 
 ## Preparación de Vercel
 
 `vercel.json` declara el framework Flask y `app.py` como función con 60 segundos. `.python-version` selecciona Python 3.14. Flask referencia `/static/...` en sus plantillas; Vercel sirve esos recursos desde su CDN, así que las copias correspondientes deben permanecer versionadas en `public/static/`. Ejecuta `python scripts/preparar_vercel.py` al actualizar CSS, JavaScript o imágenes y confirma juntas las copias sincronizadas. No ignores `public/static/` ni lo excluyas en `.vercelignore`.
 
-Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. **Preview siempre permite solo lectura**: no configura administración ni sirve para probar escrituras contra producción. Para una futura Preview con escrituras se necesita un entorno de datos/Storage separado y una revisión explícita de esa protección. No se crea automáticamente un servicio adicional.
+Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. Para que el catálogo de Preview lea datos y genere sesiones, asigna `DATABASE_URL`, `FLASK_SECRET_KEY` y `SUPABASE_URL` al ambiente **Preview**. `DATABASE_URL` debe usar TLS; usa un rol de solo lectura o un proyecto de datos separado cuando esté disponible. Los enlaces públicos de fotos solo necesitan `SUPABASE_URL`; no copies claves de escritura ni el hash administrativo de Production a Preview.
 
-Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; configurar hash y clave exclusivos, cookies HTTPS, pooler y operación de limpieza; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni push a GitHub.
+**Preview siempre fuerza modo de solo lectura**, aunque `APP_READ_ONLY=false`: `/api/admin/session` informa `solo_lectura: true`, la interfaz oculta «Administrar» y `/api/admin/login` responde 503. Es deliberado para evitar escrituras desde una Preview contra datos compartidos. Para habilitar administración en Production, asigna `ADMIN_PASSWORD_HASH`, `FLASK_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL` y una clave de servidor `SUPABASE_SECRET_KEY` (preferida) o `SUPABASE_SERVICE_ROLE_KEY` (alternativa heredada); configura `APP_READ_ONLY=false` y conserva cookies HTTPS seguras. No habilites escrituras de Preview sin un entorno de datos/Storage separado y una revisión explícita de la protección.
+
+Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni cambios a las variables de entorno.
 
 ## Documentación
 

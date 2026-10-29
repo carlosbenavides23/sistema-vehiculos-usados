@@ -195,6 +195,17 @@ class ApiPostgresContractTest(unittest.TestCase):
         por_defecto = self.cliente.get("/api/vehiculos")
         self.assertEqual([v["id"] for v in por_defecto.json["vehiculos"]], [1, 2, 3, 4, 5])
 
+    def test_catalogo_query_string_q_filtra_marca_sin_otros_filtros(self):
+        self.iniciar_admin()
+        toyota = self.crear_vehiculo(marca="Toyota", modelo="Corolla")
+        self.crear_vehiculo(marca="Honda", modelo="Civic")
+
+        respuesta = self.cliente.get("/api/vehiculos?q=Toyota")
+
+        self.assertEqual(respuesta.status_code, 200, respuesta.get_data(as_text=True))
+        self.assertEqual([vehiculo["id"] for vehiculo in respuesta.json["vehiculos"]], [toyota["id"]])
+        self.assertEqual(respuesta.json["vehiculos"][0]["marca"], "Toyota")
+
     def test_catalogo_ordenes_permitidos(self):
         self.iniciar_admin()
         self.crear_vehiculo(anio="2020", precio_venta="15000")
@@ -338,6 +349,29 @@ class ApiPostgresContractTest(unittest.TestCase):
             self.assertTrue(app_module._solo_lectura_desde_entorno())
         with patch.dict(os.environ, {"VERCEL_ENV": "preview", "APP_READ_ONLY": "false", "DATABASE_URL": "postgresql://postgres.abcdefghijklmnopqrst:secreto@pooler.test/postgres", "SUPABASE_URL": "https://abcdefghijklmnopqrst.supabase.co"}):
             self.assertTrue(app_module._solo_lectura_desde_entorno())
+
+    def test_preview_oculta_administracion_aunque_haya_hash_configurado(self):
+        with patch.dict(os.environ, {"VERCEL_ENV": "preview", "APP_READ_ONLY": "false"}):
+            preview = create_app({
+                "TESTING": True,
+                "SECRET_KEY": "clave-solo-para-prueba-preview",
+                "ADMIN_PASSWORD_HASH": generate_password_hash("clave-configurada"),
+                "REPOSITORY": repositorio_falso(),
+                "PHOTO_REPOSITORY": fotos_vacias(),
+                "LOGIN_LIMITER": limite_falso(),
+            })
+
+        cliente = preview.test_client()
+        cliente.get("/")
+        self.assertTrue(cliente.get("/api/admin/session").json["solo_lectura"])
+        self.assertEqual(cliente.get("/api/vehiculos").status_code, 200)
+        with cliente.session_transaction() as sesion:
+            csrf = sesion["csrf_token"]
+        login = cliente.post(
+            "/api/admin/login", json={"password": "clave-configurada"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(login.status_code, 503)
 
     def test_validacion_de_campos_y_solicitud_json(self):
         self.iniciar_admin()

@@ -30,6 +30,7 @@
   let claveFoto = null;
   let urlVistaPrevia = null;
   let intentoAlta = null;
+  let parametrosCatalogoActivos = new URLSearchParams();
 
   function nuevaClave() {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -140,11 +141,7 @@
   }
 
   async function cargarCatalogo() {
-    const parametros = new URLSearchParams(new FormData(filtrosCatalogo));
-    for (const [clave, valor] of [...parametros.entries()]) {
-      if (!valor.trim()) parametros.delete(clave);
-    }
-    const query = parametros.toString();
+    const query = parametrosCatalogoActivos.toString();
     const ruta = query ? `/api/vehiculos?${query}` : "/api/vehiculos";
     const resultado = await solicitar(ruta);
     if (!Array.isArray(resultado.vehiculos)) throw new Error("El servidor no devolvió una lista de vehículos válida.");
@@ -487,7 +484,7 @@
     lista.append(fragmento);
 
     const total = vehiculos.length;
-    const filtrosActivos = [...new FormData(filtrosCatalogo).values()].some((valor) => String(valor).trim() !== "");
+    const filtrosActivos = parametrosCatalogoActivos.size > 0;
     const disponibles = vehiculos.filter((vehiculo) => vehiculo.disponibilidad === "disponible").length;
     porId("total-vehiculos").textContent = total;
     porId("total-disponibles").textContent = disponibles;
@@ -507,15 +504,21 @@
     for (const campo of filtrosCatalogo.elements) {
       if (campo.name && parametros.has(campo.name)) campo.value = parametros.get(campo.name);
     }
+    parametrosCatalogoActivos = leerParametrosCatalogo();
   }
 
-  async function buscarConFiltros(actualizarHistorial = true) {
-    if (ocupado || idFicha) return;
+  function leerParametrosCatalogo() {
     const parametros = new URLSearchParams(new FormData(filtrosCatalogo));
     for (const [clave, valor] of [...parametros.entries()]) {
       if (!valor.trim()) parametros.delete(clave);
     }
-    const query = parametros.toString();
+    return parametros;
+  }
+
+  async function buscarConFiltros(actualizarHistorial = true) {
+    if (ocupado || idFicha) return;
+    parametrosCatalogoActivos = leerParametrosCatalogo();
+    const query = parametrosCatalogoActivos.toString();
     if (actualizarHistorial) {
       history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
     }

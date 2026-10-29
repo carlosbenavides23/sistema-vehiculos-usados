@@ -19,9 +19,10 @@ El catálogo permite combinar una búsqueda de texto con disponibilidad, límite
 
 - Los filtros se ejecutan con parámetros SQL; las opciones de orden se limitan a una lista permitida.
 - La respuesta pública no revela la placa. Las escrituras siguen protegidas por sesión administrativa y CSRF.
+- En Vercel Preview, `VERCEL_ENV=preview` fuerza solo lectura aunque `APP_READ_ONLY=false`; por eso `/api/admin/session` informa ese modo, la interfaz oculta «Administrar» y el login devuelve 503. Esta protección se conserva en Preview.
 - No se requieren migraciones ni cambios al esquema. No se modificaron datos, credenciales ni recursos remotos de Supabase.
 - Los errores de búsqueda no exponen detalles internos de PostgreSQL.
 
 ## Verificación
 
-La suite completa pasó **79/79 pruebas** en un clúster PostgreSQL local aislado; Storage se simuló en las pruebas de flujo para evitar operaciones remotas. Las regresiones incluyen consulta SQL real con filtros combinados y orden, integración Flask/PostgreSQL de la búsqueda y ficha, errores de parámetros, privacidad de placa, CSRF, CRUD, fotos y empaquetado de estáticos para Vercel. No se conectó a Supabase remoto.
+La suite Python completa pasó **81/81 pruebas** en un clúster PostgreSQL local aislado; Storage se simuló en las pruebas de flujo para evitar operaciones remotas. Las regresiones incluyen consulta SQL real con filtros combinados y orden, integración Flask/PostgreSQL de la búsqueda y ficha, query string `q=Toyota`, privacidad de placa, CSRF, CRUD, fotos y empaquetado de estáticos para Vercel. Las pruebas de interfaz en Node pasaron **3/3**, incluyendo submit con controles deshabilitados, URL compartida y modo de solo lectura. No se conectó a Supabase remoto.
