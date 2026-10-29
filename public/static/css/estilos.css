@@ -1309,3 +1309,253 @@ body.dialog-open {
     width: 100%;
   }
 }
+
+/* Public search and shareable vehicle details */
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.header-demo-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalog-filters {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 14px;
+  padding: 20px;
+  margin: 0 0 22px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.catalog-filters .field {
+  margin: 0;
+}
+
+.catalog-filters .filter-search {
+  grid-column: span 2;
+}
+
+.filter-actions {
+  grid-column: 1/-1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 8px;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+
+.vehicle-detail {
+  padding: 42px 0 36px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 20px;
+  color: var(--teal);
+  font-size: 14px;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+
+.detail-card {
+  display: grid;
+  grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr);
+  overflow: hidden;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.detail-gallery {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 420px;
+  padding: 20px;
+  background: #e8eeeb;
+}
+
+.detail-gallery img {
+  width: 100%;
+  height: min(58vw,560px);
+  min-height: 300px;
+  object-fit: contain;
+}
+
+.detail-photo-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.detail-photo-navigation .button {
+  min-width: 44px;
+  padding: 8px;
+}
+
+.detail-body {
+  position: relative;
+  padding: 32px;
+}
+
+.detail-body > .vehicle-badge {
+  position: static;
+  display: inline-flex;
+  margin: 0 0 20px;
+}
+
+.detail-body .vehicle-location {
+  font-size: 14px;
+}
+
+.detail-body h1 {
+  margin-top: 8px;
+  font-size: 34px;
+  letter-spacing: -1.2px;
+  overflow-wrap: anywhere;
+}
+
+.detail-year,
+.detail-mileage {
+  margin: 10px 0;
+  color: var(--muted);
+}
+
+.detail-price {
+  margin: 15px 0 0;
+  color: var(--navy);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.8px;
+}
+
+.detail-body section {
+  margin-top: 28px;
+}
+
+.detail-body section h2 {
+  margin-bottom: 10px;
+  font-size: 17px;
+}
+
+.detail-body section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-line;
+}
+
+.feature-list {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
+  padding: 10px 12px;
+  color: #526965;
+  font-size: 13px;
+  background: #f4f7f4;
+  border-radius: 7px;
+}
+
+.demo-label {
+  max-width: none;
+  letter-spacing: .2px;
+  text-transform: none;
+}
+
+@media(max-width:900px) {
+  .catalog-filters {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .detail-card {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .detail-gallery {
+    min-height: 300px;
+  }
+  .detail-gallery img {
+    height: 55vw;
+    min-height: 260px;
+    max-height: 480px;
+  }
+}
+
+@media(max-width:520px) {
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .header-demo-note {
+    font-size: 11px;
+  }
+  .catalog-filters {
+    grid-template-columns: minmax(0,1fr);
+    padding: 15px;
+    gap: 12px;
+  }
+  .catalog-filters .filter-search {
+    grid-column: auto;
+  }
+  .filter-actions {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+  }
+  .filter-actions .button {
+    width: 100%;
+  }
+  .vehicle-detail {
+    padding-top: 24px;
+  }
+  .detail-gallery {
+    min-height: 230px;
+    padding: 12px;
+  }
+  .detail-gallery img {
+    height: 65vw;
+    min-height: 210px;
+  }
+  .detail-body {
+    padding: 22px 18px;
+  }
+  .detail-body h1 {
+    font-size: 29px;
+  }
+  .detail-price {
+    font-size: 27px;
+  }
+  .feature-list {
+    grid-template-columns: minmax(0,1fr);
+  }
+}

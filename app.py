@@ -16,7 +16,7 @@ import imagenes
 import limites_login
 import persistencia
 import persistencia_fotos
-from vehiculos import respuesta_error, validar_vehiculo
+from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
 MAX_SOLICITUD = 1_100_000
@@ -62,7 +62,7 @@ def create_app(configuracion=None):
 
     @aplicacion.after_request
     def evitar_cache_api(respuesta):
-        if request.path.startswith("/api/") or request.path == "/":
+        if request.path.startswith("/api/") or request.path == "/" or request.path.startswith("/vehiculo/"):
             respuesta.headers["Cache-Control"] = "no-store"
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
         return respuesta
@@ -152,7 +152,14 @@ def create_app(configuracion=None):
 
     @aplicacion.get("/")
     def inicio():
-        return render_template("index.html", csrf_token=token_csrf())
+        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None)
+
+    @aplicacion.get("/vehiculo/<int:identificador>")
+    def pagina_vehiculo(identificador):
+        # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
+        return render_template(
+            "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
+        )
 
     @aplicacion.get("/api/admin/session")
     def sesion_admin():
@@ -223,8 +230,20 @@ def create_app(configuracion=None):
 
     @aplicacion.get("/api/vehiculos")
     def listar_vehiculos():
+        filtros, errores = validar_filtros_busqueda(request.args)
+        if errores:
+            return jsonify(respuesta_error("Revisa los filtros indicados.", errores)), 400
         try:
-            vehiculos = repositorio("listar_vehiculos")
+            personalizado = current_app.config.get("REPOSITORY")
+            if not filtros:
+                vehiculos = repositorio("listar_vehiculos")
+            elif personalizado is None:
+                vehiculos = persistencia.buscar_vehiculos(filtros)
+            elif "buscar_vehiculos" in personalizado:
+                vehiculos = personalizado["buscar_vehiculos"](filtros)
+            else:
+                # Mantiene compatibilidad con repositorios falsos pequeños en pruebas.
+                vehiculos = filtrar_vehiculos(repositorio("listar_vehiculos"), filtros)
             fotos = fotos_repositorio("listar_por_vehiculos", [v["id"] for v in vehiculos])
             salida = [respuesta_vehiculo(v, fotos.get(v["id"], [])) for v in vehiculos]
         except Exception as error:

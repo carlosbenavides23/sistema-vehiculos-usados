@@ -69,6 +69,59 @@ def listar_vehiculos():
             return [_normalizar_fila(fila) for fila in cursor.fetchall()]
 
 
+def buscar_vehiculos(filtros):
+    """Consulta el catálogo con filtros normalizados y valores parametrizados."""
+    condiciones = []
+    valores = []
+
+    consulta = filtros.get("q")
+    if consulta:
+        # Cada palabra debe aparecer en al menos un campo descriptivo. position()
+        # evita tratar los caracteres % y _ como comodines de LIKE.
+        campos_busqueda = (
+            "marca", "modelo", "descripcion", "ubicacion", "tipo_vehiculo",
+            "color", "transmision", "combustible",
+        )
+        expresion_texto = "lower(concat_ws(' ', " + ", ".join(campos_busqueda) + "))"
+        for palabra in consulta.casefold().split():
+            condiciones.append(f"position(lower(%s) in {expresion_texto}) > 0")
+            valores.append(palabra)
+
+    if filtros.get("disponibilidad") is not None:
+        condiciones.append("disponibilidad = %s")
+        valores.append(filtros["disponibilidad"])
+    for campo, columna in (("precio_min", "precio_centavos"), ("anio_min", "anio")):
+        if filtros.get(campo) is not None:
+            condiciones.append(f"{columna} >= %s")
+            valores.append(filtros[campo])
+    for campo, columna in (("precio_max", "precio_centavos"), ("anio_max", "anio")):
+        if filtros.get(campo) is not None:
+            condiciones.append(f"{columna} <= %s")
+            valores.append(filtros[campo])
+
+    tipo = filtros.get("tipo_vehiculo")
+    if tipo:
+        condiciones.append("lower(tipo_vehiculo) = lower(%s)")
+        valores.append(tipo)
+
+    where = " WHERE " + " AND ".join(condiciones) if condiciones else ""
+    ordenes = {
+        "precio_asc": "precio_centavos ASC, id ASC",
+        "precio_desc": "precio_centavos DESC, id ASC",
+        "anio_asc": "anio ASC, id ASC",
+        "anio_desc": "anio DESC, id ASC",
+    }
+    orden = ordenes.get(filtros.get("orden"), "id ASC")
+
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {SELECCION} FROM public.vehiculos{where} ORDER BY {orden}",
+                tuple(valores),
+            )
+            return [_normalizar_fila(fila) for fila in cursor.fetchall()]
+
+
 def obtener_vehiculo(identificador):
     with _conectar() as conexion:
         with conexion.cursor() as cursor:

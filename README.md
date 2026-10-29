@@ -1,19 +1,20 @@
 # Sistema de publicación y consulta de vehículos usados
 
-Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. Fecha límite: **30 de noviembre de 2026**. La publicación pública prevista termina el **27 de noviembre de 2026**; retirar o restringir el sitio al finalizar ese período requiere una operación explícita del responsable.
+Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. La fecha de cierre vigente es el **20 de noviembre de 2026**; las entregas académicas están detalladas en [ROADMAP](docs/ROADMAP.md).
 
 ## Funcionalidades actuales
 
 PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modifica el catálogo mediante funciones Python y SQL parametrizado, sin ORM. La interfaz conserva el diseño del inventario y usa el API de Flask.
 
 - Catálogo público, características opcionales y galería de hasta cinco fotografías por vehículo.
+- Búsqueda por texto con filtros combinables de disponibilidad, precio, año y tipo de vehículo, ordenamiento por precio o año, y fichas públicas compartibles.
 - Registro, edición y disponibilidad con administración Flask, CSRF e idempotencia de altas.
 - Color, placa, tipo, transmisión, combustible y equipamiento triestado: Sí, No y No especificado. La placa se entrega únicamente a la sesión administrativa.
 - Preparación JPEG/PNG/WebP en navegador y validación/recodificación WebP en Python. Persistencia de objetos mediante Supabase Storage, bucket existente `vehiculos`.
 - Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
 - Límite de acceso persistente en PostgreSQL, compartido entre procesos y resistente a borrar cookies.
 
-Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El código no implementa búsqueda avanzada, filtro de precio máximo, chat, pagos, contacto real, cuentas de compradores/vendedores ni certificación mecánica.
+Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). Chat, pagos, contacto real, cuentas de compradores/vendedores y certificación mecánica permanecen fuera del alcance confirmado. El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
 
 ## Instalación local
 
@@ -144,4 +145,4 @@ Antes de Production: comprobar credenciales y conectividad reales; verificar Sto
 
 ## Documentación
 
-[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [evidencia de avances](docs/AVANCE_02.md) e [instrucciones de mantenimiento](AGENTS.md).
+[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md) e [instrucciones de mantenimiento](AGENTS.md).
