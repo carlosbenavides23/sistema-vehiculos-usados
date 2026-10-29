@@ -1,37 +1,50 @@
 # Instrucciones para continuar
 
-Proyecto académico de Programación Estructurada de UAM Managua, Grupo 7: sistema de publicación y consulta de vehículos usados. El alcance actual es el segundo avance, registro y edición de vehículos. Fecha límite total: **30 de noviembre de 2026**; otras presentaciones pendientes de confirmar.
-
-## Restricciones
-- Python y Flask; funciones y módulos, sin clases propias, ORM ni arquitectura empresarial. Python valida entradas y estado, asigna identificadores, registra, edita y cambia disponibilidad.
-- HTML, CSS y JavaScript sin compilador frontend. JavaScript captura eventos, solicita operaciones a Flask, renderiza y conserva el resultado en `localStorage`. No duplicar las reglas de negocio de Python.
-- Persistencia provisional exclusivamente en el navegador, clave `vehiculos_demo_v1`, formato versionado. Flask procesa cada estado recibido sin colección global ni archivos de datos. No bases de datos ni servicios remotos.
-- No ampliar a cuentas, pagos, contacto real, buscador avanzado, filtro de precio máximo, certificación ni validación técnica del vehículo. Definir y documentar cualquier futura ampliación antes de implementarla.
-- No descargar ni generar imágenes; usar SVG local sencillo. Los datos y contactos son ficticios.
-- No hacer commit, push, merge, despliegue ni publicación salvo instrucción explícita del usuario. Un commit local autorizado no implica autorización para push o merge.
-- Mantener `.env.example` sin valores de credenciales; nunca registrar `.env`, llaves privadas ni credenciales locales. Al cambiar dependencias actuales, actualizar `requirements.txt`.
+Proyecto académico de Programación Estructurada, UAM Managua, Grupo 7. Rama de esta implementación: `feature/supabase-migration`. Fecha límite: 30 de noviembre de 2026. Publicación pública prevista hasta el 27 de noviembre de 2026; no crear una automatización de retirada sin petición expresa.
 
 ## Antes de editar
-Leer los AGENTS.md aplicables, README y docs. Inspeccionar `git status --short`, `git branch --show-current` y el diff. Conservar cambios ajenos; no usar `git reset --hard`. No reorganizar fuera del alcance. Actualizar documentación cuando cambie una decisión o contrato.
 
-## Ejecución y verificación (PowerShell, desde la raíz)
-`py -m venv .venv` crea el entorno. `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` instala Flask. `.\.venv\Scripts\python.exe app.py` inicia el servidor local en http://127.0.0.1:5000; Ctrl+C lo detiene. `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` ejecuta las pruebas de Python. Verificar además el flujo real en navegador y pantalla estrecha. Detener procesos temporales. No afirmar que una comprobación se ejecutó sin evidencia; anotar resultados y límites reales en `docs/AVANCE_02.md`.
+Lee README y los documentos de arquitectura, decisiones, avance y roadmap. Inspecciona rama, estado y diff; conserva cambios ajenos y no uses `git reset --hard`. La autorización del usuario en la conversación prevalece sobre restricciones históricas del segundo avance o Fase 1.
 
-En Linux: `python3 -m venv .venv`, `./.venv/bin/python -m pip install -r requirements.txt`, `./.venv/bin/python app.py` y `./.venv/bin/python -m unittest discover -s tests -v`, respectivamente. Todos parten de la raíz; el README debe usar rutas relativas, sin directorios personales. Las descripciones deben mostrarse completas y los textos importantes ser legibles desde 320 px.
+## Arquitectura y alcance
 
-## Repositorio y preparación futura
-El proyecto usa Git; mantener código, pruebas y documentación bajo seguimiento. `.gitignore` excluye entornos, cachés, secretos locales, bases de datos locales y artefactos generados, pero no código ni recursos necesarios. Conservar `.env.example` solo como documentación de variables: la aplicación actual no requiere configuración de entorno. PostgreSQL, Supabase, Storage y Vercel son posibilidades futuras sin implementación actual; no añadir carpetas vacías, dependencias ni configuración de despliegue hasta que se acuerde su diseño.
+- Python y Flask mediante funciones y módulos, sin ORM ni clases de dominio. Las clases de excepciones y dobles de prueba son auxiliares, no un nuevo modelo de dominio.
+- `vehiculos.py`: validación; `persistencia.py`: anuncios/idempotencia; `persistencia_fotos.py`: transacciones de fotos y recuperación; `limites_login.py`: límite de acceso PostgreSQL; `imagenes.py`: Pillow; `almacenamiento.py`: adaptador REST Storage; `app.py`: HTTP/sesión/CSRF.
+- PostgreSQL 17 es la fuente de verdad. Proyecto autorizado `rtcygltmrtulyeezaaac`, región `us-west-2`; bucket existente `vehiculos`. No crear proyectos, ramas Supabase, buckets ni servicios de pago sin autorización específica.
+- Navegador → Flask para datos y escrituras. Las imágenes públicas se consultan por URL de Storage. JavaScript no recibe credenciales ni usa localStorage operativo.
+- Campo placa solo para administración; no inferir que una foto oculta automáticamente una placa visible. Equipamiento: TRUE=sí, FALSE=no, NULL=no especificado; no inferirlo desde descripciones.
+- No ampliar a buscador avanzado, precio máximo, chat, pagos, contacto real, cuentas completas ni validación técnica oficial sin nueva autorización.
 
-Para preparar una entrega, excluir entornos, Git, cachés, secretos, logs, arneses temporales y ZIP anteriores sin borrar esos elementos del directorio de trabajo. Usar una sola carpeta raíz `Grupo7_Sistema_Vehiculos_Usados_Avance02/`. Inspeccionar el ZIP, extraerlo en una carpeta temporal limpia, crear un entorno nuevo, instalar requirements y probar backend, arranque y navegador. Calcular SHA-256 después de finalizar el ZIP.
+## Contratos y límites
 
-## Delegación
-Antes de usar subagentes, acordar modelo y contrato HTTP, asignar archivos sin solapamiento e indicar restricciones y criterios. Backend: `app.py`, `vehiculos.py`, `tests/`, dependencias. Interfaz: `templates/`, `static/`. Agente principal: integración, documentación y verificación final. Un revisor puede inspeccionar después de integrar, sin editar archivos compartidos. No delegar dependencias sin definir el contrato; no crear agentes sin tarea útil. Informar qué se integró.
+GET catálogo/item devuelven `fotografias` y omiten placa sin sesión. POST anuncio recibe `{vehiculo}` más `Idempotency-Key` UUID; PUT conserva ID y fotos; PATCH cambia disponibilidad. No aceptar la colección completa ni IDs elegidos por el cliente. Precio USD en centavos enteros, máximo 500 anuncios.
 
-## Contrato del segundo avance
-- Estado canónico: `{ "version": 1, "vehiculos": [...] }`. Vehículo: `id` entero positivo seguro para JavaScript, `marca`, `modelo`, `anio`, `kilometraje`, `precio_centavos` entero, `ubicacion`, `descripcion`, `disponibilidad` (`disponible` o `vendido`), `imagen` (`null` o `/static/img/vehiculo.svg`). Moneda de demostración: USD, decisión reversible.
-- `POST /api/validar`: cuerpo `{estado}`; valida y devuelve el estado normalizado. Permite colección vacía.
-- `POST /api/vehiculos`: `{estado, vehiculo}`. El formulario envía `marca`, `modelo`, `anio`, `kilometraje`, `precio_venta` como texto decimal, `ubicacion`, `descripcion`, `disponibilidad`; imagen opcional. Python convierte precio a centavos con Decimal y asigna `max(id)+1`.
-- `PUT /api/vehiculos/<id>`: mismo cuerpo; conserva ID. `PATCH /api/vehiculos/<id>/disponibilidad`: `{estado, disponibilidad}`.
-- Éxito: HTTP 200 (201 al registrar), `{ok:true, estado}`. Error: `{ok:false, mensaje, errores:{campo:mensaje}}`; 400 JSON/estado inválido, 422 campos inválidos, 404 ID inexistente. Error de estado asociado a `estado`.
-- Campos canónicos estrictos; normalización de texto con trim. Marca/modelo 1–60 caracteres; ubicación 1–100; descripción 10–1000. Año entero 1900 hasta año actual+1; kilometraje entero no negativo; precio positivo con máximo dos decimales. Números canónicos enteros (sin booleanos), identificadores únicos. Importes e identificadores dentro del rango seguro de JavaScript. Límite de colección: 500 registros; documentarlo.
-- El navegador valida un estado existente en Flask antes de habilitar operaciones. Solo guarda después de éxito. Si falta la clave, valida y guarda la semilla de `static/js/datos-demo.js`. Si está corrupta/incompatible no sobrescribe: bloquea edición y ofrece restablecimiento explícito confirmado. También maneja errores al leer/escribir almacenamiento. Bloquea envíos simultáneos. Fallos conservan estado e inputs. Restauración se valida en backend antes de guardar.
+POST/PUT de fotografías usan multipart con un solo campo `fotografia`, UUID y CSRF; DELETE exige sesión y CSRF. Hasta cinco fotos por vehículo. Originales JPEG/PNG/WebP hasta 10.000.000 bytes se comprimen en navegador a WebP ≤1600 px y ≤1.000.000 bytes, calidad inicial 78 %. El servidor impone solicitud ≤1.100.000 bytes y vuelve a decodificar/recodificar sin metadatos. No Base64 en PostgreSQL ni archivos persistentes en Vercel.
+
+No borres objetos anteriores antes del commit de sustitución. Reserva durable antes de subir, referencias y cola en transacción. `pendientes_limpieza` es de solo lectura; **reclamar_limpieza debe autorizar cada borrado** bajo bloqueo de operación antes de cola, cancelar reservas expiradas y proteger mediante lease de dos minutos. No quitar esas garantías ni usar un listado antiguo como permiso para borrar. Los errores conservan trabajo recuperable.
+
+## Seguridad
+
+Secretos en entorno, `.env` ignorado, `.env.example` sin valores reales. `SUPABASE_SECRET_KEY` moderna es preferida; alternativa JWT `SUPABASE_SERVICE_ROLE_KEY`. Nunca imprimir claves, DSN, hash administrativo ni mensajes internos del proveedor.
+
+Cada escritura verifica administración y CSRF. Cookies HttpOnly/SameSite=Lax y Secure en HTTPS; Vercel fuerza Secure. Límite de cinco intentos/10 minutos reservado atómicamente en PostgreSQL antes del hash; clave HMAC de `remote_addr`, sin confiar en X-Forwarded-For arbitrario. Si falla PostgreSQL, el login falla cerrado. No sustituirlo por memoria de un worker o cookies.
+
+Preview de Vercel es siempre de solo lectura en esta entrega. `APP_READ_ONLY=false` no debe desbloquearlo. Production requiere aprobación final del usuario. La cuenta administrativa compartida no ofrece atribución individual ni MFA; documentar antes de ampliar exposición.
+
+RLS habilitado en las seis tablas y sin privilegios directos para anon/authenticated/PUBLIC. Los avisos INFO RLS sin políticas son deliberados. No añadir políticas abiertas para silenciarlos. Los índices nuevos sin uso no deben eliminarse por un aviso INFO inmediatamente después de crearlos.
+
+## Migraciones, datos y pruebas
+
+Inspecciona esquema, migraciones, identidad y costos antes de cambios remotos. Versiona SQL y usa Supabase MCP para DDL remoto. No volver a ejecutar la semilla ni modificar los seis anuncios con pruebas. No hacer operaciones destructivas sobre datos reales sin autorización concreta.
+
+Las migraciones están en `supabase/migrations`. La tercera añade cuatro tablas de coordinación sin cambiar anuncios existentes. Los cargadores de semillas/importación son explícitos; localStorage antiguo permanece intacto y las exportaciones se respaldan fuera del repositorio.
+
+Sigue README para Windows/Linux y usa el Python del entorno. Suite: `python -m unittest discover -s tests -v`. Para pruebas reales, `TEST_DATABASE_URL` debe indicar un clúster local aislado y base `grupo7_test*` con permiso de crear bases/roles. La fixture crea y elimina solo bases nuevas UUID; nunca admite Supabase. Sin variable, las pruebas reales se omiten. Distingue PostgreSQL real, Pillow real y Storage simulado.
+
+Verifica los cambios con pruebas apropiadas, compilación Python, sintaxis JS, `pip check`, `git diff --check` y revisión del diff. No repitas pruebas amplias sin cambios o fallos que lo justifiquen. Prueba el flujo visual al cambiar frontend. Detén procesos temporales al terminar y no incluyas logs, fixtures, capturas generadas, entornos ni secretos en Git.
+
+## Vercel y Git
+
+`app.py` expone `app`; `.python-version` fija Python 3.14 y `vercel.json` declara Flask. `scripts/preparar_vercel.py` genera `public/static/` para CDN, sin modificar `static/`; ambos secretos y salida generada se excluyen de subida/Git. No persistir datos en el disco de funciones.
+
+La tarea actual autoriza commits locales verificados, no push, merge a main ni Production. No reescribas historial ni borres ramas. Antes de cualquier publicación confirma destino y autorización. Coordina subagentes con contratos y archivos separados; informa trabajo real, limitaciones y estado final.

@@ -1,69 +1,76 @@
-# Arquitectura del segundo avance
+# Arquitectura vigente
 
-## Componentes
+Aplicación estructurada de catálogo compartido: Python/Flask, PostgreSQL 17, Supabase Storage y frontend HTML/CSS/JavaScript sin compilador. El proyecto remoto autorizado es `rtcygltmrtulyeezaaac`, `us-west-2`. El estado comprobado de los servicios y el despliegue se registra en `AVANCE_02.md`.
 
-- `app.py`: crea Flask, sirve el HTML y adapta solicitudes/respuestas HTTP. No almacena vehículos.
-- `vehiculos.py`: funciones de validación del estado y de campos, registro, edición, asignación de ID y disponibilidad. No clases propias de dominio ni ORM.
-- `templates/index.html` y `static/css/`: estructura accesible y presentación responsive.
-- `static/js/datos-demo.js`: seis registros ficticios, separados de la interfaz.
-- `static/js/`: interacción, llamadas HTTP, representación del listado y almacenamiento del resultado. No aplica las reglas definitivas de registro/edición.
-- `static/img/vehiculo.svg`: ilustración local de demostración.
-- `tests/`: pruebas con `unittest` de Python.
-
-Las tarjetas muestran la descripción completa y adaptan su altura al contenido; CSS permite partir textos sin espacios para evitar desbordamientos. El formulario se organiza en una columna hasta 520 px, con etiquetas de 14 px, campos de 16 px y controles de al menos 44 px de alto. Estos ajustes son de presentación y no modifican el modelo ni el contrato HTTP.
-
-## Repositorio y evolución
-
-El proyecto utiliza Git para control de versiones. `.gitignore` excluye entornos locales, cachés, archivos privados y resultados generados, y conserva bajo seguimiento el código, recursos, pruebas y documentación necesarios. `.env.example` indica que el prototipo no requiere variables de entorno; los nombres comentados de Supabase y una futura clave de Flask son referencias de planificación, no configuración activa.
-
-La arquitectura ejecutable continúa siendo Python/Flask sin persistencia en servidor y JavaScript con `localStorage`. PostgreSQL, Supabase, almacenamiento de imágenes y Vercel no están implementados ni configurados. Antes de migrar se debe decidir y documentar persistencia, credenciales, acceso, almacenamiento de fotografías y estrategia de despliegue. Las observaciones del profesor sobre características detalladas y fotografías reales siguen pendientes de implementación.
-
-## Flujo
-
-Al abrir, JavaScript lee `vehiculos_demo_v1`. Si no existe, propone la semilla; si existe, interpreta el JSON. Envía el estado a `/api/validar` antes de habilitar operaciones. Un JSON corrupto o un estado rechazado no se sobrescribe. Restablecer necesita una confirmación y valida la semilla antes de guardarla.
-
-Para registrar/editar/cambiar disponibilidad: navegador → JSON con estado actual → ruta Flask → función Python → respuesta normalizada → escritura en `localStorage` → actualización de la interfaz. Un error conserva la colección anterior y los campos del formulario. Se bloquean operaciones simultáneas. Si no se puede guardar, no se presenta el resultado como persistido.
-
-Python concentra la lógica porque la asignatura exige programación estructurada en Python y permite probar las reglas sin navegador. Las rutas comparten funciones de validación; JavaScript solo convierte los datos del formulario al formato de transporte y presenta respuestas. Las restricciones HTML ayudan a introducir datos, pero no sustituyen Python.
-
-## Modelo canónico
-
-```json
-{
-  "version": 1,
-  "vehiculos": [{
-    "id": 1,
-    "marca": "Toyota",
-    "modelo": "Corolla",
-    "anio": 2019,
-    "kilometraje": 68000,
-    "precio_centavos": 1450000,
-    "ubicacion": "Managua",
-    "descripcion": "Vehículo ficticio para la demostración académica.",
-    "disponibilidad": "disponible",
-    "imagen": "/static/img/vehiculo.svg"
-  }]
-}
+```mermaid
+flowchart LR
+  Navegador -->|JSON o multipart + sesión/CSRF| Flask
+  Flask -->|SQL parametrizado, TLS| PostgreSQL
+  Flask -->|WebP, clave solo del servidor| Storage[Supabase Storage]
+  Navegador -->|Lectura de URL pública| Storage
 ```
 
-Moneda de demostración USD. `precio_centavos` es entero positivo: 1450000 representa USD 14,500.00. El formulario envía `precio_venta` como texto decimal (por ejemplo `"14500.00"`); Python usa `Decimal`, sin redondear silenciosamente fracciones de centavo. Al editar se conserva el ID; al registrar se usa el máximo ID existente más uno (1 para colección vacía). No hay eliminación.
+## Responsabilidades
 
-Marca/modelo: 1–60 caracteres; ubicación: 1–100; descripción: 10–1000, tras recortar extremos. Año entero desde 1900 hasta año actual de Python +1. Kilometraje entero no negativo. Disponibilidad: `disponible` o `vendido`. Imagen opcional: `null` o la ruta SVG local indicada. El estado canónico requiere números enteros, excluye booleanos y comprueba IDs positivos únicos. Números enteros hasta 9007199254740991 para interoperar con JavaScript; hasta 500 vehículos. Se comprueba la estructura de todos los registros recibidos, no solo el vehículo editado.
+| Archivo | Responsabilidad |
+| --- | --- |
+| `vehiculos.py` | Validación/normalización pura, Decimal a centavos y exportaciones antiguas. |
+| `persistencia.py` | Conexión psycopg, CRUD, IDs de PostgreSQL, límite 500, idempotencia, semillas e importación. |
+| `persistencia_fotos.py` | Metadatos, máximo cinco, reservas durables, sustitución, eliminación y reclamación de limpieza. |
+| `limites_login.py` | Ventanas compartidas de intentos, reservadas atómicamente antes del hash. |
+| `imagenes.py` | Decodificación Pillow, límites, orientación y WebP nuevo sin metadatos. |
+| `almacenamiento.py` | REST de Storage, URLs públicas, errores seguros y procesamiento de cola. |
+| `app.py` | Flask, contratos HTTP, sesión, CSRF, autorización y modo de consulta. |
+| `static/js/interfaz.js` | Formularios, galería, administración y HTTP; conserva UUID ante resultados inciertos. |
+| `static/js/fotografias.js` | Compresión y vista previa de un archivo por vez en navegador. |
 
-## HTTP
+No hay ORM, colección global de anuncios, persistencia en archivos de aplicación ni clases de dominio. Los dobles en pruebas no sustituyen PostgreSQL en producción.
 
-Todas las rutas API reciben `Content-Type: application/json`. Éxito: `{ "ok": true, "estado": { ... } }`. Error: `{ "ok": false, "mensaje": "...", "errores": { "campo": "..." } }`. `estado` identifica errores de la colección.
+## Modelo relacional
 
-| Método y ruta | Cuerpo | Resultado |
-| --- | --- | --- |
-| `GET /` | — | Página de demostración |
-| `POST /api/validar` | `{estado}` | 200, estado validado; no guarda en servidor |
-| `POST /api/vehiculos` | `{estado, vehiculo}` | 201, colección con nuevo ID |
-| `PUT /api/vehiculos/<id>` | `{estado, vehiculo}` | 200, mismo ID con nuevos datos |
-| `PATCH /api/vehiculos/<id>/disponibilidad` | `{estado, disponibilidad}` | 200, disponibilidad actualizada |
+`public.vehiculos`: id BIGINT IDENTITY PK; marca/modelo VARCHAR(60), año SMALLINT, kilometraje/precio_centavos BIGINT, ubicación VARCHAR(100), descripción VARCHAR(1000), disponibilidad disponible/vendido y timestamps. Campos opcionales: color(40), placa(20), tipo(40), transmisión/combustible(30) y tres BOOLEAN nullable. USD permanece como moneda y los enteros se restringen al rango seguro de JavaScript. Python valida año 1900 hasta año actual +1; SQL conserva el mínimo estático. `updated_at` se actualiza desde las consultas, sin trigger.
 
-`vehiculo` de registro/edición contiene `marca`, `modelo`, `anio`, `kilometraje`, `precio_venta`, `ubicacion`, `descripcion`, `disponibilidad` e imagen opcional. Los campos numéricos del formulario pueden viajar como texto; Python los convierte. El cliente no elige un ID nuevo.
+`public.vehiculo_fotografias`: IDENTITY PK; vehículo FK ON DELETE RESTRICT; ruta única; orden 1..5 y UNIQUE(vehiculo_id,orden); MIME image/webp; tamaño 1..1.000.000; dimensiones 1..1600; timestamp. Los índices de PK/UNIQUE cubren búsquedas por vehículo y restricciones. No contiene binarios ni Base64.
 
-Errores: **400** JSON o estado inválido; **422** campos o disponibilidad inválidos; **404** ID inexistente; **405** método no admitido. La aplicación limita solicitudes a **4 MiB** y devuelve **413** si se excede el límite. Los errores API mantienen el formato JSON. Ningún error devuelve una colección alterada. Las funciones crean resultados nuevos sin mutar el estado de entrada.
+Tablas auxiliares privadas al API público:
 
-No hay una fuente de verdad compartida: dos navegadores envían colecciones independientes. La interfaz detecta cambios en otra pestaña y compara el texto guardado antes y después de una solicitud para evitar sobrescribir una versión desactualizada; exige recargar el inventario. No hay transacciones atómicas entre pestañas ni conciliación de cambios. No se implementa autorización. El servidor se usa exclusivamente como prototipo local.
+- `admin_login_intentos`: clave HMAC, número de intentos y expiración; índice por expiración y limpieza acotada de ventanas de más de un día.
+- `solicitudes_idempotentes`: UUID de alta, huella del cuerpo normalizado y FK al vehículo. Reutilizar clave con datos distintos se rechaza.
+- `fotografia_operaciones`: UUID, vehículo, foto objetivo/resultado, ruta anterior/nueva, huella y estado pendiente/completada/cancelada. Una reserva caduca después de una hora.
+- `storage_limpieza`: ruta, instante elegible y concesión `reclamada_hasta`; trabajo durable para objetos sin referencia.
+
+RLS está habilitado en las seis tablas y se revocaron privilegios a PUBLIC/anon/authenticated. No hay políticas públicas. Las lecturas públicas pasan por Flask y la conexión privilegiada permanece en el servidor. Los avisos INFO RLS sin políticas reflejan ese cierre; no se añaden políticas abiertas para silenciarlos.
+
+## Consistencia e idempotencia
+
+Las altas bloquean la tabla para comprobar el límite de 500 e insertar la solicitud idempotente en la misma transacción. PostgreSQL genera los IDs. Las fotos bloquean la fila del vehículo, por lo que altas concurrentes no superan cinco órdenes ni duplican una clave de envío.
+
+Proceso de carga/sustitución:
+
+1. Python decodifica y recodifica la imagen; deriva su huella.
+2. PostgreSQL reserva UUID/ruta y deja recuperación durable antes de enviar bytes.
+3. Se sube a una ruta nueva, sin upsert. Un 409 solo se acepta tras descargar y comparar bytes mediante tamaño y SHA-256.
+4. PostgreSQL confirma metadatos, estado completado y cola para el objeto anterior en una sola transacción. Una sustitución concurrente incompatible falla sin eliminar la foto vigente.
+5. Tras el commit se intenta procesar una tarea de limpieza. Un error conserva la cola y se informa como limpieza pendiente, sin deshacer el cambio válido.
+
+Eliminar una foto retira su referencia y encola el objeto en el mismo commit; no borra primero el objeto. La previsualización de limpieza no modifica datos. Cada borrado real requiere reclamar la ruta con bloqueos en orden operación→cola y una lectura actual. La reclamación cancela una reserva expirada antes de autorizar el borrado, excluye referencias activas y usa una concesión de dos minutos. Así una confirmación que cruza el vencimiento no puede competir con el borrado. Un crash deja una reserva o cola recuperable, no exige borrar fotografías anteriores por suposición.
+
+No hay transacción distribuida entre PostgreSQL y Storage. Los objetos huérfanos son recuperables mediante la cola y el comando de mantenimiento. No se barre todo el bucket.
+
+## HTTP y seguridad
+
+Los contratos completos están en README. GET lista/item devuelve fotos y omite placa sin sesión. POST/PUT de anuncios recibe solo `{vehiculo}`; PATCH recibe `{disponibilidad}`. POST alta y POST/PUT de fotos exigen UUID. Fotos usan multipart individual; DELETE se autoriza igual que otras escrituras. Errores: JSON `ok=false,mensaje,errores?`; el cliente no recibe trazas, DSN ni mensajes internos de proveedores.
+
+Sesión Flask firmada con clave de entorno; contraseña scrypt de entorno, máximo 1024 caracteres antes del hash; cookie HttpOnly/SameSite=Lax y Secure en HTTPS/Vercel. Cada mutación requiere CSRF. El token rota al entrar/salir. Página/API usan no-store y nosniff. No hay sesiones administrativas almacenadas en memoria de un worker.
+
+El límite es cinco intentos por diez minutos para HMAC(remote_addr), reservados atómicamente en PostgreSQL y liberados tras acceso correcto. No depende de cookies ni confía en X-Forwarded-For arbitrario. Si un proxy concentra varias direcciones, el límite será conservador y compartido. No reemplaza MFA ni atribución individual; la administración sigue siendo compartida.
+
+El navegador acepta originales de hasta 10 MB y prepara WebP ≤1600 px, calidad inicial 78 y ≤1 MB. Flask limita cada solicitud a 1.1 MB, solo acepta un archivo, rechaza animaciones/corrupción y vuelve a codificar sin EXIF/ICC/XMP. Una clave secreta moderna viaja solo en apikey; el JWT service_role heredado usa apikey/Bearer. HTTPS es obligatorio y se rechazan redirecciones para no reenviar secretos.
+
+## Ambientes y Vercel
+
+Desarrollo usa `.env` ignorado. PostgreSQL remoto siempre requiere TLS, con prepared statements desactivados para Transaction Pooler. La excepción sin TLS exige opt-in y loopback fijo; rechaza redirecciones hostaddr/service del destino local.
+
+Vercel detecta `app.py:app`, usa Python 3.14 y una función con 60 segundos. El build copia recursos a `public/static/` para CDN; no hay fotos ni datos persistentes en el disco de Vercel. Preview es siempre de solo lectura, aun con APP_READ_ONLY=false. Production necesita variables propias y aprobación final. No existe promoción ni push implícito.
+
+Las pruebas reales crean bases PostgreSQL locales nuevas con UUID. Storage remoto requiere credenciales y una verificación autorizada separada: los dobles y el arnés de navegador no acreditan una carga al servicio. La evidencia distingue esos alcances.

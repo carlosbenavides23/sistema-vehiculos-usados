@@ -1,45 +1,46 @@
 # Decisiones y cuestiones pendientes
 
-## Aceptadas para este avance
+## Implementación integral — 29 de octubre de 2026
 
-| Decisión | Justificación |
+| Decisión | Motivo |
 | --- | --- |
-| Python, Flask y funciones en pocos módulos | Cumplir Programación Estructurada, mantener reglas comprobables y código explicable por estudiantes |
-| HTML, CSS y JavaScript sin frameworks | Suficiente para listado y formulario; no requiere compilación |
-| Estado versionado solo en `localStorage` | Persistencia provisional exigida, sin base de datos ni colección global de Flask |
-| Validar toda la colección en Python en cada operación | El navegador puede alterarse; no confiar en tipos, IDs ni formato |
-| IDs numéricos y dinero en centavos | Identidad estable y cálculos monetarios sin errores binarios |
-| Estado incompatible bloquea operaciones; restauración confirmada | Evitar pérdida silenciosa de los datos anteriores |
-| Seis vehículos y SVG local | Demostración coherente sin fotografías, datos o servicios externos |
-| Límite de 500 registros y una pestaña de trabajo | Acotar el estado de un prototipo sin resolución de concurrencia |
-| Descripciones completas y tipografía legible desde 320 px | Mostrar la información del anuncio sin recortarla; adaptar tarjetas y formulario sin agregar pantallas ni bibliotecas |
+| PostgreSQL 17/Supabase como fuente de verdad, Flask como única API de datos | Catálogo compartido y autorización de escrituras comprensible para Programación Estructurada. |
+| Funciones Python y psycopg, sin ORM | Separar validación, acceso a datos, seguridad y adaptación HTTP con pocos módulos. |
+| USD en centavos e IDs BIGINT IDENTITY seguros para JavaScript | Conserva formato y evita IDs asignados por navegadores o errores de punto flotante. |
+| Opcionales y booleanos triestado | No convertir características no informadas en falsas ni inferirlas desde descripciones. |
+| Placa administrativa | No se entrega públicamente. Una placa visible en una fotografía necesita ocultarse antes de subirla. |
+| Cinco fotos, originales de 10 MB y WebP ≤1 MB/1600 px | Mantiene el bucket existente y permite solicitudes individuales por debajo del límite de funciones Vercel. |
+| Validación y recodificación en Python además del navegador | No confiar en MIME, extensión ni código del cliente; eliminar metadatos y rechazar animaciones/corrupción. |
+| Objetos nuevos sin upsert y coordinación durable | Conservar foto anterior hasta commit, recuperar objetos sin referencia y evitar pérdida ante fallos parciales. |
+| Limpieza reclamada bajo bloqueo, con cancelación de reservas vencidas y concesión de dos minutos | Evitar que el limpiador borre un objeto que otra transacción está confirmando. Previsualizar no modifica datos. |
+| UUID y huella de contenido para altas/cargas | Evitar duplicados tras doble clic, respuesta perdida o reintentos; rechazar reuso con contenido distinto. |
+| Administrador compartido Flask, scrypt y CSRF | Prototipo académico sencillo. No proporciona cuentas individuales, MFA ni atribución de cambios. |
+| Límite de intentos en PostgreSQL | Compartido entre procesos, no reiniciable al borrar cookies, sin infraestructura de pago adicional. |
+| RLS sin políticas públicas y privilegios revocados | La lectura pública pasa por Flask. No habilitar acceso directo solo para eliminar avisos INFO. |
+| Preview siempre de consulta | Impedir que una Preview escriba sobre los seis registros de producción por un error de configuración. |
+| Dependencias directas fijadas | Reproducir Flask, psycopg, dotenv y Pillow comprobados; no introducir un framework frontend. |
 
-## Suposiciones reversibles
+## Seguridad y operación
 
-- **USD** para los precios de demostración; no es un requisito confirmado del profesor. La moneda está indicada en interfaz y documentación.
-- Vendedor ficticio fijo, sin identidad real ni cuentas. Los contactos de demostración no deben enlazar a personas reales.
-- Ubicación general como texto; no dirección precisa ni geolocalización.
-- Descripción de 10 a 1000 caracteres y marca/modelo hasta 60: límites de interfaz y validación elegidos para este prototipo.
-- Git se utiliza para control de versiones y el proyecto ya está alojado en GitHub. Las ramas y publicaciones se coordinan por tarea; ningún commit local autoriza por sí mismo un push o merge.
+La limitación por HMAC de remote_addr puede agrupar a usuarios detrás de un proxy; es una protección conservadora, no una identidad. No se confía en cabeceras reenviadas arbitrarias. La administración debe evolucionar a cuentas individuales si se amplían usuarios o exposición. Rotar FLASK_SECRET_KEY invalida las sesiones; no se publican claves ni contraseñas.
 
-## Indicaciones del profesor
+Las fotos son públicas en el bucket existente. No se agregó reconocimiento de rostros o placas: el equipo revisa el contenido antes de subirlo. Una cola durable recupera fallos de Storage, pero necesita reintentos de mantenimiento; no se activó cron ni servicio externo de pago.
 
-Se hace explícito el uso de Python. Se conserva **precio de venta** como dato del anuncio y se excluye el filtro de precio máximo.
+El esquema y las pruebas locales no equivalen a conexión Flask→Supabase o carga Storage remota. Esas comprobaciones dependen de credenciales locales configuradas y deben reportarse por separado. No se prueba escritura sobre los seis registros remotos. No se inventa éxito de un despliegue o de un servicio no ejecutado.
 
-**“Poner números”** es ambiguo: no se interpreta como una funcionalidad confirmada. Se usan números para ID, año, kilometraje y precio; falta aclarar si el docente se refiere a numeración de requisitos, pantallas u otra cosa.
+## Decisiones históricas
 
-**Validación de entradas** comprueba campos del formulario y estructura del estado para que el programa funcione. **Validación técnica del vehículo** sería una función distinta, futura: faltan responsable, criterios, evidencia y efecto del resultado. No se ha confirmado un rol de mecánico, un flujo de aprobación ni certificación oficial; no se implementan ni se muestran como reales.
+El segundo avance usaba localStorage versionado. La Fase 1 lo reemplazó por PostgreSQL; el valor vehiculos_demo_v1 queda intacto para exportación deliberada. Los seis registros ficticios siguen como conjunto inicial. Los nuevos campos no se rellenan interpretando sus descripciones.
 
-## Por resolver
+La carga demo y la importación se ejecutan explícitamente, nunca al arrancar Flask. El importador previsualiza por defecto, asigna nuevos IDs y omite coincidencias exactas. No sobrescribe datos ni borra el navegador.
 
-1. Confirmar significado de “poner números” con el docente.
-2. Definir alcance, responsable, criterios y evidencia de la validación técnica del vehículo.
-3. Elegir persistencia definitiva y su relación con usuarios/dispositivos antes de ampliar el sistema.
-4. Precisar contacto e integración, privacidad y servicios autorizados para otra etapa.
-5. Confirmar las fechas de presentación restantes, manteniendo la fecha límite total del **30 de noviembre de 2026**.
+## Pendientes de decisión o autorización
 
-Toda modificación de una decisión debe actualizar este archivo, el contrato y las instrucciones afectadas antes de ampliar el alcance.
+1. Aclarar con el docente el significado de “poner números”. No se interpreta como una función nueva.
+2. Definir alcance, responsable, criterios y evidencia de una posible validación técnica; no afirmar certificación mecánica.
+3. Completar credenciales y verificar los servicios remotos sin usar los seis anuncios como datos de prueba.
+4. Confirmar el acceso administrativo y la operación de limpieza antes de publicar.
+5. Obtener aprobación para Production. Una Preview no autoriza promoción, push ni merge.
+6. Confirmar presentaciones restantes y gestionar el fin de publicación previsto el 27 de noviembre, manteniendo la fecha académica del 30 de noviembre de 2026.
 
-## Preparación de repositorio (29 de octubre de 2026)
-
-Se amplió `.gitignore` para excluir entornos y cachés de Python, configuraciones locales, bases de datos de desarrollo y artefactos generados. `.env.example` no declara variables actuales: la aplicación funciona sin ellas. Las variables nombradas allí para PostgreSQL/Supabase y una posible clave de sesión Flask son solo futuras, comentadas y no están conectadas al código. La base de datos, el Storage y el despliegue siguen pendientes de diseño e implementación. Las observaciones del profesor sobre características detalladas y fotografías reales permanecen pendientes.
+Cada ampliación debe actualizar arquitectura, contratos y evidencia. Búsqueda avanzada, precio máximo, chat, pagos, contacto real y cuentas completas permanecen fuera del alcance autorizado.

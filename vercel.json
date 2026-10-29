@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "flask",
+  "buildCommand": "python scripts/preparar_vercel.py",
+  "regions": ["sfo1"],
+  "functions": {
+    "app.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,docs/**,supabase/**,scripts/**,static/**,public/**,AGENTS.md,README.md}"
+    }
+  }
+}
