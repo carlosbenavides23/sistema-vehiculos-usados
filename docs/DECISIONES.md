@@ -20,7 +20,7 @@
 - Vendedor ficticio fijo, sin identidad real ni cuentas. Los contactos de demostración no deben enlazar a personas reales.
 - Ubicación general como texto; no dirección precisa ni geolocalización.
 - Descripción de 10 a 1000 caracteres y marca/modelo hasta 60: límites de interfaz y validación elegidos para este prototipo.
-- La rama inicial es `main`; no se crea un remoto ni se publica el repositorio.
+- Git se utiliza para control de versiones y el proyecto ya está alojado en GitHub. Las ramas y publicaciones se coordinan por tarea; ningún commit local autoriza por sí mismo un push o merge.
 
 ## Indicaciones del profesor
 
@@ -39,3 +39,7 @@ Se hace explícito el uso de Python. Se conserva **precio de venta** como dato d
 5. Confirmar las fechas de presentación restantes, manteniendo la fecha límite total del **30 de noviembre de 2026**.
 
 Toda modificación de una decisión debe actualizar este archivo, el contrato y las instrucciones afectadas antes de ampliar el alcance.
+
+## Preparación de repositorio (29 de octubre de 2026)
+
+Se amplió `.gitignore` para excluir entornos y cachés de Python, configuraciones locales, bases de datos de desarrollo y artefactos generados. `.env.example` no declara variables actuales: la aplicación funciona sin ellas. Las variables nombradas allí para PostgreSQL/Supabase y una posible clave de sesión Flask son solo futuras, comentadas y no están conectadas al código. La base de datos, el Storage y el despliegue siguen pendientes de diseño e implementación. Las observaciones del profesor sobre características detalladas y fotografías reales permanecen pendientes.

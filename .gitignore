@@ -1,11 +1,59 @@
-.venv/
-venv/
+# Python y herramientas de análisis
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+.coverage.*
 htmlcov/
+
+# Entornos virtuales locales
+.venv/
+venv/
+env/
+ENV/
+
+# Configuración privada y credenciales locales
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+credentials.json
+*-credentials.json
+service-account*.json
+
+# Editores y sistema operativo
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
+
+# Persistencia local y archivos generados
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.tmp
+*.temp
+*.bak
+*.zip
+*.egg-info/
+build/
+dist/
+tmp/
+temp/
+logs/
+debug/
 entregables/
+
+# Configuración local de Vercel
+.vercel/

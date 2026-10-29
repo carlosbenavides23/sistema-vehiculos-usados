@@ -8,7 +8,8 @@ Proyecto académico de Programación Estructurada de UAM Managua, Grupo 7: siste
 - Persistencia provisional exclusivamente en el navegador, clave `vehiculos_demo_v1`, formato versionado. Flask procesa cada estado recibido sin colección global ni archivos de datos. No bases de datos ni servicios remotos.
 - No ampliar a cuentas, pagos, contacto real, buscador avanzado, filtro de precio máximo, certificación ni validación técnica del vehículo. Definir y documentar cualquier futura ampliación antes de implementarla.
 - No descargar ni generar imágenes; usar SVG local sencillo. Los datos y contactos son ficticios.
-- No commit, push, merge, despliegue ni publicación sin una instrucción posterior del usuario.
+- No hacer commit, push, merge, despliegue ni publicación salvo instrucción explícita del usuario. Un commit local autorizado no implica autorización para push o merge.
+- Mantener `.env.example` sin valores de credenciales; nunca registrar `.env`, llaves privadas ni credenciales locales. Al cambiar dependencias actuales, actualizar `requirements.txt`.
 
 ## Antes de editar
 Leer los AGENTS.md aplicables, README y docs. Inspeccionar `git status --short`, `git branch --show-current` y el diff. Conservar cambios ajenos; no usar `git reset --hard`. No reorganizar fuera del alcance. Actualizar documentación cuando cambie una decisión o contrato.
@@ -17,6 +18,9 @@ Leer los AGENTS.md aplicables, README y docs. Inspeccionar `git status --short`,
 `py -m venv .venv` crea el entorno. `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` instala Flask. `.\.venv\Scripts\python.exe app.py` inicia el servidor local en http://127.0.0.1:5000; Ctrl+C lo detiene. `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` ejecuta las pruebas de Python. Verificar además el flujo real en navegador y pantalla estrecha. Detener procesos temporales. No afirmar que una comprobación se ejecutó sin evidencia; anotar resultados y límites reales en `docs/AVANCE_02.md`.
 
 En Linux: `python3 -m venv .venv`, `./.venv/bin/python -m pip install -r requirements.txt`, `./.venv/bin/python app.py` y `./.venv/bin/python -m unittest discover -s tests -v`, respectivamente. Todos parten de la raíz; el README debe usar rutas relativas, sin directorios personales. Las descripciones deben mostrarse completas y los textos importantes ser legibles desde 320 px.
+
+## Repositorio y preparación futura
+El proyecto usa Git; mantener código, pruebas y documentación bajo seguimiento. `.gitignore` excluye entornos, cachés, secretos locales, bases de datos locales y artefactos generados, pero no código ni recursos necesarios. Conservar `.env.example` solo como documentación de variables: la aplicación actual no requiere configuración de entorno. PostgreSQL, Supabase, Storage y Vercel son posibilidades futuras sin implementación actual; no añadir carpetas vacías, dependencias ni configuración de despliegue hasta que se acuerde su diseño.
 
 Para preparar una entrega, excluir entornos, Git, cachés, secretos, logs, arneses temporales y ZIP anteriores sin borrar esos elementos del directorio de trabajo. Usar una sola carpeta raíz `Grupo7_Sistema_Vehiculos_Usados_Avance02/`. Inspeccionar el ZIP, extraerlo en una carpeta temporal limpia, crear un entorno nuevo, instalar requirements y probar backend, arranque y navegador. Calcular SHA-256 después de finalizar el ZIP.
 

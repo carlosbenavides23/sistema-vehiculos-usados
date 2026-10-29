@@ -12,6 +12,12 @@
 
 Las tarjetas muestran la descripción completa y adaptan su altura al contenido; CSS permite partir textos sin espacios para evitar desbordamientos. El formulario se organiza en una columna hasta 520 px, con etiquetas de 14 px, campos de 16 px y controles de al menos 44 px de alto. Estos ajustes son de presentación y no modifican el modelo ni el contrato HTTP.
 
+## Repositorio y evolución
+
+El proyecto utiliza Git para control de versiones. `.gitignore` excluye entornos locales, cachés, archivos privados y resultados generados, y conserva bajo seguimiento el código, recursos, pruebas y documentación necesarios. `.env.example` indica que el prototipo no requiere variables de entorno; los nombres comentados de Supabase y una futura clave de Flask son referencias de planificación, no configuración activa.
+
+La arquitectura ejecutable continúa siendo Python/Flask sin persistencia en servidor y JavaScript con `localStorage`. PostgreSQL, Supabase, almacenamiento de imágenes y Vercel no están implementados ni configurados. Antes de migrar se debe decidir y documentar persistencia, credenciales, acceso, almacenamiento de fotografías y estrategia de despliegue. Las observaciones del profesor sobre características detalladas y fotografías reales siguen pendientes de implementación.
+
 ## Flujo
 
 Al abrir, JavaScript lee `vehiculos_demo_v1`. Si no existe, propone la semilla; si existe, interpreta el JSON. Envía el estado a `/api/validar` antes de habilitar operaciones. Un JSON corrupto o un estado rechazado no se sobrescribe. Restablecer necesita una confirmación y valida la semilla antes de guardarla.
