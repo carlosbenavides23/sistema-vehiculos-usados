@@ -45,6 +45,6 @@ Verifica los cambios con pruebas apropiadas, compilación Python, sintaxis JS, `
 
 ## Vercel y Git
 
-`app.py` expone `app`; `.python-version` fija Python 3.14 y `vercel.json` declara Flask. `scripts/preparar_vercel.py` genera `public/static/` para CDN, sin modificar `static/`; ambos secretos y salida generada se excluyen de subida/Git. No persistir datos en el disco de funciones.
+`app.py` expone `app`; `.python-version` fija Python 3.14 y `vercel.json` declara Flask. Los recursos que Flask referencia bajo `/static/` también deben estar versionados byte por byte en `public/static/`, que Vercel sirve desde CDN. `scripts/preparar_vercel.py` sincroniza esas copias; no las excluyas de Git ni de `.vercelignore`. No persistir datos en el disco de funciones.
 
 La tarea actual autoriza commits locales verificados, no push, merge a main ni Production. No reescribas historial ni borres ramas. Antes de cualquier publicación confirma destino y autorización. Coordina subagentes con contratos y archivos separados; informa trabajo real, limitaciones y estado final.

@@ -57,6 +57,3 @@ entregables/
 
 # Configuración local de Vercel
 .vercel/
-
-# Recursos CDN generados por el build de Vercel
-/public/static/

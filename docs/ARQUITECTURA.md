@@ -71,6 +71,6 @@ El navegador acepta originales de hasta 10 MB y prepara WebP ≤1600 px, calidad
 
 Desarrollo usa `.env` ignorado. PostgreSQL remoto siempre requiere TLS, con prepared statements desactivados para Transaction Pooler. La excepción sin TLS exige opt-in y loopback fijo; rechaza redirecciones hostaddr/service del destino local.
 
-Vercel detecta `app.py:app`, usa Python 3.14 y una función con 60 segundos. El build copia recursos a `public/static/` para CDN; no hay fotos ni datos persistentes en el disco de Vercel. Preview es siempre de solo lectura, aun con APP_READ_ONLY=false. Production necesita variables propias y aprobación final. No existe promoción ni push implícito.
+Vercel detecta `app.py:app`, usa Python 3.14 y una función con 60 segundos. Los recursos referenciados por las plantillas se versionan en `public/static/` para servirlos por CDN; `scripts/preparar_vercel.py` sincroniza esas copias desde `static/`. No hay fotos ni datos persistentes en el disco de Vercel. Preview es siempre de solo lectura, aun con APP_READ_ONLY=false. Production necesita variables propias y aprobación final. No existe promoción ni push implícito.
 
 Las pruebas reales crean bases PostgreSQL locales nuevas con UUID. Storage remoto requiere credenciales y una verificación autorizada separada: los dobles y el arnés de navegador no acreditan una carga al servicio. La evidencia distingue esos alcances.
