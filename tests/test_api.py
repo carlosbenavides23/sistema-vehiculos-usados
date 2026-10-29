@@ -3,6 +3,7 @@
 import os
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 from uuid import uuid4
 
 os.environ.setdefault("FLASK_SECRET_KEY", "clave-solo-para-pruebas")
@@ -118,6 +119,14 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(respuesta.status_code, 200)
         return respuesta
 
+    def crear_vehiculo(self, **cambios):
+        respuesta = self.cliente.post(
+            "/api/vehiculos", json={"vehiculo": formulario(**cambios)},
+            headers={"X-CSRF-Token": self.token(), "Idempotency-Key": str(uuid4())},
+        )
+        self.assertEqual(respuesta.status_code, 201, respuesta.get_data(as_text=True))
+        return respuesta.json["vehiculo"]
+
     def test_catalogo_publico_y_consulta_individual(self):
         lista_vacia = self.cliente.get("/api/vehiculos")
         self.assertEqual(lista_vacia.status_code, 200)
@@ -135,8 +144,102 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(publico.headers.get("Cache-Control"), "no-store")
         privado = self.cliente.get("/api/vehiculos/1")
         self.assertEqual(privado.json["vehiculo"]["placa"], "M 123-456")
+        self.assertIn("fotografias", privado.json["vehiculo"])
         self.assertEqual(privado.headers.get("Cache-Control"), "no-store")
         self.assertEqual(self.cliente.get("/api/vehiculos/99").status_code, 404)
+
+        pagina_compartible = lector_publico.get("/vehiculo/1")
+        self.assertEqual(pagina_compartible.status_code, 200)
+        self.assertIn(b'data-vehiculo-id="1"', pagina_compartible.data)
+
+        detalle_publico = lector_publico.get("/api/vehiculos/1")
+        self.assertEqual(set(detalle_publico.json), {"ok", "vehiculo"})
+        self.assertIn("fotografias", detalle_publico.json["vehiculo"])
+        self.assertNotIn("placa", detalle_publico.json["vehiculo"])
+        detalle_inexistente = lector_publico.get("/api/vehiculos/99")
+        self.assertEqual(detalle_inexistente.status_code, 404)
+        self.assertFalse(detalle_inexistente.json["ok"])
+
+    def test_catalogo_filtra_combinando_parametros_y_usa_id_ascendente_por_defecto(self):
+        self.iniciar_admin()
+        primero = self.crear_vehiculo(
+            marca="Toyota", modelo="Corolla", anio="2020", precio_venta="12500.25",
+            tipo_vehiculo="Sedán", disponibilidad="disponible",
+        )
+        self.crear_vehiculo(
+            marca="Toyota", modelo="Yaris", anio="2022", precio_venta="15000",
+            tipo_vehiculo="Sedán", disponibilidad="vendido",
+        )
+        self.crear_vehiculo(
+            marca="Honda", modelo="Civic", anio="2019", precio_venta="18000",
+            tipo_vehiculo="Sedán", disponibilidad="disponible",
+        )
+        self.crear_vehiculo(
+            marca="Toyota", modelo="Hilux", anio="2021", precio_venta="25000",
+            tipo_vehiculo="Pickup", disponibilidad="disponible",
+        )
+        self.crear_vehiculo(
+            marca="Toyota", modelo="Corolla viejo", anio="2018", precio_venta="9000",
+            tipo_vehiculo="Sedán", disponibilidad="disponible",
+        )
+
+        consulta = urlencode({
+            "q": "toyota", "disponibilidad": "disponible", "precio_min": "10000.25",
+            "precio_max": "20000.25", "anio_min": "2019", "anio_max": "2022",
+            "tipo_vehiculo": "Sedán",
+        })
+        combinado = self.cliente.get("/api/vehiculos?" + consulta)
+        self.assertEqual(combinado.status_code, 200, combinado.get_data(as_text=True))
+        self.assertEqual([v["id"] for v in combinado.json["vehiculos"]], [primero["id"]])
+
+        por_defecto = self.cliente.get("/api/vehiculos")
+        self.assertEqual([v["id"] for v in por_defecto.json["vehiculos"]], [1, 2, 3, 4, 5])
+
+    def test_catalogo_query_string_q_filtra_marca_sin_otros_filtros(self):
+        self.iniciar_admin()
+        toyota = self.crear_vehiculo(marca="Toyota", modelo="Corolla")
+        self.crear_vehiculo(marca="Honda", modelo="Civic")
+
+        respuesta = self.cliente.get("/api/vehiculos?q=Toyota")
+
+        self.assertEqual(respuesta.status_code, 200, respuesta.get_data(as_text=True))
+        self.assertEqual([vehiculo["id"] for vehiculo in respuesta.json["vehiculos"]], [toyota["id"]])
+        self.assertEqual(respuesta.json["vehiculos"][0]["marca"], "Toyota")
+
+    def test_catalogo_ordenes_permitidos(self):
+        self.iniciar_admin()
+        self.crear_vehiculo(anio="2020", precio_venta="15000")
+        self.crear_vehiculo(anio="2018", precio_venta="12000")
+        self.crear_vehiculo(anio="2022", precio_venta="18000")
+
+        esperados = {
+            "precio_asc": [2, 1, 3],
+            "precio_desc": [3, 1, 2],
+            "anio_asc": [2, 1, 3],
+            "anio_desc": [3, 1, 2],
+        }
+        for orden, ids in esperados.items():
+            with self.subTest(orden=orden):
+                respuesta = self.cliente.get(f"/api/vehiculos?orden={orden}")
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual([v["id"] for v in respuesta.json["vehiculos"]], ids)
+
+    def test_catalogo_rechaza_filtros_invalidos_con_error_estandar(self):
+        casos = (
+            "precio_min=1.001", "precio_max=-5", "precio_min=1e3",
+            "anio_min=2020.5", "anio_min=2022&anio_max=2020",
+            "precio_min=20000&precio_max=10000", "disponibilidad=reservado",
+            "orden=aleatorio", "tipo_vehiculo=" + ("x" * 41),
+            "q=" + ("x" * 121), "desconocido=valor",
+            "orden=precio_asc&orden=precio_desc",
+        )
+        for consulta in casos:
+            with self.subTest(consulta=consulta[:80]):
+                respuesta = self.cliente.get("/api/vehiculos?" + consulta)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertFalse(respuesta.json["ok"])
+                self.assertIn("mensaje", respuesta.json)
+                self.assertIn("errores", respuesta.json)
 
     def test_operaciones_por_registro_edicion_y_disponibilidad(self):
         self.iniciar_admin()
@@ -246,6 +349,29 @@ class ApiPostgresContractTest(unittest.TestCase):
             self.assertTrue(app_module._solo_lectura_desde_entorno())
         with patch.dict(os.environ, {"VERCEL_ENV": "preview", "APP_READ_ONLY": "false", "DATABASE_URL": "postgresql://postgres.abcdefghijklmnopqrst:secreto@pooler.test/postgres", "SUPABASE_URL": "https://abcdefghijklmnopqrst.supabase.co"}):
             self.assertTrue(app_module._solo_lectura_desde_entorno())
+
+    def test_preview_oculta_administracion_aunque_haya_hash_configurado(self):
+        with patch.dict(os.environ, {"VERCEL_ENV": "preview", "APP_READ_ONLY": "false"}):
+            preview = create_app({
+                "TESTING": True,
+                "SECRET_KEY": "clave-solo-para-prueba-preview",
+                "ADMIN_PASSWORD_HASH": generate_password_hash("clave-configurada"),
+                "REPOSITORY": repositorio_falso(),
+                "PHOTO_REPOSITORY": fotos_vacias(),
+                "LOGIN_LIMITER": limite_falso(),
+            })
+
+        cliente = preview.test_client()
+        cliente.get("/")
+        self.assertTrue(cliente.get("/api/admin/session").json["solo_lectura"])
+        self.assertEqual(cliente.get("/api/vehiculos").status_code, 200)
+        with cliente.session_transaction() as sesion:
+            csrf = sesion["csrf_token"]
+        login = cliente.post(
+            "/api/admin/login", json={"password": "clave-configurada"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(login.status_code, 503)
 
     def test_validacion_de_campos_y_solicitud_json(self):
         self.iniciar_admin()

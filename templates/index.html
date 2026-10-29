@@ -11,7 +11,7 @@
   <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
 </head>
-<body>
+<body data-vehiculo-id="{{ vehiculo_id or '' }}">
   <a class="skip-link" href="#inventario">Saltar al inventario</a>
   <header class="site-header">
     <div class="shell header-inner">
@@ -19,8 +19,7 @@
         <span class="brand-symbol" aria-hidden="true">v<span>.</span></span>
         <span>Vehículos usados<small>PUBLICACIÓN Y CONSULTA</small></span>
       </a>
-      <div class="academic-tag">
-        <span>UAM · Grupo 7 <span class="tag-dot" aria-hidden="true"></span> Segundo avance</span>
+      <div class="header-actions">
         <button id="abrir-login" class="button button-secondary" type="button">Administrar</button>
         <button id="cerrar-sesion" class="button button-secondary" type="button" hidden>Cerrar sesión</button>
       </div>
@@ -28,39 +27,61 @@
   </header>
 
   <main class="shell">
-    <section class="intro" aria-labelledby="titulo-principal">
+    <section id="catalogo-intro" class="intro" aria-labelledby="titulo-principal">
       <div>
-        <p class="eyebrow">ESPACIO DEL VENDEDOR</p>
-        <h1 id="titulo-principal">Tu inventario, <span>al día.</span></h1>
-        <p class="intro-copy">Registra tus vehículos, actualiza sus detalles<br class="desktop-break"> y mantén su disponibilidad al día.</p>
+        <p class="eyebrow">VEHÍCULOS DE SEGUNDA MANO</p>
+        <h1 id="titulo-principal">Encuentra tu próximo <span>vehículo.</span></h1>
+        <p class="intro-copy">Explora el inventario, compara opciones y consulta los detalles de cada vehículo.</p>
       </div>
       <button id="nuevo-vehiculo" class="button button-primary" type="button" hidden disabled><span aria-hidden="true">＋</span> Registrar vehículo</button>
     </section>
 
-    <section class="summary" aria-label="Resumen del inventario">
-      <div class="summary-item"><span class="summary-number" id="total-vehiculos">—</span><span>Vehículos registrados</span></div>
+    <section id="resumen-inventario" class="summary" aria-label="Resumen del inventario">
+      <div class="summary-item"><span class="summary-number" id="total-vehiculos">—</span><span>Vehículos encontrados</span></div>
       <div class="summary-item"><span class="summary-number teal" id="total-disponibles">—</span><span><i class="status-dot" aria-hidden="true"></i> Disponibles</span></div>
       <div class="summary-item"><span class="summary-number muted" id="total-vendidos">—</span><span>Vendidos</span></div>
-      <div class="summary-note"><span class="note-icon" aria-hidden="true">i</span><span>Un espacio para mantener<br>cada detalle en orden.</span></div>
+      <div class="summary-note"><span class="note-icon" aria-hidden="true">i</span><span>Opciones para distintos<br>momentos y necesidades.</span></div>
     </section>
 
     <div id="mensaje" class="message" role="status" aria-live="polite" hidden></div>
     <section id="inventario" class="inventory-section" aria-labelledby="titulo-inventario" aria-busy="true">
-      <div class="section-heading"><div><h2 id="titulo-inventario">Mis vehículos</h2><p id="resumen-listado">Preparando tu inventario…</p></div><span class="section-label">INVENTARIO</span></div>
-      <div id="cargando" class="loading-state"><span class="spinner" aria-hidden="true"></span> Cargando vehículos…</div>
+      <div class="section-heading"><div><h2 id="titulo-inventario">Vehículos publicados</h2><p id="resumen-listado" aria-live="polite">Preparando el catálogo…</p></div><span class="section-label">CATÁLOGO</span></div>
+      <form id="filtros-catalogo" class="catalog-filters" role="search" aria-label="Buscar y filtrar vehículos">
+        <div class="filter-search field"><label for="filtro-q">Buscar</label><input id="filtro-q" name="q" type="search" maxlength="120" placeholder="Marca, modelo, ubicación o descripción"></div>
+        <div class="field"><label for="filtro-disponibilidad">Disponibilidad</label><select id="filtro-disponibilidad" name="disponibilidad"><option value="">Todas</option><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select></div>
+        <div class="field"><label for="filtro-precio-min">Precio mínimo <span>USD</span></label><input id="filtro-precio-min" name="precio_min" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Sin mínimo"></div>
+        <div class="field"><label for="filtro-precio-max">Precio máximo <span>USD</span></label><input id="filtro-precio-max" name="precio_max" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Sin máximo"></div>
+        <div class="field"><label for="filtro-anio-min">Año desde</label><input id="filtro-anio-min" name="anio_min" type="number" min="1900" step="1" inputmode="numeric" placeholder="Cualquiera"></div>
+        <div class="field"><label for="filtro-anio-max">Año hasta</label><input id="filtro-anio-max" name="anio_max" type="number" min="1900" step="1" inputmode="numeric" placeholder="Cualquiera"></div>
+        <div class="field"><label for="filtro-tipo">Tipo de vehículo</label><input id="filtro-tipo" name="tipo_vehiculo" maxlength="40" placeholder="Ej. sedán"></div>
+        <div class="field"><label for="filtro-orden">Ordenar por</label><select id="filtro-orden" name="orden"><option value="">Predeterminado</option><option value="precio_asc">Precio: menor a mayor</option><option value="precio_desc">Precio: mayor a menor</option><option value="anio_desc">Año: más reciente</option><option value="anio_asc">Año: más antiguo</option></select></div>
+        <div class="filter-actions"><button class="button button-primary" type="submit">Buscar vehículos</button><button id="limpiar-filtros" class="button button-secondary" type="reset">Limpiar filtros</button></div>
+      </form>
+      <div id="cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando vehículos…</div>
       <div id="estado-vacio" class="empty-state" hidden><img src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="" width="180" height="90"><h3>Tu próximo vehículo empieza aquí</h3><p>Todavía no hay vehículos registrados.</p><button id="nuevo-desde-vacio" class="button button-primary" type="button" hidden disabled>Registrar un vehículo</button></div>
-      <div id="estado-bloqueado" class="empty-state blocked-state" hidden><span class="empty-icon" aria-hidden="true">!</span><h3 id="titulo-bloqueado">No pudimos abrir el inventario</h3><p id="detalle-bloqueado"></p><button id="reintentar" class="button button-secondary" type="button">Volver a intentar</button></div>
+      <div id="estado-sin-resultados" class="empty-state" role="status" aria-live="polite" hidden><span class="empty-icon" aria-hidden="true">⌕</span><h3>No encontramos vehículos con esos filtros</h3><p>Prueba otros términos o amplía los rangos de precio y año.</p><button id="limpiar-desde-vacio" class="button button-secondary" type="button">Limpiar búsqueda</button></div>
+      <div id="estado-bloqueado" class="empty-state blocked-state" role="alert" hidden><span class="empty-icon" aria-hidden="true">!</span><h3 id="titulo-bloqueado">No pudimos abrir el inventario</h3><p id="detalle-bloqueado"></p><button id="reintentar" class="button button-secondary" type="button">Volver a intentar</button></div>
       <div id="lista-vehiculos" class="vehicle-grid"></div>
     </section>
 
-    <aside class="demo-note"><span class="demo-label">CATÁLOGO PÚBLICO · DEMOSTRACIÓN ACADÉMICA</span><p>Los vehículos ficticios se consultan desde un inventario compartido. Solo los integrantes autorizados pueden modificarlo.</p></aside>
+    <section id="ficha-vehiculo" class="vehicle-detail" aria-labelledby="ficha-titulo" aria-busy="true" hidden>
+      <a id="volver-catalogo" class="back-link" href="/">← Volver al catálogo</a>
+      <div id="ficha-cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando información del vehículo…</div>
+      <div id="ficha-error" class="empty-state blocked-state" role="alert" hidden><span class="empty-icon" aria-hidden="true">!</span><h2>No pudimos cargar este vehículo</h2><p id="ficha-error-detalle"></p><a class="button button-secondary" href="/">Volver al catálogo</a></div>
+      <article id="ficha-contenido" class="detail-card" hidden>
+        <div class="detail-gallery" aria-label="Fotografías del vehículo"><img id="ficha-imagen" alt="" width="960" height="640"><div class="detail-photo-navigation" id="ficha-navegacion" hidden><button id="ficha-anterior" class="button button-secondary" type="button" aria-label="Fotografía anterior">←</button><span id="ficha-contador" aria-live="polite"></span><button id="ficha-siguiente" class="button button-secondary" type="button" aria-label="Fotografía siguiente">→</button></div></div>
+        <div class="detail-body"><p id="ficha-estado" class="vehicle-badge"></p><p id="ficha-ubicacion" class="vehicle-location"></p><h1 id="ficha-titulo"></h1><p id="ficha-anio" class="detail-year"></p><p id="ficha-precio" class="detail-price"></p><p id="ficha-kilometraje" class="detail-mileage"></p><section aria-labelledby="ficha-descripcion-titulo"><h2 id="ficha-descripcion-titulo">Descripción</h2><p id="ficha-descripcion"></p></section><section id="ficha-caracteristicas-seccion" aria-labelledby="ficha-caracteristicas-titulo"><h2 id="ficha-caracteristicas-titulo">Características</h2><ul id="ficha-caracteristicas" class="feature-list"></ul></section></div>
+      </article>
+    </section>
+
+    <aside class="demo-note"><span class="demo-label">Prototipo demostrativo</span></aside>
   </main>
-  <footer class="shell footer"><span>Programación Estructurada · UAM Managua</span><span>Hecho por el Grupo 7 <span aria-hidden="true">↗</span></span></footer>
+  <footer class="shell footer"><span>Catálogo de vehículos usados</span></footer>
 
   <template id="plantilla-vehiculo">
     <article class="vehicle-card">
       <div class="vehicle-art"><span class="vehicle-badge"></span><span class="vehicle-code"></span><img class="vehicle-image" src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="Ilustración de un vehículo sin fotografías" width="360" height="180" loading="lazy"><div class="photo-navigation" hidden><button class="photo-prev" type="button" aria-label="Fotografía anterior">‹</button><span class="photo-count" aria-live="polite"></span><button class="photo-next" type="button" aria-label="Fotografía siguiente">›</button></div></div>
-      <div class="vehicle-body"><p class="vehicle-location"></p><div class="vehicle-title-row"><h3></h3><span class="vehicle-year"></span></div><p class="vehicle-description"></p><p class="vehicle-extra" hidden></p><div class="vehicle-specs"><span class="vehicle-mileage"></span><span>Precio de venta · USD</span></div><p class="vehicle-price"></p></div>
+      <div class="vehicle-body"><p class="vehicle-location"></p><div class="vehicle-title-row"><h3></h3><span class="vehicle-year"></span></div><p class="vehicle-description"></p><p class="vehicle-extra" hidden></p><div class="vehicle-specs"><span class="vehicle-mileage"></span><span>Precio de venta · USD</span></div><p class="vehicle-price"></p><a class="detail-link" href="">Ver ficha completa <span aria-hidden="true">↗</span></a></div>
       <div class="vehicle-actions" hidden><button class="edit-button" type="button">Editar vehículo <span aria-hidden="true">↗</span></button><button class="photos-button" type="button">Fotografías</button><button class="availability-button" type="button"></button></div>
     </article>
   </template>
@@ -93,7 +114,7 @@
     </form>
   </dialog>
   <dialog id="login-dialogo" aria-labelledby="titulo-login">
-    <div class="dialog-header"><div><p class="eyebrow">ACCESO DEL GRUPO 7</p><h2 id="titulo-login">Administrar inventario</h2></div><button id="cerrar-login" type="button" class="icon-button" aria-label="Cerrar acceso">×</button></div>
+    <div class="dialog-header"><div><p class="eyebrow">ACCESO ADMINISTRATIVO</p><h2 id="titulo-login">Administrar inventario</h2></div><button id="cerrar-login" type="button" class="icon-button" aria-label="Cerrar acceso">×</button></div>
     <p class="dialog-intro">El catálogo es público. Inicia sesión para registrar o actualizar vehículos.</p>
     <form id="login-form" novalidate>
       <div id="error-login" class="message message-error" role="alert" tabindex="-1" hidden></div>

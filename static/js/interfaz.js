@@ -7,6 +7,8 @@
   const dialogoLogin = porId("login-dialogo");
   const formularioLogin = porId("login-form");
   const dialogoFotos = porId("fotografias-dialogo");
+  const filtrosCatalogo = porId("filtros-catalogo");
+  const idFicha = document.body.dataset.vehiculoId || "";
   const dolaresEnteros = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
   const entero = new Intl.NumberFormat("es-NI");
   const metaCsrf = document.querySelector('meta[name="csrf-token"]');
@@ -28,6 +30,7 @@
   let claveFoto = null;
   let urlVistaPrevia = null;
   let intentoAlta = null;
+  let parametrosCatalogoActivos = new URLSearchParams();
 
   function nuevaClave() {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -72,6 +75,7 @@
     porId("inventario").setAttribute("aria-busy", String(ocupado));
     porId("guardar-vehiculo").textContent = ocupado ? "Guardando…" : idEnEdicion === null ? intentoAlta?.incierto ? "Confirmar registro" : "Registrar vehículo" : "Guardar cambios";
     formularioLogin.querySelectorAll("input, button").forEach((campo) => { campo.disabled = ocupado; });
+    filtrosCatalogo.querySelectorAll("input, select, button").forEach((campo) => { campo.disabled = ocupado; });
     porId("cerrar-login").disabled = ocupado;
     dialogoFotos.querySelectorAll("button, input").forEach((campo) => { campo.disabled = ocupado || !autenticado; });
     porId("confirmar-foto").disabled = ocupado || !autenticado || !fotoPreparada;
@@ -82,6 +86,7 @@
     habilitado = false;
     porId("cargando").hidden = true;
     porId("estado-vacio").hidden = true;
+    porId("estado-sin-resultados").hidden = true;
     porId("estado-bloqueado").hidden = false;
     porId("titulo-bloqueado").textContent = titulo;
     porId("detalle-bloqueado").textContent = detalle;
@@ -136,7 +141,9 @@
   }
 
   async function cargarCatalogo() {
-    const resultado = await solicitar("/api/vehiculos");
+    const query = parametrosCatalogoActivos.toString();
+    const ruta = query ? `/api/vehiculos?${query}` : "/api/vehiculos";
+    const resultado = await solicitar(ruta);
     if (!Array.isArray(resultado.vehiculos)) throw new Error("El servidor no devolvió una lista de vehículos válida.");
     vehiculos = resultado.vehiculos;
     habilitado = true;
@@ -433,6 +440,10 @@
       const parteEntera = dolaresEnteros.format(Math.floor(vehiculo.precio_centavos / 100));
       const parteDecimal = String(vehiculo.precio_centavos % 100).padStart(2, "0");
       tarjeta.querySelector(".vehicle-price").textContent = `$${parteEntera}.${parteDecimal}`;
+      const enlaceFicha = tarjeta.querySelector(".detail-link");
+      const retorno = `${location.pathname}${location.search}`;
+      enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`;
+      enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
 
       const extras = [];
       if (vehiculo.color) extras.push(`Color: ${vehiculo.color}`);
@@ -473,15 +484,181 @@
     lista.append(fragmento);
 
     const total = vehiculos.length;
+    const filtrosActivos = parametrosCatalogoActivos.size > 0;
     const disponibles = vehiculos.filter((vehiculo) => vehiculo.disponibilidad === "disponible").length;
     porId("total-vehiculos").textContent = total;
     porId("total-disponibles").textContent = disponibles;
     porId("total-vendidos").textContent = total - disponibles;
-    porId("resumen-listado").textContent = total === 0 ? "Todavía no hay vehículos publicados." : `${total} ${total === 1 ? "vehículo en el catálogo" : "vehículos en el catálogo"}`;
+    porId("resumen-listado").textContent = total === 0
+      ? (filtrosActivos ? "No hay resultados para esta búsqueda." : "Todavía no hay vehículos publicados.")
+      : `${total} ${total === 1 ? "vehículo encontrado" : "vehículos encontrados"}`;
     porId("cargando").hidden = true;
     porId("estado-bloqueado").hidden = true;
-    porId("estado-vacio").hidden = total !== 0;
+    porId("estado-vacio").hidden = total !== 0 || filtrosActivos;
+    porId("estado-sin-resultados").hidden = total !== 0 || !filtrosActivos;
     actualizarControles();
+  }
+
+  function copiarFiltrosDesdeUrl() {
+    const parametros = new URLSearchParams(location.search);
+    for (const campo of filtrosCatalogo.elements) {
+      if (campo.name && parametros.has(campo.name)) campo.value = parametros.get(campo.name);
+    }
+    parametrosCatalogoActivos = leerParametrosCatalogo();
+  }
+
+  function leerParametrosCatalogo() {
+    const parametros = new URLSearchParams(new FormData(filtrosCatalogo));
+    for (const [clave, valor] of [...parametros.entries()]) {
+      if (!valor.trim()) parametros.delete(clave);
+    }
+    return parametros;
+  }
+
+  async function buscarConFiltros(actualizarHistorial = true) {
+    if (ocupado || idFicha) return;
+    parametrosCatalogoActivos = leerParametrosCatalogo();
+    const query = parametrosCatalogoActivos.toString();
+    if (actualizarHistorial) {
+      history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+    }
+    ocupado = true;
+    habilitado = false;
+    porId("cargando").hidden = false;
+    porId("estado-vacio").hidden = true;
+    porId("estado-sin-resultados").hidden = true;
+    porId("estado-bloqueado").hidden = true;
+    porId("lista-vehiculos").replaceChildren();
+    actualizarControles();
+    try {
+      await cargarCatalogo();
+      mensaje("");
+    } catch (error) {
+      bloquear("No pudimos actualizar el catálogo", error.message);
+    } finally {
+      ocupado = false;
+      actualizarControles();
+    }
+  }
+
+  function mostrarFichaError(error) {
+    porId("ficha-vehiculo").setAttribute("aria-busy", "false");
+    porId("ficha-cargando").hidden = true;
+    porId("ficha-contenido").hidden = true;
+    porId("ficha-error-detalle").textContent = error.message || "Inténtalo de nuevo más tarde.";
+    porId("ficha-error").hidden = false;
+  }
+
+  function precioLegible(centavos) {
+    const enteroPrecio = dolaresEnteros.format(Math.floor(centavos / 100));
+    const centavosPrecio = String(centavos % 100).padStart(2, "0");
+    return `$${enteroPrecio}.${centavosPrecio} USD`;
+  }
+
+  function inicializarGaleriaFicha(vehiculo) {
+    const imagen = porId("ficha-imagen");
+    const navegacion = porId("ficha-navegacion");
+    const contador = porId("ficha-contador");
+    const fotos = [...(vehiculo.fotografias || [])]
+      .filter((foto) => urlFotoSegura(foto.url))
+      .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    const respaldo = "/static/img/vehiculo.svg";
+    if (!fotos.length) {
+      imagen.src = respaldo;
+      imagen.alt = `Ilustración de ${vehiculo.marca} ${vehiculo.modelo}; no hay fotografías publicadas.`;
+      navegacion.hidden = true;
+      return;
+    }
+    let posicion = 0;
+    function mostrar() {
+      imagen.onerror = () => {
+        imagen.onerror = null;
+        imagen.src = respaldo;
+        imagen.alt = `Fotografía no disponible. Ilustración de ${vehiculo.marca} ${vehiculo.modelo}.`;
+        contador.textContent = `${posicion + 1} / ${fotos.length} · No disponible`;
+      };
+      imagen.alt = `Fotografía ${posicion + 1} de ${fotos.length}: ${vehiculo.marca} ${vehiculo.modelo}`;
+      imagen.src = urlFotoSegura(fotos[posicion].url);
+      contador.textContent = `${posicion + 1} / ${fotos.length}`;
+    }
+    navegacion.hidden = fotos.length < 2;
+    porId("ficha-anterior").onclick = () => {
+      posicion = (posicion - 1 + fotos.length) % fotos.length;
+      mostrar();
+    };
+    porId("ficha-siguiente").onclick = () => {
+      posicion = (posicion + 1) % fotos.length;
+      mostrar();
+    };
+    mostrar();
+  }
+
+  function renderizarFicha(vehiculo) {
+    const disponible = vehiculo.disponibilidad === "disponible";
+    porId("ficha-titulo").textContent = `${vehiculo.marca} ${vehiculo.modelo}`;
+    porId("ficha-estado").textContent = disponible ? "Disponible" : "Vendido";
+    porId("ficha-estado").classList.toggle("sold", !disponible);
+    porId("ficha-ubicacion").textContent = vehiculo.ubicacion || "Ubicación no especificada";
+    porId("ficha-anio").textContent = `Año ${vehiculo.anio}`;
+    porId("ficha-precio").textContent = precioLegible(vehiculo.precio_centavos);
+    porId("ficha-kilometraje").textContent = `${entero.format(vehiculo.kilometraje)} km recorridos`;
+    porId("ficha-descripcion").textContent = vehiculo.descripcion || "Sin descripción publicada.";
+    const lista = porId("ficha-caracteristicas");
+    lista.replaceChildren();
+    const caracteristicas = [];
+    if (vehiculo.tipo_vehiculo) caracteristicas.push(["Tipo", vehiculo.tipo_vehiculo]);
+    if (vehiculo.color) caracteristicas.push(["Color", vehiculo.color]);
+    if (vehiculo.transmision) caracteristicas.push(["Transmisión", vehiculo.transmision]);
+    if (vehiculo.combustible) caracteristicas.push(["Combustible", vehiculo.combustible]);
+    [
+      ["aire_acondicionado", "Aire acondicionado"],
+      ["ventanas_electricas", "Ventanas eléctricas"],
+      ["pantalla_multimedia", "Pantalla multimedia"]
+    ].forEach(([campo, etiqueta]) => {
+      if (vehiculo[campo] !== null && vehiculo[campo] !== undefined) {
+        caracteristicas.push([etiqueta, vehiculo[campo] ? "Sí" : "No"]);
+      }
+    });
+    caracteristicas.forEach(([etiqueta, valor]) => {
+      const item = document.createElement("li");
+      item.textContent = `${etiqueta}: ${valor}`;
+      lista.append(item);
+    });
+    porId("ficha-caracteristicas-seccion").hidden = caracteristicas.length === 0;
+    inicializarGaleriaFicha(vehiculo);
+    document.title = `${vehiculo.marca} ${vehiculo.modelo} · Vehículos usados`;
+    porId("ficha-vehiculo").setAttribute("aria-busy", "false");
+    porId("ficha-cargando").hidden = true;
+    porId("ficha-error").hidden = true;
+    porId("ficha-contenido").hidden = false;
+  }
+
+  async function inicializarFicha() {
+    porId("catalogo-intro").hidden = true;
+    porId("resumen-inventario").hidden = true;
+    porId("inventario").hidden = true;
+    porId("ficha-vehiculo").hidden = false;
+    porId("abrir-login").hidden = true;
+    porId("cerrar-sesion").hidden = true;
+    porId("nuevo-vehiculo").hidden = true;
+    document.querySelector(".skip-link").href = "#ficha-vehiculo";
+    porId("volver-catalogo").href = "/";
+    const retorno = new URLSearchParams(location.search).get("retorno");
+    if (retorno) {
+      try {
+        const url = new URL(retorno, location.origin);
+        if (url.origin === location.origin && url.pathname === "/") {
+          porId("volver-catalogo").href = `${url.pathname}${url.search}`;
+        }
+      } catch (error) { /* Se conserva el enlace seguro al catálogo. */ }
+    }
+    try {
+      const resultado = await solicitar(`/api/vehiculos/${encodeURIComponent(idFicha)}`);
+      if (!resultado.vehiculo || typeof resultado.vehiculo !== "object") throw new Error("El servidor no devolvió los detalles del vehículo.");
+      renderizarFicha(resultado.vehiculo);
+    } catch (error) {
+      mostrarFichaError(error);
+    }
   }
 
   async function inicializar() {
@@ -757,6 +934,19 @@
   porId("cancelar-login").addEventListener("click", cerrarLogin);
   porId("cerrar-sesion").addEventListener("click", cerrarSesion);
   porId("reintentar").addEventListener("click", inicializar);
+  filtrosCatalogo.addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    buscarConFiltros();
+  });
+  filtrosCatalogo.addEventListener("reset", () => {
+    setTimeout(() => buscarConFiltros(), 0);
+  });
+  porId("limpiar-desde-vacio").addEventListener("click", () => filtrosCatalogo.reset());
+  window.addEventListener("popstate", () => {
+    if (idFicha) return;
+    copiarFiltrosDesdeUrl();
+    buscarConFiltros(false);
+  });
   porId("fotografia-archivo").addEventListener("change", (evento) => prepararSeleccion(evento.target.files[0]));
   porId("fotografia-sustituta").addEventListener("change", (evento) => prepararSeleccion(evento.target.files[0], fotoParaSeleccionar));
   porId("confirmar-foto").addEventListener("click", subirFoto);
@@ -776,5 +966,10 @@
   dialogo.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarFormulario(); });
   dialogoLogin.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarLogin(); });
   dialogoFotos.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarFotos(); });
-  inicializar();
+  if (idFicha) {
+    inicializarFicha();
+  } else {
+    copiarFiltrosDesdeUrl();
+    inicializar();
+  }
 })();

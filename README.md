@@ -1,19 +1,20 @@
 # Sistema de publicación y consulta de vehículos usados
 
-Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. Fecha límite: **30 de noviembre de 2026**. La publicación pública prevista termina el **27 de noviembre de 2026**; retirar o restringir el sitio al finalizar ese período requiere una operación explícita del responsable.
+Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. La fecha de cierre vigente es el **20 de noviembre de 2026**; las entregas académicas están detalladas en [ROADMAP](docs/ROADMAP.md).
 
 ## Funcionalidades actuales
 
 PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modifica el catálogo mediante funciones Python y SQL parametrizado, sin ORM. La interfaz conserva el diseño del inventario y usa el API de Flask.
 
 - Catálogo público, características opcionales y galería de hasta cinco fotografías por vehículo.
+- Búsqueda por texto con filtros combinables de disponibilidad, precio, año y tipo de vehículo, ordenamiento por precio o año, y fichas públicas compartibles.
 - Registro, edición y disponibilidad con administración Flask, CSRF e idempotencia de altas.
 - Color, placa, tipo, transmisión, combustible y equipamiento triestado: Sí, No y No especificado. La placa se entrega únicamente a la sesión administrativa.
 - Preparación JPEG/PNG/WebP en navegador y validación/recodificación WebP en Python. Persistencia de objetos mediante Supabase Storage, bucket existente `vehiculos`.
 - Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
 - Límite de acceso persistente en PostgreSQL, compartido entre procesos y resistente a borrar cookies.
 
-Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El código no implementa búsqueda avanzada, filtro de precio máximo, chat, pagos, contacto real, cuentas de compradores/vendedores ni certificación mecánica.
+Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). Chat, pagos, contacto real, cuentas de compradores/vendedores y certificación mecánica permanecen fuera del alcance confirmado. El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
 
 ## Instalación local
 
@@ -132,16 +133,18 @@ TEST_DATABASE_URL='postgresql://postgres@127.0.0.1:5432/grupo7_test' ./.venv/bin
 
 La fixture rechaza hosts remotos y bases de control que no empiecen por `grupo7_test`. Crea bases adicionales con UUID, aplica las migraciones y elimina exclusivamente esas bases desechables. Nunca usa la base de control ni Supabase para escribir pruebas. El flujo HTTP de integración usa PostgreSQL real y **Storage simulado**; no demuestra una carga al servicio remoto.
 
-Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persistencia.py persistencia_fotos.py limites_login.py imagenes.py almacenamiento.py scripts tests`, `python -m pip check`, `node --check` para los tres archivos JavaScript y `git diff --check`. Node solo es una herramienta de verificación, no un requisito para ejecutar Flask.
+Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persistencia.py persistencia_fotos.py limites_login.py imagenes.py almacenamiento.py scripts tests`, `python -m pip check`, `node --check` para los tres archivos JavaScript, `node --test tests/test_interfaz_catalogo.mjs` y `git diff --check`. Node solo es una herramienta de verificación, no un requisito para ejecutar Flask.
 
 ## Preparación de Vercel
 
 `vercel.json` declara el framework Flask y `app.py` como función con 60 segundos. `.python-version` selecciona Python 3.14. Flask referencia `/static/...` en sus plantillas; Vercel sirve esos recursos desde su CDN, así que las copias correspondientes deben permanecer versionadas en `public/static/`. Ejecuta `python scripts/preparar_vercel.py` al actualizar CSS, JavaScript o imágenes y confirma juntas las copias sincronizadas. No ignores `public/static/` ni lo excluyas en `.vercelignore`.
 
-Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. **Preview siempre permite solo lectura**: no configura administración ni sirve para probar escrituras contra producción. Para una futura Preview con escrituras se necesita un entorno de datos/Storage separado y una revisión explícita de esa protección. No se crea automáticamente un servicio adicional.
+Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. Para que el catálogo de Preview lea datos y genere sesiones, asigna `DATABASE_URL`, `FLASK_SECRET_KEY` y `SUPABASE_URL` al ambiente **Preview**. `DATABASE_URL` debe usar TLS; usa un rol de solo lectura o un proyecto de datos separado cuando esté disponible. Los enlaces públicos de fotos solo necesitan `SUPABASE_URL`; no copies claves de escritura ni el hash administrativo de Production a Preview.
 
-Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; configurar hash y clave exclusivos, cookies HTTPS, pooler y operación de limpieza; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni push a GitHub.
+**Preview siempre fuerza modo de solo lectura**, aunque `APP_READ_ONLY=false`: `/api/admin/session` informa `solo_lectura: true`, la interfaz oculta «Administrar» y `/api/admin/login` responde 503. Es deliberado para evitar escrituras desde una Preview contra datos compartidos. Para habilitar administración en Production, asigna `ADMIN_PASSWORD_HASH`, `FLASK_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL` y una clave de servidor `SUPABASE_SECRET_KEY` (preferida) o `SUPABASE_SERVICE_ROLE_KEY` (alternativa heredada); configura `APP_READ_ONLY=false` y conserva cookies HTTPS seguras. No habilites escrituras de Preview sin un entorno de datos/Storage separado y una revisión explícita de la protección.
+
+Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni cambios a las variables de entorno.
 
 ## Documentación
 
-[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [evidencia de avances](docs/AVANCE_02.md) e [instrucciones de mantenimiento](AGENTS.md).
+[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md) e [instrucciones de mantenimiento](AGENTS.md).

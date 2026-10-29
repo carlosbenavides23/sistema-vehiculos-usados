@@ -155,6 +155,40 @@ class PostgresIntegracionTest(unittest.TestCase):
         self.assertEqual(persistencia.obtener_vehiculo(7)["disponibilidad"], "vendido")
         self.assertIsNone(persistencia.obtener_vehiculo(9999))
 
+    def test_busqueda_sql_parametrizada_combina_filtros_y_ordenes(self):
+        base = datos()
+        registros = (
+            {**base, "marca": "Nissan", "modelo": "Zquery bajo", "anio": 2020,
+             "precio_centavos": 1_200_000, "tipo_vehiculo": "SUV", "disponibilidad": "disponible"},
+            {**base, "marca": "Nissan", "modelo": "Zquery medio", "anio": 2021,
+             "precio_centavos": 1_500_000, "tipo_vehiculo": "SUV", "disponibilidad": "disponible"},
+            {**base, "marca": "Nissan", "modelo": "Zquery alto año", "anio": 2022,
+             "precio_centavos": 1_500_000, "tipo_vehiculo": "SUV", "disponibilidad": "disponible"},
+            {**base, "marca": "Nissan", "modelo": "Zquery vendido", "anio": 2021,
+             "precio_centavos": 1_500_000, "tipo_vehiculo": "SUV", "disponibilidad": "vendido"},
+            {**base, "marca": "Nissan", "modelo": "Zquery sedán", "anio": 2021,
+             "precio_centavos": 1_500_000, "tipo_vehiculo": "Sedán", "disponibilidad": "disponible"},
+        )
+        creados = [persistencia.crear_vehiculo(registro) for registro in registros]
+
+        combinados = persistencia.buscar_vehiculos({
+            "q": "nissan zquery", "disponibilidad": "disponible",
+            "precio_min": 1_200_000, "precio_max": 1_500_000,
+            "anio_min": 2020, "anio_max": 2021, "tipo_vehiculo": "suv",
+        })
+        self.assertEqual([fila["id"] for fila in combinados], [creados[0]["id"], creados[1]["id"]])
+
+        por_precio = persistencia.buscar_vehiculos({"q": "nissan zquery", "tipo_vehiculo": "SUV", "orden": "precio_desc"})
+        self.assertEqual(
+            [fila["id"] for fila in por_precio],
+            [creados[1]["id"], creados[2]["id"], creados[3]["id"], creados[0]["id"]],
+        )
+        por_ano = persistencia.buscar_vehiculos({"q": "nissan zquery", "orden": "anio_desc"})
+        self.assertEqual(
+            [fila["id"] for fila in por_ano],
+            [creados[2]["id"], creados[1]["id"], creados[3]["id"], creados[4]["id"], creados[0]["id"]],
+        )
+
     def test_altas_concurrentes_generan_identificadores_unicos(self):
         with ThreadPoolExecutor(max_workers=8) as grupo:
             filas = list(grupo.map(persistencia.crear_vehiculo, [datos(i) for i in range(20)]))

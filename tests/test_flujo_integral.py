@@ -129,6 +129,59 @@ class FlujoIntegralTest(unittest.TestCase):
         self.assertEqual(final[:6], originales)
         self.assertEqual(len(final), 7)
 
+    def test_busqueda_publica_y_ficha_compartible_con_postgres(self):
+        self.entrar()
+        configuraciones = (
+            ("bajo", 2020, "12000", "disponible", "SUV"),
+            ("medio", 2021, "15000", "disponible", "SUV"),
+            ("alto año", 2022, "15000", "disponible", "SUV"),
+            ("vendido", 2021, "15000", "vendido", "SUV"),
+            ("sedán", 2021, "15000", "disponible", "Sedán"),
+        )
+        publicados = []
+        for etiqueta, anio, precio, disponibilidad, tipo in configuraciones:
+            datos = formulario(
+                modelo=f"Zquery {etiqueta}", marca="Nissan", anio=anio,
+                precio_venta=precio, disponibilidad=disponibilidad,
+                tipo_vehiculo=tipo,
+            )
+            respuesta = self.cliente.post(
+                "/api/vehiculos", json={"vehiculo": datos},
+                headers=self.headers(),
+            )
+            self.assertEqual(respuesta.status_code, 201, respuesta.json)
+            publicados.append(respuesta.json["vehiculo"])
+
+        lector = self.app.test_client()
+        combinado = lector.get("/api/vehiculos", query_string={
+            "q": "nissan zquery", "disponibilidad": "disponible",
+            "precio_min": "12000", "precio_max": "15000",
+            "anio_min": "2020", "anio_max": "2021", "tipo_vehiculo": "suv",
+        })
+        self.assertEqual(combinado.status_code, 200, combinado.json)
+        self.assertEqual(
+            [vehiculo["id"] for vehiculo in combinado.json["vehiculos"]],
+            [publicados[0]["id"], publicados[1]["id"]],
+        )
+        self.assertNotIn("placa", combinado.json["vehiculos"][0])
+
+        ordenado = lector.get("/api/vehiculos", query_string={
+            "q": "nissan zquery", "tipo_vehiculo": "SUV", "orden": "precio_desc",
+        })
+        self.assertEqual(
+            [vehiculo["id"] for vehiculo in ordenado.json["vehiculos"]],
+            [publicados[1]["id"], publicados[2]["id"], publicados[3]["id"], publicados[0]["id"]],
+        )
+
+        identificador = publicados[0]["id"]
+        detalle = lector.get(f"/api/vehiculos/{identificador}")
+        self.assertEqual(detalle.status_code, 200)
+        self.assertNotIn("placa", detalle.json["vehiculo"])
+        self.assertIn("fotografias", detalle.json["vehiculo"])
+        pagina = lector.get(f"/vehiculo/{identificador}")
+        self.assertEqual(pagina.status_code, 200)
+        self.assertIn(f'data-vehiculo-id="{identificador}"'.encode(), pagina.data)
+
     def test_fotos_reintento_sustitucion_borrado_y_fallo_storage(self):
         self.entrar()
         identificador = self.crear()
