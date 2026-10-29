@@ -1,96 +1,147 @@
 # Sistema de publicación y consulta de vehículos usados
 
-Proyecto académico de Programación Estructurada de la Universidad Americana (UAM), Managua. **Grupo 7**.
+Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. Fecha límite: **30 de noviembre de 2026**. La publicación pública prevista termina el **27 de noviembre de 2026**; retirar o restringir el sitio al finalizar ese período requiere una operación explícita del responsable.
 
-## Descripción y objetivo
+## Funcionalidades actuales
 
-El sistema aborda la organización de anuncios de vehículos usados mediante un prototipo que permite registrar vehículos, consultar un listado, editar datos y cambiar disponibilidad. El objetivo académico es aplicar programación estructurada en Python para validar y procesar estas operaciones.
+PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modifica el catálogo mediante funciones Python y SQL parametrizado, sin ORM. La interfaz conserva el diseño del inventario y usa el API de Flask.
 
-## Alcance del segundo avance
+- Catálogo público, características opcionales y galería de hasta cinco fotografías por vehículo.
+- Registro, edición y disponibilidad con administración Flask, CSRF e idempotencia de altas.
+- Color, placa, tipo, transmisión, combustible y equipamiento triestado: Sí, No y No especificado. La placa se entrega únicamente a la sesión administrativa.
+- Preparación JPEG/PNG/WebP en navegador y validación/recodificación WebP en Python. Persistencia de objetos mediante Supabase Storage, bucket existente `vehiculos`.
+- Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
+- Límite de acceso persistente en PostgreSQL, compartido entre procesos y resistente a borrar cookies.
 
-El avance implementa registro, listado, edición conservando el identificador, cambio de disponibilidad y persistencia demostrativa en el navegador. Incluye seis vehículos ficticios iniciales y un formulario para registro y edición. No incorpora eliminación.
+Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El código no implementa búsqueda avanzada, filtro de precio máximo, chat, pagos, contacto real, cuentas de compradores/vendedores ni certificación mecánica.
 
-## Tecnologías actuales
+## Instalación local
 
-- Python 3.10 o posterior y Flask.
-- HTML, CSS y JavaScript sin framework ni proceso de compilación.
-- `localStorage` del navegador como persistencia provisional.
-- `unittest` para las pruebas automatizadas del backend.
+Se comprobó con Python **3.14.7**. Vercel usa Python **3.14**, indicado en `.python-version`. Las dependencias directas están fijadas en `requirements.txt`.
 
-## Requisitos
-
-Python 3.10 o posterior, `pip` disponible en ese entorno, y un navegador moderno con JavaScript y almacenamiento del sitio habilitados. La aplicación debe abrirse a través de Flask, no directamente como un archivo HTML. No requiere Node.js para ejecutarse.
-
-## Instalación y ejecución local
-
-Abre una terminal en la raíz del repositorio, donde se encuentran `app.py`, `requirements.txt` y este README. Los comandos crean un entorno virtual, instalan las dependencias y luego inician el servidor local.
-
-### Windows (PowerShell)
+Windows/PowerShell, desde la raíz:
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe app.py
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
+.\.venv\Scripts\python.exe -c "from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass()))"
 ```
 
-Si no está disponible el lanzador `py`, usa `python -m venv .venv` en el primer comando. No es necesario activar el entorno.
-
-### Linux
+Linux, desde la raíz:
 
 ```bash
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
-./.venv/bin/python app.py
+test -e .env || cp .env.example .env
+./.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))'
+./.venv/bin/python -c 'from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass()))'
 ```
 
-La instalación de Python debe incluir `venv`; algunas distribuciones lo proporcionan en un paquete separado.
+Si `.env` ya existe, edítalo y conserva sus valores; no vuelvas a copiar la plantilla encima. Los dos últimos comandos generan la clave Flask y el hash de la contraseña administrativa. Introduce la contraseña mediante el prompt privado, nunca en argumentos de comandos ni en texto claro dentro de `.env`.
 
-Con el servidor activo, abre [http://127.0.0.1:5000](http://127.0.0.1:5000). Para detenerlo, presiona **Ctrl+C** en la terminal. En VS Code, ejecuta los comandos desde **Terminal → Nueva terminal**. Si aparece `ModuleNotFoundError: No module named 'flask'`, utiliza el ejecutable de `.venv` como se muestra arriba; Code Runner puede estar usando otra instalación de Python. Live Server no inicia el backend Flask.
+| Variable | Configuración |
+| --- | --- |
+| `DATABASE_URL` | Cadena PostgreSQL del proyecto correcto. Usa Transaction Pooler para Vercel, SSL y contraseña codificada para URL. |
+| `SUPABASE_URL` | URL HTTPS del proyecto. La plantilla señala `rtcygltmrtulyeezaaac`. |
+| `SUPABASE_SECRET_KEY` | Clave moderna `sb_secret_...`, exclusivamente de servidor. Se envía como `apikey`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Alternativa heredada JWT `service_role` cuando no hay `SUPABASE_SECRET_KEY`. Nunca usar una clave pública para escribir. |
+| `FLASK_SECRET_KEY` | Clave aleatoria para firmar sesiones. Distinta por ambiente. |
+| `ADMIN_PASSWORD_HASH` | Hash Werkzeug scrypt. Sin él la administración no inicia sesión. |
+| `SESSION_COOKIE_SECURE` | `false` solo en HTTP local; `true` en HTTPS. Vercel la fuerza a segura. |
+| `APP_READ_ONLY` | `true` bloquea login y todas las escrituras. Preview de Vercel siempre fuerza este modo. |
+| `ALLOW_LOCAL_DATABASE` | `true` solo para PostgreSQL loopback aislado sin TLS. En remoto el driver siempre exige TLS. |
 
-## Pruebas
+Las claves se configuran dentro del archivo local o las variables del ambiente, nunca en Git, HTML, JavaScript, capturas o mensajes. El navegador no se conecta directamente a PostgreSQL ni recibe claves Supabase.
 
-Desde la raíz del repositorio:
+Inicia desde la raíz con `.\.venv\Scripts\python.exe app.py` en Windows o `./.venv/bin/python app.py` en Linux. Abre [la aplicación local](http://127.0.0.1:5000) y detén el servidor con Ctrl+C. Usa el Python del entorno para evitar `ModuleNotFoundError: flask`. Live Server no ejecuta Flask.
 
-**Windows (PowerShell)**
+## Fotografías
+
+Primero guarda el vehículo. Después usa su botón **Fotografías** para añadir, sustituir o eliminar imágenes. El gestor funciona por separado: cancelar el formulario del vehículo no cambia sus datos y editar sus características conserva las fotos. Una carga ya confirmada en el gestor es una operación guardada, aunque después cierres el diálogo.
+
+Cada archivo original debe ser JPEG, PNG o WebP y ocupar hasta **10.000.000 bytes**. El navegador reduce a un máximo de **1600 px** por lado, comienza en calidad **78 %** y prepara WebP de hasta **1.000.000 bytes**. Se sube un archivo por solicitud. El servidor limita la solicitud a **1.100.000 bytes**, decodifica de nuevo, rechaza animaciones y entradas corruptas, elimina metadatos y recodifica a WebP. Un cliente que omita la compresión y envíe archivos grandes será rechazado.
+
+Las imágenes del bucket son públicas. Evita incluir placas, personas y documentos; ocultar el campo de placa no oculta una placa fotografiada. Las URLs no contienen credenciales y cada objeto usa una ruta UUID nueva, sin sobrescribir archivos anteriores.
+
+La sustitución sube el objeto nuevo antes de confirmar la referencia y encolar el antiguo. Un fallo conserva la foto anterior o una tarea de recuperación. La limpieza reclama cada ruta bajo bloqueo, excluye referencias activas y usa una concesión de dos minutos. Las reservas de cargas incompletas caducan después de una hora.
+
+Para mantenimiento, consulta primero la cola:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe scripts/limpiar_storage.py
+.\.venv\Scripts\python.exe scripts/limpiar_storage.py --apply --limite 10
 ```
 
-**Linux**
+En Linux sustituye el ejecutable por `./.venv/bin/python`. La primera orden no borra objetos. La segunda solo procesa rutas elegibles registradas en la cola; conserva fallos para reintento después de vencer la concesión. No barre el bucket ni elimina archivos por suposición. No hay cron de pago ni almacenamiento persistente en el disco de Vercel.
+
+## Contrato HTTP
+
+| Método y ruta | Acceso / cuerpo |
+| --- | --- |
+| `GET /api/vehiculos` y `GET /api/vehiculos/<id>` | Consulta pública. Devuelve vehículos con `fotografias`; omite placa sin sesión. |
+| `POST /api/vehiculos` | Admin + CSRF + `Idempotency-Key` UUID; JSON `{vehiculo}`. |
+| `PUT /api/vehiculos/<id>` | Admin + CSRF; JSON `{vehiculo}`. Conserva ID y fotos. |
+| `PATCH /api/vehiculos/<id>/disponibilidad` | Admin + CSRF; JSON `{disponibilidad}`. |
+| `POST /api/vehiculos/<id>/fotografias` | Admin + CSRF + UUID; multipart con un único campo `fotografia`. |
+| `PUT /api/vehiculos/<id>/fotografias/<foto_id>` | Admin + CSRF + UUID; sustituye con multipart individual. |
+| `DELETE /api/vehiculos/<id>/fotografias/<foto_id>` | Admin + CSRF; retira referencia y encola limpieza. |
+| `GET /api/admin/session`, `POST /api/admin/login`, `POST /api/admin/logout` | Estado, login `{password}` y logout; mutaciones con CSRF. |
+
+El token CSRF viaja en `X-CSRF-Token`; una alta o carga reintentada conserva su mismo UUID y contenido. Reutilizarlo con datos diferentes devuelve 409. Los formularios envían únicamente un vehículo, nunca la colección completa. Los precios permanecen en USD y PostgreSQL guarda centavos enteros. Las respuestas API y la página con CSRF llevan `Cache-Control: no-store`.
+
+## Semillas e importación antigua
+
+Las migraciones ya aplicadas en el proyecto autorizado no deben repetirse manualmente. El cargador `scripts/cargar_datos_demo.py` es explícito, reconoce las seis semillas exactas y solo inserta en una tabla vacía. Flask nunca las inserta en el arranque.
+
+La interfaz no lee, escribe ni borra el antiguo `vehiculos_demo_v1`. Para rescatarlo, abre la consola del navegador en el mismo origen donde se utilizó la versión anterior y descarga su valor sin cambiarlo:
+
+```javascript
+const valor = localStorage.getItem("vehiculos_demo_v1");
+if (valor === null) throw new Error("No hay inventario antiguo en este origen.");
+const url = URL.createObjectURL(new Blob([valor], {type: "application/json"}));
+const enlace = document.createElement("a");
+enlace.href = url;
+enlace.download = "vehiculos_demo_v1.json";
+enlace.click();
+setTimeout(() => URL.revokeObjectURL(url), 1000);
+```
+
+Guarda cada exportación fuera del repositorio, respáldala y reconcilia inventarios de distintos navegadores. Sus IDs pueden coincidir; el importador asigna IDs nuevos y omite coincidencias exactas, sin inferir equipamiento desde descripciones. Previsualiza con `python scripts/importar_localstorage.py /ruta/export.json`; solo añade `--apply` después de revisar el respaldo y el resumen. Usa el ejecutable de tu entorno. El proceso no sobrescribe anuncios ni borra el dato del navegador.
+
+## Pruebas reproducibles
+
+Las pruebas normales se ejecutan con `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` o `./.venv/bin/python -m unittest discover -s tests -v`. Sin `TEST_DATABASE_URL`, las pruebas reales se informan como **omitidas**, no aprobadas. Los demás tests usan dobles explícitos y Pillow real.
+
+Para integración, prepara un clúster **local aislado de PostgreSQL 17**, con rol capaz de crear bases y roles, y una base de control `grupo7_test`. Por ejemplo, con sus herramientas instaladas: `createdb -h 127.0.0.1 -U postgres grupo7_test`. Configura la contraseña local de forma privada cuando sea necesaria.
+
+Windows:
+
+```powershell
+$env:TEST_DATABASE_URL='postgresql://postgres@127.0.0.1:5432/grupo7_test'
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+Remove-Item Env:TEST_DATABASE_URL
+```
+
+Linux:
 
 ```bash
-./.venv/bin/python -m unittest discover -s tests -v
+TEST_DATABASE_URL='postgresql://postgres@127.0.0.1:5432/grupo7_test' ./.venv/bin/python -m unittest discover -s tests -v
 ```
 
-Las pruebas cubren validaciones, operaciones y rutas HTTP. Los resultados de las comprobaciones realizadas para este avance se detallan en [docs/AVANCE_02.md](docs/AVANCE_02.md).
+La fixture rechaza hosts remotos y bases de control que no empiecen por `grupo7_test`. Crea bases adicionales con UUID, aplica las migraciones y elimina exclusivamente esas bases desechables. Nunca usa la base de control ni Supabase para escribir pruebas. El flujo HTTP de integración usa PostgreSQL real y **Storage simulado**; no demuestra una carga al servicio remoto.
 
-## Estado actual y limitaciones
+Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persistencia.py persistencia_fotos.py limites_login.py imagenes.py almacenamiento.py scripts tests`, `python -m pip check`, `node --check` para los tres archivos JavaScript y `git diff --check`. Node solo es una herramienta de verificación, no un requisito para ejecutar Flask.
 
-El segundo avance está implementado. Flask valida cada solicitud pero no almacena vehículos; el navegador conserva el estado versionado en `localStorage`. Los datos se limitan al navegador y origen donde se ejecuta la aplicación. Borrar los datos del sitio los elimina; no existe sincronización entre dispositivos ni resolución atómica de cambios entre pestañas.
+## Preparación de Vercel
 
-El proyecto no está preparado para producción. Actualmente no usa PostgreSQL, Supabase, Storage ni Vercel; tampoco tiene autenticación, pagos, chat, contacto real con vendedores, buscador avanzado ni certificación técnica. Las observaciones del profesor sobre características detalladas y fotografías reales siguen pendientes de implementación. El significado de “poner números” y el alcance de la validación técnica del vehículo requieren aclaración antes de ampliar el sistema.
+`vercel.json` declara el framework Flask y `app.py` como función con 60 segundos. `.python-version` selecciona Python 3.14. El build `python scripts/preparar_vercel.py` copia `static/` a `public/static/` para servir los recursos desde el CDN. Esos archivos generados están ignorados. `.vercelignore` excluye secretos, entornos, pruebas y evidencia local.
 
-La fecha límite académica definitiva es el **30 de noviembre de 2026**. Las fechas de las presentaciones restantes están pendientes de confirmación.
+Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. **Preview siempre permite solo lectura**: no configura administración ni sirve para probar escrituras contra producción. Para una futura Preview con escrituras se necesita un entorno de datos/Storage separado y una revisión explícita de esa protección. No se crea automáticamente un servicio adicional.
 
-## Preparación futura
-
-El repositorio utiliza Git para control de versiones y excluye configuraciones locales, credenciales y archivos generados. [`.env.example`](.env.example) distingue la ausencia actual de variables requeridas de las variables que podrían definirse para una futura migración. La elección de base de datos, almacenamiento de imágenes y despliegue todavía requiere diseño y configuración; no hay migraciones, servicios ni despliegue implementados.
+Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; configurar hash y clave exclusivos, cookies HTTPS, pooler y operación de limpieza; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni push a GitHub.
 
 ## Documentación
 
-- [Arquitectura y contrato HTTP](docs/ARQUITECTURA.md)
-- [Decisiones y cuestiones pendientes](docs/DECISIONES.md)
-- [Estado y trabajo futuro](docs/ROADMAP.md)
-- [Registro del segundo avance y verificaciones](docs/AVANCE_02.md)
-- [Instrucciones duraderas para el proyecto](AGENTS.md)
-
-## Equipo e institución
-
-- Carlos Alberto Benavides Sandino.
-- Alex Santiago Carballo Jarquín.
-- Evenyer Fernando Solórzano López.
-
-**Docente:** Carlos Iván Argüello Martínez.
-
-**Institución:** Universidad Americana (UAM), Managua.
+[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [evidencia de avances](docs/AVANCE_02.md) e [instrucciones de mantenimiento](AGENTS.md).

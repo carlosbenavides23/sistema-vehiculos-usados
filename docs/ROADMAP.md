@@ -1,18 +1,20 @@
 # Estado y trabajo futuro
 
-Fecha límite absoluta de todo el proyecto: **30 de noviembre de 2026**. Las fechas de las presentaciones restantes están pendientes de confirmación; no se asignan fechas inventadas a los avances.
+Fecha límite: **30 de noviembre de 2026**. La publicación pública prevista termina el **27 de noviembre de 2026**. No se inventan fechas para las presentaciones restantes ni se programa automáticamente una retirada.
 
-| Elemento | Estado | Dependencias y aceptación general |
+| Elemento | Estado | Criterio pendiente |
 | --- | --- | --- |
-| Control de versiones e higiene del repositorio | Preparado | Git mantiene código, recursos, pruebas y documentación; `.gitignore` separa artefactos locales. La auditoría no altera la aplicación ni implementa servicios futuros. |
-| Segundo avance: registro y edición | Implementado y verificado | Registro, edición con mismo ID, cancelación, disponibilidad y recarga comprobados; 34 pruebas Python aprobadas y flujo real en navegador |
-| Persistencia provisional | Implementada y verificada | Estado versionado, corrupción y versión incompatible sin sobrescritura, errores visibles y restablecimiento confirmado; sin base de datos |
-| Búsqueda y fichas de vehículos | Pendiente, fuera del avance | Acordar campos de búsqueda y contenido de ficha. Encontrar registros y mostrar datos consistentes; no incluir filtro de precio máximo |
-| Contacto e integración | Pendiente, fuera del avance | Definir destinatarios, privacidad y servicios; acordar una interacción demostrable y autorizada |
-| Validación técnica del vehículo | Pendiente de definición | Confirmar quién revisa, criterios, evidencia y resultado antes de diseñar o implementar; no suponer certificación |
-| Persistencia definitiva | Pendiente de decisión | Acordar cómo compartir datos, identidad y continuidad entre dispositivos; documentar diseño antes de implementar |
-| Presentación final | Pendiente | Integrar únicamente funciones acordadas, ejecutar demostración y actualizar documentación antes del límite total |
+| Higiene del repositorio | Integrada en main previamente | Mantener secretos, entornos y archivos generados fuera de Git. |
+| Segundo avance | Histórico, completado | Su persistencia localStorage quedó reemplazada; evidencia preservada en AVANCE_02. |
+| PostgreSQL | Implementado y probado localmente con PostgreSQL 17 real | Verificar Flask contra el proyecto remoto cuando estén configuradas las credenciales. Los seis anuncios remotos se conservan. |
+| Características opcionales | Implementadas | Equipamiento triestado y placa solo administrativa; comprobados en API y navegador. |
+| Fotografías | Código completo y flujo local verificado | Comprobar credenciales y operaciones contra Supabase Storage real en datos autorizados separados. No acreditar el doble local como prueba remota. |
+| Administración | Implementada | Sesión/CSRF, scrypt, límite persistente e idempotencia; revisar responsabilidad compartida y secretos antes de exposición. |
+| Vercel | Configuración preparada | Verificar conectividad y, si es viable sin costo, Preview de solo lectura; no publicar Production sin aprobación. |
+| Presentación final | Pendiente | Demostrar únicamente lo realmente probado y completar documentación antes de la fecha límite. |
 
-La preparación del repositorio no inicia la migración. PostgreSQL, Supabase (incluido Storage) y Vercel no están implementados ni configurados. Antes de comenzar esa etapa se deben acordar modelo y propiedad de datos, credenciales y acceso, política de fotografías, arquitectura de despliegue y criterios de aceptación. También están pendientes de implementación las observaciones del profesor sobre características detalladas y fotografías reales.
+Las tres migraciones del proyecto autorizado cubren esquema inicial, semillas y coordinación de administración/fotos/idempotencia. Las seis tablas tienen RLS y el acceso directo público está cerrado. Los avisos INFO por ausencia de políticas abiertas e índices recién creados se documentan sin relajar permisos ni eliminar índices necesarios.
 
-Los detalles y resultados verificables del segundo avance están en `AVANCE_02.md`. El código actual no implica que los elementos futuros estén implementados. Las ampliaciones se dividirán en tareas delimitadas con contrato y criterios antes de tocar código.
+Antes de Production: configuración privada por ambiente, conexión TLS/pooler, comprobación remota real, revisión de fotos públicas, acceso del equipo, recuperación/limpieza y aprobación del despliegue definitivo. Preview permanece siempre de consulta en esta entrega; un ambiente de escritura separado requiere un cambio explícito posterior.
+
+No se implementan todavía buscador avanzado, filtro de precio máximo, chat, pagos, contacto real, cuentas completas ni validación técnica oficial. El docente debe aclarar “poner números” y cualquier alcance de certificación antes de desarrollarlo.

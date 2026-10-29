@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#193a42">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Vehículos usados · Inventario</title>
   <link rel="icon" href="{{ url_for('static', filename='img/vehiculo.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
-  <script defer src="{{ url_for('static', filename='js/datos-demo.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
 </head>
 <body>
@@ -18,7 +19,11 @@
         <span class="brand-symbol" aria-hidden="true">v<span>.</span></span>
         <span>Vehículos usados<small>PUBLICACIÓN Y CONSULTA</small></span>
       </a>
-      <span class="academic-tag">UAM · Grupo 7 <span class="tag-dot" aria-hidden="true"></span> Segundo avance</span>
+      <div class="academic-tag">
+        <span>UAM · Grupo 7 <span class="tag-dot" aria-hidden="true"></span> Segundo avance</span>
+        <button id="abrir-login" class="button button-secondary" type="button">Administrar</button>
+        <button id="cerrar-sesion" class="button button-secondary" type="button" hidden>Cerrar sesión</button>
+      </div>
     </div>
   </header>
 
@@ -29,7 +34,7 @@
         <h1 id="titulo-principal">Tu inventario, <span>al día.</span></h1>
         <p class="intro-copy">Registra tus vehículos, actualiza sus detalles<br class="desktop-break"> y mantén su disponibilidad al día.</p>
       </div>
-      <button id="nuevo-vehiculo" class="button button-primary" type="button" disabled><span aria-hidden="true">＋</span> Registrar vehículo</button>
+      <button id="nuevo-vehiculo" class="button button-primary" type="button" hidden disabled><span aria-hidden="true">＋</span> Registrar vehículo</button>
     </section>
 
     <section class="summary" aria-label="Resumen del inventario">
@@ -43,26 +48,26 @@
     <section id="inventario" class="inventory-section" aria-labelledby="titulo-inventario" aria-busy="true">
       <div class="section-heading"><div><h2 id="titulo-inventario">Mis vehículos</h2><p id="resumen-listado">Preparando tu inventario…</p></div><span class="section-label">INVENTARIO</span></div>
       <div id="cargando" class="loading-state"><span class="spinner" aria-hidden="true"></span> Cargando vehículos…</div>
-      <div id="estado-vacio" class="empty-state" hidden><img src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="" width="180" height="90"><h3>Tu próximo vehículo empieza aquí</h3><p>Todavía no hay vehículos registrados. Agrega el primero a tu inventario.</p><button id="nuevo-desde-vacio" class="button button-primary" type="button" disabled>Registrar un vehículo</button></div>
+      <div id="estado-vacio" class="empty-state" hidden><img src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="" width="180" height="90"><h3>Tu próximo vehículo empieza aquí</h3><p>Todavía no hay vehículos registrados.</p><button id="nuevo-desde-vacio" class="button button-primary" type="button" hidden disabled>Registrar un vehículo</button></div>
       <div id="estado-bloqueado" class="empty-state blocked-state" hidden><span class="empty-icon" aria-hidden="true">!</span><h3 id="titulo-bloqueado">No pudimos abrir el inventario</h3><p id="detalle-bloqueado"></p><button id="reintentar" class="button button-secondary" type="button">Volver a intentar</button></div>
       <div id="lista-vehiculos" class="vehicle-grid"></div>
     </section>
 
-    <aside class="demo-note"><span class="demo-label">DEMOSTRACIÓN ACADÉMICA</span><p>Todos los vehículos son ficticios. Los cambios se conservan solo en este navegador.</p><button id="restablecer" type="button" class="text-button" disabled>Restablecer demostración <span aria-hidden="true">↻</span></button></aside>
+    <aside class="demo-note"><span class="demo-label">CATÁLOGO PÚBLICO · DEMOSTRACIÓN ACADÉMICA</span><p>Los vehículos ficticios se consultan desde un inventario compartido. Solo los integrantes autorizados pueden modificarlo.</p></aside>
   </main>
   <footer class="shell footer"><span>Programación Estructurada · UAM Managua</span><span>Hecho por el Grupo 7 <span aria-hidden="true">↗</span></span></footer>
 
   <template id="plantilla-vehiculo">
     <article class="vehicle-card">
-      <div class="vehicle-art"><span class="vehicle-badge"></span><span class="vehicle-code"></span><img src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="Ilustración de un vehículo de demostración" width="360" height="180" loading="lazy"></div>
-      <div class="vehicle-body"><p class="vehicle-location"></p><div class="vehicle-title-row"><h3></h3><span class="vehicle-year"></span></div><p class="vehicle-description"></p><div class="vehicle-specs"><span class="vehicle-mileage"></span><span>Precio de venta · USD</span></div><p class="vehicle-price"></p></div>
-      <div class="vehicle-actions"><button class="edit-button" type="button">Editar vehículo <span aria-hidden="true">↗</span></button><button class="availability-button" type="button"></button></div>
+      <div class="vehicle-art"><span class="vehicle-badge"></span><span class="vehicle-code"></span><img class="vehicle-image" src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="Ilustración de un vehículo sin fotografías" width="360" height="180" loading="lazy"><div class="photo-navigation" hidden><button class="photo-prev" type="button" aria-label="Fotografía anterior">‹</button><span class="photo-count" aria-live="polite"></span><button class="photo-next" type="button" aria-label="Fotografía siguiente">›</button></div></div>
+      <div class="vehicle-body"><p class="vehicle-location"></p><div class="vehicle-title-row"><h3></h3><span class="vehicle-year"></span></div><p class="vehicle-description"></p><p class="vehicle-extra" hidden></p><div class="vehicle-specs"><span class="vehicle-mileage"></span><span>Precio de venta · USD</span></div><p class="vehicle-price"></p></div>
+      <div class="vehicle-actions" hidden><button class="edit-button" type="button">Editar vehículo <span aria-hidden="true">↗</span></button><button class="photos-button" type="button">Fotografías</button><button class="availability-button" type="button"></button></div>
     </article>
   </template>
 
   <dialog id="formulario-dialogo" aria-labelledby="titulo-formulario">
     <div class="dialog-header"><div><p class="eyebrow">MI INVENTARIO</p><h2 id="titulo-formulario">Registrar vehículo</h2></div><button id="cerrar-formulario" type="button" class="icon-button" aria-label="Cerrar formulario">×</button></div>
-    <p class="dialog-intro">Completa la información del vehículo. Todos los campos son obligatorios.</p>
+    <p class="dialog-intro">Completa los datos principales. Las características adicionales son opcionales.</p>
     <form id="formulario-vehiculo" novalidate>
       <div id="error-formulario" class="message message-error" role="alert" tabindex="-1" hidden></div>
       <div class="form-grid">
@@ -74,15 +79,49 @@
         <div class="field"><label for="disponibilidad">Disponibilidad</label><select id="disponibilidad" name="disponibilidad" required aria-describedby="error-disponibilidad"><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select><span class="field-error" id="error-disponibilidad"></span></div>
         <div class="field full-width"><label for="ubicacion">Ubicación general</label><input id="ubicacion" name="ubicacion" autocomplete="off" placeholder="Ej. Managua, Nicaragua" required aria-describedby="error-ubicacion"><span class="field-error" id="error-ubicacion"></span></div>
         <div class="field full-width"><label for="descripcion">Descripción</label><textarea id="descripcion" name="descripcion" rows="4" placeholder="Describe las características principales del vehículo." required aria-describedby="ayuda-descripcion error-descripcion"></textarea><small id="ayuda-descripcion">Entre 10 y 1,000 caracteres. Evita incluir datos de contacto personales.</small><span class="field-error" id="error-descripcion"></span></div>
+        <div class="field"><label for="color">Color <span>opcional</span></label><input id="color" name="color" maxlength="40" autocomplete="off" aria-describedby="error-color"><span class="field-error" id="error-color"></span></div>
+        <div class="field"><label for="placa">Placa <span>opcional</span></label><input id="placa" name="placa" maxlength="20" autocomplete="off" aria-describedby="ayuda-placa error-placa"><small id="ayuda-placa">Solo visible para administradores; no aparece en el catálogo público.</small><span class="field-error" id="error-placa"></span></div>
+        <div class="field"><label for="tipo_vehiculo">Tipo de vehículo <span>opcional</span></label><input id="tipo_vehiculo" name="tipo_vehiculo" maxlength="40" autocomplete="off" placeholder="Ej. sedán" aria-describedby="error-tipo_vehiculo"><span class="field-error" id="error-tipo_vehiculo"></span></div>
+        <div class="field"><label for="transmision">Transmisión <span>opcional</span></label><input id="transmision" name="transmision" maxlength="30" autocomplete="off" placeholder="Ej. automática" aria-describedby="error-transmision"><span class="field-error" id="error-transmision"></span></div>
+        <div class="field"><label for="combustible">Combustible <span>opcional</span></label><input id="combustible" name="combustible" maxlength="30" autocomplete="off" placeholder="Ej. gasolina" aria-describedby="error-combustible"><span class="field-error" id="error-combustible"></span></div>
+        <div class="field"><label for="aire_acondicionado">Aire acondicionado <span>opcional</span></label><select id="aire_acondicionado" name="aire_acondicionado" aria-describedby="error-aire_acondicionado"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select><span class="field-error" id="error-aire_acondicionado"></span></div>
+        <div class="field"><label for="ventanas_electricas">Ventanas eléctricas <span>opcional</span></label><select id="ventanas_electricas" name="ventanas_electricas" aria-describedby="error-ventanas_electricas"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select><span class="field-error" id="error-ventanas_electricas"></span></div>
+        <div class="field"><label for="pantalla_multimedia">Pantalla multimedia <span>opcional</span></label><select id="pantalla_multimedia" name="pantalla_multimedia" aria-describedby="error-pantalla_multimedia"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select><span class="field-error" id="error-pantalla_multimedia"></span></div>
       </div>
+      <p class="form-photo-note">Las fotografías se administran por separado después de guardar el vehículo. Editar estos datos conserva las fotos actuales.</p>
       <div class="form-footer"><button id="cancelar-formulario" class="button button-secondary" type="button">Cancelar</button><button id="guardar-vehiculo" class="button button-primary" type="submit">Registrar vehículo</button></div>
     </form>
   </dialog>
-  <dialog id="restablecer-dialogo" aria-labelledby="titulo-restablecer" aria-describedby="detalle-restablecer">
-    <div class="dialog-header"><div><p class="eyebrow">DEMOSTRACIÓN ACADÉMICA</p><h2 id="titulo-restablecer">¿Restablecer la demostración?</h2></div></div>
-    <p id="detalle-restablecer" class="dialog-intro">Se reemplazarán todos los vehículos y cambios guardados en este navegador por los seis vehículos ficticios iniciales. Esta acción no se puede deshacer.</p>
-    <div id="error-restablecer" class="message message-error" role="alert" tabindex="-1" hidden></div>
-    <div class="form-footer"><button id="cancelar-restablecer" class="button button-secondary" type="button" autofocus>Cancelar</button><button id="confirmar-restablecer" class="button button-primary" type="button">Restablecer demostración</button></div>
+  <dialog id="login-dialogo" aria-labelledby="titulo-login">
+    <div class="dialog-header"><div><p class="eyebrow">ACCESO DEL GRUPO 7</p><h2 id="titulo-login">Administrar inventario</h2></div><button id="cerrar-login" type="button" class="icon-button" aria-label="Cerrar acceso">×</button></div>
+    <p class="dialog-intro">El catálogo es público. Inicia sesión para registrar o actualizar vehículos.</p>
+    <form id="login-form" novalidate>
+      <div id="error-login" class="message message-error" role="alert" tabindex="-1" hidden></div>
+      <div class="field"><label for="admin-password">Contraseña administrativa</label><input id="admin-password" name="password" type="password" maxlength="1024" autocomplete="current-password" required aria-describedby="error-login"></div>
+      <div class="form-footer"><button id="cancelar-login" class="button button-secondary" type="button">Cancelar</button><button id="enviar-login" class="button button-primary" type="submit">Iniciar sesión</button></div>
+    </form>
+  </dialog>
+  <dialog id="fotografias-dialogo" aria-labelledby="titulo-fotografias">
+    <div class="dialog-header"><div><p class="eyebrow">MI INVENTARIO</p><h2 id="titulo-fotografias">Fotografías</h2></div><button id="cerrar-fotografias" type="button" class="icon-button" aria-label="Cerrar fotografías">×</button></div>
+    <p id="fotografias-vehiculo" class="dialog-intro"></p>
+    <p class="photo-help" id="ayuda-fotografias">Hasta cinco fotos por vehículo. Acepta JPEG, PNG y WebP de hasta 10 MB; se preparan automáticamente antes de subirlas. Evita mostrar placas, rostros o documentos en las fotos públicas.</p>
+    <div id="mensaje-fotografias" class="message" role="status" aria-live="polite" tabindex="-1" hidden></div>
+    <div class="photo-editor-heading"><p id="contador-fotografias"></p><button id="actualizar-fotografias" class="text-button" type="button">Actualizar fotos</button></div>
+    <div id="fotografias-actuales" class="photo-editor-grid"></div>
+    <p id="fotografias-vacias" class="photo-help">Todavía no hay fotografías. El catálogo muestra una ilustración.</p>
+    <div id="selector-fotografia" class="field"><label for="fotografia-archivo">Añadir fotografía</label><input id="fotografia-archivo" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="ayuda-fotografias"></div>
+    <input id="fotografia-sustituta" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Elegir fotografía sustituta" hidden>
+    <section id="foto-preparada" class="photo-prepared" aria-labelledby="titulo-foto-preparada" hidden>
+      <h3 id="titulo-foto-preparada">Vista previa</h3>
+      <img id="foto-vista-previa" alt="Vista previa de la fotografía preparada">
+      <p id="foto-detalle" class="photo-help"></p>
+      <div class="photo-editor-actions"><button id="cancelar-foto-preparada" class="button button-secondary" type="button">Descartar selección</button><button id="confirmar-foto" class="button button-primary" type="button">Subir fotografía</button></div>
+    </section>
+    <section id="confirmar-borrado-foto" class="photo-delete-confirmation" role="group" aria-labelledby="texto-borrado-foto" hidden>
+      <p id="texto-borrado-foto">¿Eliminar esta fotografía del vehículo?</p>
+      <div class="photo-editor-actions"><button id="cancelar-borrado-foto" class="button button-secondary" type="button">Conservar fotografía</button><button id="eliminar-foto" class="button button-danger" type="button">Eliminar fotografía</button></div>
+    </section>
+    <div class="form-footer"><button id="terminar-fotografias" class="button button-secondary" type="button">Cerrar</button></div>
   </dialog>
 </body>
 </html>

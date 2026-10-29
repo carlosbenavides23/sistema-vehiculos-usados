@@ -117,7 +117,7 @@ La inspección del ZIP, la instalación y pruebas desde una extracción limpia, 
 
 En esta corrección se delegó exclusivamente el CSS a un subagente. El agente principal revisó los cambios, preparó documentación y paquete y realizó las comprobaciones de integración.
 
-## Limitaciones y pendientes
+## Limitaciones registradas al cierre del segundo avance (22 de octubre de 2026)
 
 La persistencia está ligada al navegador y al origen; no se comparte entre dispositivos ni vendedores/compradores. Borrar los datos del sitio elimina la colección. No hay resolución de concurrencia entre pestañas. El backend no ofrece autenticación ni persistencia definitiva. Los datos ficticios no acreditan condiciones técnicas de los vehículos.
 
@@ -131,4 +131,119 @@ Se amplió `.gitignore` para incluir cachés de análisis, entornos virtuales, c
 
 Se inspeccionó el contenido de los archivos rastreados y el historial local disponible buscando patrones comunes de secretos y rutas personales. No se encontraron coincidencias. Esta comprobación estática no garantiza detectar todos los secretos o datos personales, y no sustituye herramientas especializadas ni una auditoría de permisos de GitHub. No se reescribió el historial. El proyecto utiliza Git y está alojado en GitHub; esta tarea no publica cambios.
 
-Las observaciones del profesor sobre características detalladas y fotografías reales siguen pendientes de implementación. PostgreSQL, Supabase (incluido Storage) y Vercel tampoco están implementados/configurados. Antes de migrar se deben acordar el modelo y propiedad de datos, acceso y credenciales, tratamiento de fotografías y criterios de despliegue. La preparación de higiene no modifica reglas, rutas, dependencias ni funcionalidades del segundo avance.
+Las observaciones del profesor sobre características detalladas y fotografías reales seguían pendientes. Al realizar la auditoría de higiene del 29 de octubre, PostgreSQL, Supabase (incluido Storage) y Vercel aún no estaban implementados/configurados. La Fase 1 posterior actualiza el estado de persistencia y se registra abajo; Storage y Vercel permanecen pendientes. La preparación de higiene no modificó reglas, rutas, dependencias ni funcionalidades del segundo avance.
+
+## Fase 1: PostgreSQL con Supabase (29 de octubre de 2026)
+
+### Implementación
+
+- PostgreSQL 17 en el proyecto Supabase autorizado `rtcygltmrtulyeezaaac` quedó como fuente de verdad. Flask usa consultas parametrizadas mediante psycopg; no conserva una colección global de vehículos.
+- Se aplicaron las migraciones `20261029204809_create_vehicles_schema` y `20261029205549_seed_demo_vehicles`. La primera crea `public.vehiculos` y `public.vehiculo_fotografias`, sus restricciones e identidades y habilita RLS. La segunda inserta los seis registros ficticios únicamente si la tabla está vacía. PostgreSQL asignó los IDs.
+- La consulta remota confirmó seis vehículos, seis IDs únicos, cinco disponibles, uno vendido y valores NULL en campos opcionales. La tabla de fotografías tiene cero filas. No se crearon buckets ni se modificó Storage.
+- RLS está habilitado, no hay políticas en las dos tablas y `anon`/`authenticated` no tienen privilegios directos de lectura ni escritura. El acceso de la aplicación pasa por Flask. El asesor de seguridad reporta `rls_enabled_no_policy` como INFO en ambas tablas; es el cierre esperado para este modelo. El asesor de rendimiento no reportó avisos.
+- Flask expone las consultas públicas, alta, consulta por ID, edición y cambio de disponibilidad. Las escrituras requieren sesión administrativa y CSRF. Las respuestas públicas omiten la placa. La interfaz consulta Flask; ya no usa `localStorage` operacionalmente ni borra el dato antiguo.
+- La importación del inventario antiguo tiene previsualización por defecto y escritura solo mediante `--apply`. No se importaron exportaciones de navegadores; esos datos siguen intactos. La carga local de semillas es explícita y no se ejecuta en el arranque.
+- `.env.example`, README e instrucciones describen `DATABASE_URL`, `FLASK_SECRET_KEY`, `ADMIN_PASSWORD_HASH`, ejecución local y limitaciones. No se incluyeron credenciales reales.
+
+### Pruebas y límites de verificación
+
+Se ejecutó `python -m unittest discover -s tests -v`: **25 pruebas aprobadas**, incluidas pruebas de validación, contrato API y persistencia con cursor falso. No son pruebas de integración con PostgreSQL. No había `DATABASE_URL` configurada en el entorno, así que no se conectó la aplicación Flask al proyecto remoto ni se verificaron transacciones desde el driver. Tampoco se ejecutó un flujo de extremo a extremo en navegador. La verificación remota cubrió el esquema, los datos, los privilegios y los asesores mediante Supabase MCP.
+
+`node --check` pasó para `static/js/interfaz.js` y `static/js/datos-demo.js`; `pip check` no encontró requisitos rotos; `git diff --check` no reportó problemas. No se hizo commit, push, merge ni despliegue. Rama activa: `feature/supabase-migration`; los cambios de esta tarea quedan locales.
+
+### Seguridad provisional y trabajo futuro
+
+La sesión usa cookie Flask firmada, HttpOnly, SameSite=Lax y Secure configurable para HTTPS; el hash de acceso se configura en entorno. Las contraseñas de más de 1024 caracteres se rechazan antes de verificar el hash. El límite provisional de intentos vive en la cookie y puede reiniciarse al borrarla; no constituye rate limiting robusto. Antes de exposición prolongada se necesita limitación persistente/global o autenticación con cuentas.
+
+No se implementaron fotos, procesamiento, políticas de Storage, Vercel, chat, pagos ni contacto real. No se desplegó la aplicación. Antes de cerrar la validación integral se debe probar el backend contra una base de pruebas aislada con credenciales locales, revisar el flujo en navegador y, si se decide rescatar datos antiguos, exportarlos y conciliarlos manualmente.
+
+## Implementación integral — posterior a la Fase 1, 29 de octubre de 2026
+
+Esta sección sustituye el estado vigente de la Fase 1; las secciones anteriores conservan su evidencia histórica. Se trabajó en `feature/supabase-migration`, partiendo de `bbf5fd5` con los cambios locales de la Fase 1 sin confirmar. Se conservaron esos cambios y se completaron las características, fotografías y seguridad solicitadas. No se modificó main ni se publicó en Production.
+
+### Coordinación y revisión
+
+Se utilizaron realmente tres subagentes: `database_integral` implementó persistencia, coordinación SQL, limitación de acceso y pruebas PostgreSQL; `backend_integral` implementó rutas, seguridad, Pillow, Storage y sus pruebas; `frontend_integral` implementó formulario, compresión, galería, gestor y CSS. Sus archivos no se solaparon. El coordinador integró, añadió pruebas HTTP con PostgreSQL real, preparó Vercel/documentación, ejecutó navegador y revisó/aplicó el SQL remoto.
+
+El subagente de frontend efectuó después una revisión independiente de solo lectura. Detectó una carrera de limpieza al cruzar el vencimiento de una reserva y una comprobación insuficiente por cadenas del destino Preview. Se corrigió la primera con reclamación atómica, bloqueo en orden consistente, cancelación y concesión; dos regresiones reales prueban ambos órdenes de concurrencia. Preview quedó siempre de consulta, sin excepción configurable de escritura. La revisión adicional del adaptador corrigió el cierre de respuestas HTTP de error y verificó que un 409 de Storage no confirme metadatos antes de comprobar que el objeto existe y contiene los mismos bytes.
+
+### Cambios por archivo
+
+| Archivo o grupo | Cambio aportado |
+| --- | --- |
+| `app.py` | API por vehículo/foto, sesión/CSRF, autorización, alta UUID, límites de solicitud, acceso persistente, errores seguros, no-store y Preview de consulta. |
+| `vehiculos.py` | Campos opcionales/triestado y compatibilidad de importaciones antiguas; valida mediante funciones. |
+| `persistencia.py` | SQL parametrizado, TLS, IDENTITY, límite 500, idempotencia y cargadores sin sobrescritura. |
+| `persistencia_fotos.py` | Reservas, máximo cinco, sustitución/rollback y cola durable reclamada antes de borrar. |
+| `limites_login.py` | Cinco intentos por diez minutos compartidos en PostgreSQL; limpieza acotada de ventanas antiguas. |
+| `imagenes.py` | Pillow real: JPEG/PNG/WebP, límites, orientación, rechazo de animación/corrupción y WebP sin metadatos. |
+| `almacenamiento.py` | REST del bucket vehiculos, claves solo de servidor, sin upsert, verificación de reintentos, errores seguros y limpieza recuperable. |
+| `templates/index.html`, `static/js/interfaz.js`, `static/js/fotografias.js`, `static/css/estilos.css` | Administración, opcionales, preparación de imágenes, vista previa, galería y gestor responsive con confirmaciones. |
+| `supabase/migrations/` | Dos migraciones de la Fase 1 conservadas y tercera aditiva de administración/fotos/idempotencia. |
+| `scripts/cargar_datos_demo.py`, `scripts/importar_localstorage.py` | Carga/importación deliberada, previsualización y prevención de duplicados de la Fase 1. |
+| `scripts/limpiar_storage.py` | Mantenimiento con previsualización por defecto y --apply para rutas elegibles. |
+| `scripts/preparar_vercel.py`, `vercel.json`, `.python-version`, `.vercelignore` | Entrada Flask, Python 3.14, función de 60 s, recursos CDN y exclusión de secretos/artefactos. |
+| `requirements.txt`, `.env.example`, `.gitignore` | Dependencias fijadas con Pillow 13, variables sin secretos y exclusión de salida generada. |
+| Ocho archivos `tests/test_*.py` | Validación, API, adaptador, imágenes, recuperación, idempotencia y PostgreSQL real aislado. |
+| README, AGENTS, arquitectura, decisiones, roadmap y este avance | Instrucciones Windows/Linux, contratos, operación, límites y evidencia actualizados. |
+
+### PostgreSQL remoto
+
+Se volvió a comprobar la identidad `rtcygltmrtulyeezaaac`, PostgreSQL 17.11, región us-west-2. Existían las dos tablas de aplicación y las dos migraciones esperadas. No se duplicaron semillas ni se crearon proyectos/buckets.
+
+Se aplicó por Supabase MCP la migración **`20261029213538_admin_fotos_idempotencia`**. Añade `admin_login_intentos`, `solicitudes_idempotentes`, `fotografia_operaciones` y `storage_limpieza`, claves, restricciones e índices. Las seis tablas tienen RLS y los privilegios directos de PUBLIC/anon/authenticated están revocados. No se habilitaron políticas públicas de escritura.
+
+Antes y después hubo seis vehículos, cero fotografías y cero objetos en el bucket. La huella de todos los campos de los vehículos se mantuvo exactamente en `f270d49156da72c62e0083c0219f719d`. El bucket existente sigue público, solo WebP, límite de 1.048.576 bytes; la aplicación impone un límite menor de 1.000.000 bytes. No se enviaron imágenes de prueba al remoto.
+
+Asesores después de DDL: seis avisos **INFO** [RLS Enabled No Policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), deliberados por el acceso exclusivo mediante Flask, y cuatro **INFO** [Unused Index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) en índices recién creados. No hubo avisos WARNING/ERROR. Se conservaron los índices de claves foráneas, vencimiento y limpieza para sus consultas previstas.
+
+### Pruebas ejecutadas
+
+Windows, Python 3.14.7, Flask 3.1.3, psycopg 3.3.6, python-dotenv 1.2.4 y Pillow 13.0.0. Se obtuvo PostgreSQL portable 17.11 de la fuente oficial EDB y se inició un clúster temporal propio, solo loopback, puerto 15439. No se instaló un servicio permanente ni se utilizó la base remota para escrituras de prueba.
+
+Comando principal: `TEST_DATABASE_URL` apuntando a `postgresql://postgres@127.0.0.1:15439/grupo7_test`, seguido de `python -m unittest discover -s tests -v` con el ejecutable del entorno. **70 pruebas, 70 aprobadas, ninguna omitida, 19.448 s.**
+
+| Tipo | Cantidad | Alcance ejecutado |
+| --- | --- | --- |
+| PostgreSQL real | 16 | Migraciones/RLS, restricciones, CRUD entre conexiones, seed/importación, IDs concurrentes, máximo 500, idempotencia, cinco fotos, rollback, limpieza y limitación compartida. |
+| Flask + PostgreSQL real + Storage doble | 4 | Flujo HTTP, semillas intactas, autorización/CSRF, idempotencia, equipamiento, fotos, fallos y contador persistente pese a nuevas cookies. |
+| Unitarias | 50 | Validación, contrato HTTP, dobles de persistencia/Storage, TLS y decodificación/recodificación real de Pillow. |
+
+La suite creó y eliminó únicamente bases locales nuevas con UUID. Los 20 escenarios con PostgreSQL no equivalen a cargas contra Supabase Storage. Los fallos del proveedor se inyectaron explícitamente. Después se corrigió el cierre del objeto HTTPError y se ejecutaron de nuevo las siete pruebas del adaptador con ResourceWarning tratado como error y recolección de basura: 7/7, sin advertencias.
+
+`compileall`, `pip check`, sintaxis de los tres JavaScript y `git diff --check` pasaron. El script de build copió cinco recursos a public/static y se compararon sus hashes con static: idénticos. El JSON se contrastó con las propiedades del esquema oficial de Vercel. Esto valida la preparación local; no constituye un build o despliegue ejecutado por Vercel.
+
+### Navegador real
+
+Se inició un arnés temporal fuera del repositorio en 127.0.0.1:5057, con PostgreSQL real propio y Storage doble en memoria. El arnés no forma parte del producto. Se probaron formularios, archivos y controles reales con el navegador integrado; no se escribieron registros remotos.
+
+| Escenario | Resultado observado |
+| --- | --- |
+| Consulta pública | Seis semillas iniciales y acciones de edición ocultas. |
+| Login y entrada inválida | Acceso correcto; marca de espacios rechazada, otros campos conservados. |
+| Doble clic en registro | Un único vehículo nuevo ID 7; total siete. |
+| Opcionales | Color/placa/tipo/transmisión/combustible guardados; Sí/No/No especificado visibles de forma coherente. Placa ausente de la tarjeta pública. |
+| Compresión | JPEG de 2400×1800 preparado por el navegador como WebP de 1600×1200, aproximadamente 817 KB; vista previa antes de guardar. |
+| Doble clic en carga | Una sola fotografía guardada. |
+| Sustitución | Descartar selección conservó la foto; confirmar guardó nueva imagen manteniendo una sola referencia. |
+| Eliminación | Cancelar conservó la foto; confirmar la retiró. |
+| Imagen corrupta | Mensaje comprensible, sin alta; luego se pudo cargar una imagen válida. |
+| Cancelar edición | Modelo anterior conservado. |
+| Guardar y disponibilidad | Mismo ID 7, fotos conservadas, vendido persistente al recargar. |
+| Galería pública | Dos fotografías y navegación 1/2→2/2; solo botones de galería visibles después de logout. |
+| Responsive | Anchos 320,375,768,1024,1440; sin desbordamiento horizontal. Formulario y gestor scrollables; a320 px el diálogo de fotos midió282 px. |
+| Consola | Sin errores ni advertencias observados en el flujo final. |
+
+Las imágenes eran fixtures sintéticas para probar archivos; no fotografías reales de anuncios ni evidencia de características mecánicas. Capturas de formulario móvil, gestor móvil y catálogo se guardaron en `entregables/integral/`, ignoradas por Git.
+
+### Credenciales, Vercel y límites pendientes
+
+Vercel MCP confirmó cuenta Hobby activa, sin proyectos accesibles en la inspección. Se verificó en su documentación el soporte de app.py:app, Python, CDN public/ y límites de funciones. Se preparó la configuración, pero no se creó Preview ni se ejecutó Production. No se configuraron servicios de pago ni se hizo push o merge.
+
+Al cerrar la implementación, DATABASE_URL, las claves de Storage y ADMIN_PASSWORD_HASH aún no estaban configurados. Se dejó `.env` local ignorado con plantilla y una clave Flask aleatoria; no se mostraron sus valores. Por ello no se afirma conexión Flask→Supabase, carga/borrado al Storage remoto ni URL Preview funcional. La lectura y el DDL remotos descritos se realizaron por MCP.
+
+Para publicar falta exactamente: completar secretos privados; comprobar conexión real y fotografías con datos autorizados sin modificar las seis semillas; revisar el acceso administrativo compartido y la operación de limpieza; crear/verificar Preview de consulta si corresponde; aprobar Production con variables propias y HTTPS. Preview siempre de solo lectura evita usar producción como ambiente de pruebas de escritura. La exposición prevista termina el 27 de noviembre y su retirada no está automatizada.
+
+Al terminar se cerró el arnés, se eliminó su base UUID mediante la fixture y se detuvo el PostgreSQL portátil. No quedan servidores de prueba de esta tarea en ejecución. Las capturas y herramientas temporales permanecen fuera del índice.
+
+Se autoriza y prepara un commit local del conjunto verificado; el hash definitivo se informa en la entrega. El repositorio conserva `.env`, cachés, recursos CDN y evidencia de prueba fuera del índice. No se publica el commit sin nueva autorización.
