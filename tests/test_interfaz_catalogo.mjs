@@ -46,6 +46,30 @@ test("las tarjetas conservan las acciones administrativas sin mostrarlas al púb
   assert.match(estilos, /\.vehicle-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);
 });
 
+test("la plantilla mantiene los controles de filtros y formulario accesibles", () => {
+  const detalles = plantillaHtml.match(/<details\b(?=[^>]*\bid="filtros-avanzados")[^>]*>([\s\S]*?)<\/details>/)?.[1];
+  assert.ok(detalles, "Los filtros avanzados deben estar dentro del details real de la plantilla.");
+  const summary = detalles.match(/<summary\b([^>]*)>/)?.[1];
+  assert.ok(summary, "El control debe usar un summary nativo.");
+  const controles = summary.match(/\baria-controls="([^"]+)"/)?.[1];
+  assert.ok(controles, "El summary debe relacionarse con su contenedor usando aria-controls.");
+  assert.match(detalles, new RegExp(`<div\\b[^>]*\\bid="${controles}"`), "aria-controls debe apuntar al contenedor existente.");
+  for (const nombre of ["precio_min", "precio_max", "anio_min", "anio_max", "tipo_vehiculo", "orden"]) {
+    assert.match(detalles, new RegExp(`\\bname="${nombre}"`), `${nombre} debe permanecer dentro de filtros avanzados.`);
+  }
+
+  assert.match(plantillaHtml, /id="filtros-avanzados-activos"[^>]*role="status"|role="status"[^>]*id="filtros-avanzados-activos"/);
+  const fieldsets = [...plantillaHtml.matchAll(/<fieldset\b([^>]*)>/g)]
+    .filter(([, atributos]) => /\bclass="[^"]*\bformulario-seccion\b[^"]*"/.test(atributos));
+  assert.equal(fieldsets.length, 4, "El formulario administrativo debe tener cuatro grupos semánticos.");
+
+  const textarea = plantillaHtml.match(/<textarea\b(?=[^>]*\bid="descripcion")[^>]*>/)?.[0];
+  assert.ok(textarea, "Debe existir el textarea real de descripción.");
+  assert.match(textarea, /\bmaxlength="1000"/);
+  const referencias = textarea.match(/\baria-describedby="([^"]+)"/)?.[1].split(/\s+/) || [];
+  assert.ok(referencias.includes("contador-descripcion"), "El contador debe estar asociado con aria-describedby.");
+});
+
 class ElementoFalso {
   constructor(id = "") {
     this.id = id;
@@ -67,6 +91,7 @@ class ElementoFalso {
 
   querySelectorAll() { return []; }
   setAttribute(nombre, valor) { this.attributes[nombre] = valor; }
+  getAttribute(nombre) { return this.attributes[nombre] ?? null; }
   replaceChildren() {}
   append() {}
   focus() {}
@@ -90,6 +115,7 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
   const nombres = [
     "formulario-vehiculo", "formulario-dialogo", "login-dialogo", "login-form",
     "fotografias-dialogo", "filtros-catalogo", "mensaje", "abrir-login",
+    "filtros-avanzados", "filtros-avanzados-activos", "descripcion", "contador-descripcion",
     "cerrar-sesion", "nuevo-vehiculo", "nuevo-desde-vacio", "reintentar",
     "guardar-vehiculo", "cerrar-formulario", "inventario", "cargando",
     "estado-bloqueado", "estado-vacio", "estado-sin-resultados", "lista-vehiculos",
@@ -112,6 +138,7 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
     { name: "orden", value: "", disabled: false },
   ];
   catalogo.querySelectorAll = () => catalogo.elements;
+  elementos.get("descripcion").attributes.maxlength = "1000";
   const formulario = elementos.get("formulario-vehiculo");
   formulario.elements = { namedItem: () => null };
   const formularioLogin = elementos.get("login-form");
@@ -171,6 +198,10 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
     rutas,
     catalogo,
     abrirLogin: elementos.get("abrir-login"),
+    detallesFiltros: elementos.get("filtros-avanzados"),
+    indicadorFiltrosAvanzados: elementos.get("filtros-avanzados-activos"),
+    descripcion: elementos.get("descripcion"),
+    contadorDescripcion: elementos.get("contador-descripcion"),
     async esperarCarga() { await new Promise((resolver) => setTimeout(resolver, 0)); },
   };
 }
@@ -189,11 +220,44 @@ test("el submit conserva los filtros al deshabilitar los controles", async () =>
   assert.ok(app.rutas.includes("/api/vehiculos?q=Toyota"), app.rutas.join(", "));
 });
 
-test("una URL compartida inicia el catálogo con sus filtros aunque estén deshabilitados", async () => {
-  const app = prepararAplicacion("?q=Toyota");
+test("una URL compartida inicia con los filtros avanzados expandidos y señalados", async () => {
+  const app = prepararAplicacion("?q=Toyota&precio_min=12000&anio_max=2022&orden=precio_desc");
   await app.esperarCarga();
 
-  assert.ok(app.rutas.includes("/api/vehiculos?q=Toyota"), app.rutas.join(", "));
+  assert.ok(app.rutas.includes("/api/vehiculos?q=Toyota&precio_min=12000&anio_max=2022&orden=precio_desc"), app.rutas.join(", "));
+  assert.equal(app.catalogo.elements.find((campo) => campo.name === "precio_min").value, "12000");
+  assert.equal(app.catalogo.elements.find((campo) => campo.name === "anio_max").value, "2022");
+  assert.equal(app.detallesFiltros.open, true);
+  assert.equal(app.indicadorFiltrosAvanzados.hidden, false);
+  assert.equal(app.indicadorFiltrosAvanzados.textContent, "3 filtros avanzados aplicados");
+});
+
+test("contraer filtros avanzados conserva valores y el submit incluye todos los parámetros", async () => {
+  const app = prepararAplicacion("?q=Toyota&precio_min=12000&tipo_vehiculo=SUV&orden=precio_desc");
+  await app.esperarCarga();
+  app.detallesFiltros.open = false;
+  app.catalogo.elements.find((campo) => campo.name === "q").value = "Toyota RAV4";
+
+  app.catalogo.listeners.get("submit")[0]({ preventDefault() {} });
+  await app.esperarCarga();
+
+  const ruta = app.rutas.filter((item) => item.startsWith("/api/vehiculos?")).at(-1);
+  const parametros = new URLSearchParams(ruta.split("?")[1]);
+  assert.equal(parametros.get("q"), "Toyota RAV4");
+  assert.equal(parametros.get("precio_min"), "12000");
+  assert.equal(parametros.get("tipo_vehiculo"), "SUV");
+  assert.equal(parametros.get("orden"), "precio_desc");
+  assert.equal(app.catalogo.elements.find((campo) => campo.name === "precio_min").value, "12000");
+  assert.equal(app.detallesFiltros.open, false);
+  assert.equal(app.indicadorFiltrosAvanzados.hidden, false);
+});
+
+test("el contador de descripción se actualiza conforme se escribe", () => {
+  const app = prepararAplicacion();
+  app.descripcion.value = "Vehículo en buen estado";
+  app.descripcion.listeners.get("input")[0]();
+
+  assert.equal(app.contadorDescripcion.textContent, "23 de 1000 caracteres");
 });
 
 test("el catálogo en solo lectura mantiene oculto el acceso administrativo", async () => {
