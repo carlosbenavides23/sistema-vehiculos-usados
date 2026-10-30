@@ -8,6 +8,11 @@
   const formularioLogin = porId("login-form");
   const dialogoFotos = porId("fotografias-dialogo");
   const filtrosCatalogo = porId("filtros-catalogo");
+  const detallesFiltros = porId("filtros-avanzados");
+  const indicadorFiltrosAvanzados = porId("filtros-avanzados-activos");
+  const campoDescripcion = porId("descripcion");
+  const contadorDescripcion = porId("contador-descripcion");
+  const nombresFiltrosAvanzados = ["precio_min", "precio_max", "anio_min", "anio_max", "tipo_vehiculo", "orden"];
   const idFicha = document.body.dataset.vehiculoId || "";
   const dolaresEnteros = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
   const entero = new Intl.NumberFormat("es-NI");
@@ -488,6 +493,30 @@
       if (campo.name && parametros.has(campo.name)) campo.value = parametros.get(campo.name);
     }
     parametrosCatalogoActivos = leerParametrosCatalogo();
+    actualizarFiltrosAvanzados(true);
+  }
+
+  function actualizarFiltrosAvanzados(abrirSiActivos = false) {
+    const activos = nombresFiltrosAvanzados.filter((nombre) => {
+      const valor = parametrosCatalogoActivos.get(nombre);
+      return valor !== null && valor.trim() !== "";
+    });
+    if (indicadorFiltrosAvanzados) {
+      indicadorFiltrosAvanzados.hidden = activos.length === 0;
+      indicadorFiltrosAvanzados.textContent = activos.length === 1
+        ? "1 filtro avanzado aplicado"
+        : `${activos.length} filtros avanzados aplicados`;
+    }
+    if (detallesFiltros) {
+      if (activos.length === 0) detallesFiltros.open = false;
+      else if (abrirSiActivos) detallesFiltros.open = true;
+    }
+  }
+
+  function actualizarContadorDescripcion() {
+    if (!campoDescripcion || !contadorDescripcion) return;
+    const maximo = Number(campoDescripcion.getAttribute("maxlength")) || 1000;
+    contadorDescripcion.textContent = `${campoDescripcion.value.length} de ${maximo} caracteres`;
   }
 
   function leerParametrosCatalogo() {
@@ -501,6 +530,7 @@
   async function buscarConFiltros(actualizarHistorial = true) {
     if (ocupado || idFicha) return;
     parametrosCatalogoActivos = leerParametrosCatalogo();
+    actualizarFiltrosAvanzados();
     const query = parametrosCatalogoActivos.toString();
     if (actualizarHistorial) {
       history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
@@ -716,6 +746,7 @@
       });
       erroresFormulario(new Error("El registro anterior no se confirmó. Pulsa Confirmar registro para consultar su resultado sin crear otro vehículo."));
     }
+    actualizarContadorDescripcion();
     porId("titulo-formulario").textContent = vehiculo ? "Editar vehículo" : "Registrar vehículo";
     actualizarControles();
     dialogo.showModal();
@@ -921,6 +952,8 @@
     evento.preventDefault();
     buscarConFiltros();
   });
+  campoDescripcion?.addEventListener("input", actualizarContadorDescripcion);
+  formulario.addEventListener("reset", () => setTimeout(actualizarContadorDescripcion, 0));
   filtrosCatalogo.addEventListener("reset", () => {
     setTimeout(() => buscarConFiltros(), 0);
   });
@@ -955,4 +988,5 @@
     copiarFiltrosDesdeUrl();
     inicializar();
   }
+  actualizarContadorDescripcion();
 })();
