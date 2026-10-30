@@ -4,6 +4,47 @@ import test from "node:test";
 import vm from "node:vm";
 
 const source = await readFile(new URL("../static/js/interfaz.js", import.meta.url), "utf8");
+const plantillaHtml = await readFile(new URL("../templates/index.html", import.meta.url), "utf8");
+const estilos = await readFile(new URL("../static/css/estilos.css", import.meta.url), "utf8");
+
+test("las tarjetas públicas muestran solo el resumen y enlazan a la ficha completa", () => {
+  const plantilla = plantillaHtml.match(/<template id="plantilla-vehiculo">([\s\S]*?)<\/template>/)?.[1];
+  assert.ok(plantilla, "Debe existir la plantilla de tarjetas del catálogo.");
+  for (const selector of [
+    "vehicle-image", "vehicle-badge", "vehicle-location", "vehicle-year",
+    "vehicle-description", "vehicle-mileage", "vehicle-price", "detail-link",
+  ]) {
+    assert.ok(plantilla.includes(selector), `La tarjeta debe incluir ${selector}.`);
+  }
+  assert.doesNotMatch(plantilla, /vehicle-extra|vehicle-code|Color:|Transmisión:|Combustible:/);
+  assert.ok(source.includes("enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`"));
+  assert.match(source, /enlaceFicha\.setAttribute\("aria-label", `Ver ficha completa de \$\{nombre\}`\)/);
+  assert.doesNotMatch(source, /const extras = \[\]/);
+  assert.match(estilos, /\.vehicle-description\s*\{[^}]*-webkit-line-clamp:\s*1;/s);
+});
+
+test("la ficha individual conserva descripción y detalles del vehículo", () => {
+  const renderizadoFicha = source.match(/function renderizarFicha\(vehiculo\)\s*\{([\s\S]*?)\n  \}/)?.[1];
+  assert.ok(renderizadoFicha, "Debe existir el renderizado de ficha individual.");
+  for (const campo of [
+    "vehiculo.descripcion", "vehiculo.tipo_vehiculo", "vehiculo.color",
+    "vehiculo.transmision", "vehiculo.combustible", "aire_acondicionado",
+    "ventanas_electricas", "pantalla_multimedia",
+  ]) {
+    assert.ok(renderizadoFicha.includes(campo), `La ficha debe presentar ${campo}.`);
+  }
+  assert.match(plantillaHtml, /id="ficha-caracteristicas"/);
+});
+
+test("las tarjetas conservan las acciones administrativas sin mostrarlas al público", () => {
+  const plantilla = plantillaHtml.match(/<template id="plantilla-vehiculo">([\s\S]*?)<\/template>/)?.[1];
+  assert.match(plantilla, /class="vehicle-actions" hidden/);
+  for (const control of ["edit-button", "photos-button", "availability-button"]) {
+    assert.ok(plantilla.includes(control), `Debe conservarse la acción ${control}.`);
+  }
+  assert.match(source, /acciones\.hidden = !autenticado/);
+  assert.match(estilos, /\.vehicle-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);
+});
 
 class ElementoFalso {
   constructor(id = "") {

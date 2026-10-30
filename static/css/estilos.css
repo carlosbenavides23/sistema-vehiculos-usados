@@ -347,7 +347,7 @@ h2 {
 }
 
 .vehicle-art {
-  height: 174px;
+  height: 160px;
   flex-shrink: 0;
   border-radius: var(--radius) var(--radius) 0 0;
   position: relative;
@@ -360,7 +360,7 @@ h2 {
 
 .vehicle-art img {
   width: 90%;
-  max-height: 160px;
+  max-height: 148px;
   object-fit: contain;
   transform: translateY(11px);
 }
@@ -402,28 +402,17 @@ h2 {
   border-color: #deded8;
 }
 
-.vehicle-code {
-  position: absolute;
-  bottom: 12px;
-  right: 16px;
-  max-width: calc(100% - 32px);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: #768680;
-  font-family: Consolas,monospace;
-}
-
 .vehicle-body {
   flex: 1;
   min-width: 0;
-  padding: 20px 21px 17px;
+  padding: 16px 18px 14px;
 }
 
 .vehicle-location {
   font-size: 12px;
   letter-spacing: .1px;
   color: var(--muted);
-  margin: 0 0 10px;
+  margin: 0 0 7px;
 }
 
 .vehicle-location:before {
@@ -454,9 +443,13 @@ h2 {
 }
 
 .vehicle-description {
-  margin: 11px 0 16px;
-  font-size: 14px;
-  line-height: 1.75;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  margin: 7px 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -477,35 +470,38 @@ h2 {
 }
 
 .vehicle-price {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -.8px;
-  margin: 7px 0 0;
+  margin: 3px 0 0;
   color: var(--navy);
 }
 
 .vehicle-actions {
   border-top: 1px solid #e8edeb;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
   align-items: center;
-  padding: 0 20px;
-  gap: 0 10px;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  min-height: 53px;
+  padding: 7px 12px;
+  gap: 6px;
+  background: #fafbf9;
+}
+
+.vehicle-actions[hidden] {
+  display: none;
 }
 
 .vehicle-actions button {
-  min-height: 44px;
+  min-height: 38px;
   max-width: 100%;
   overflow-wrap: anywhere;
-  padding: 13px 0;
+  padding: 6px 4px;
   border: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
   color: var(--teal);
-  text-align: left;
+  text-align: center;
 }
 
 .edit-button span {
@@ -515,7 +511,7 @@ h2 {
 .vehicle-actions .availability-button {
   font-weight: 400;
   color: var(--muted);
-  text-align: right;
+  text-align: center;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -844,12 +840,11 @@ body.dialog-open {
     padding: 17px;
   }
   .vehicle-actions {
-    padding: 0 16px;
-    flex-wrap: wrap;
-    gap: 0;
+    padding: 7px 10px;
+    gap: 5px;
   }
   .vehicle-actions button {
-    font-size: 12px;
+    font-size: 10px;
   }
   .vehicle-title-row h3 {
     font-size: 16px;
@@ -860,10 +855,10 @@ body.dialog-open {
     gap: 5px;
   }
   .vehicle-art {
-    height: 151px;
+    height: 148px;
   }
   .vehicle-price {
-    font-size: 23px;
+    font-size: 21px;
   }
 }
 
@@ -900,7 +895,7 @@ body.dialog-open {
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
   .vehicle-art {
-    height: 166px;
+    height: 152px;
   }
   .vehicle-specs {
     align-items: center;
@@ -1023,7 +1018,7 @@ body.dialog-open {
     width: 87%;
   }
   .vehicle-body {
-    padding: 21px;
+    padding: 16px;
   }
   .vehicle-title-row h3 {
     font-size: 21px;
@@ -1035,9 +1030,9 @@ body.dialog-open {
     font-size: 13px;
   }
   .vehicle-description {
-    font-size: 14px;
-    line-height: 1.75;
-    margin-top: 13px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 7px 0 9px;
   }
   .vehicle-specs {
     font-size: 12px;
@@ -1046,15 +1041,15 @@ body.dialog-open {
     font-size: 12px;
   }
   .vehicle-price {
-    font-size: 27px;
+    font-size: 24px;
   }
   .vehicle-actions {
-    padding: 0 21px;
-    min-height: 56px;
+    padding: 7px 10px;
+    gap: 5px;
   }
   .vehicle-actions button {
-    font-size: 13px;
-    padding: 16px 0;
+    font-size: 10px;
+    padding: 6px 3px;
   }
   .section-heading {
     margin-bottom: 19px;
@@ -1136,16 +1131,10 @@ body.dialog-open {
   }
 }
 
-.vehicle-extra,.form-photo-note,.photo-help {
+.form-photo-note,.photo-help {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.7;
-}
-
-.vehicle-extra {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  margin: 0 0 15px;
 }
 
 .vehicle-art.has-photos img.vehicle-image {
@@ -1155,15 +1144,6 @@ body.dialog-open {
   object-fit: cover;
   transform: none;
   filter: none;
-}
-
-.vehicle-art.has-photos .vehicle-code {
-  color: white;
-  background: #193a42d9;
-  border-radius: 4px;
-  padding: 4px 7px;
-  bottom: auto;
-  top: 15px;
 }
 
 .photo-navigation {

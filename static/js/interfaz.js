@@ -433,7 +433,6 @@
       const nombre = `${vehiculo.marca} ${vehiculo.modelo}`;
       tarjeta.querySelector("h3").textContent = nombre;
       tarjeta.querySelector(".vehicle-year").textContent = vehiculo.anio;
-      tarjeta.querySelector(".vehicle-code").textContent = `N.º ${String(vehiculo.id).padStart(3, "0")}`;
       tarjeta.querySelector(".vehicle-location").textContent = vehiculo.ubicacion;
       tarjeta.querySelector(".vehicle-description").textContent = vehiculo.descripcion;
       tarjeta.querySelector(".vehicle-mileage").textContent = `${entero.format(vehiculo.kilometraje)} km`;
@@ -444,22 +443,6 @@
       const retorno = `${location.pathname}${location.search}`;
       enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`;
       enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
-
-      const extras = [];
-      if (vehiculo.color) extras.push(`Color: ${vehiculo.color}`);
-      if (vehiculo.tipo_vehiculo) extras.push(`Tipo: ${vehiculo.tipo_vehiculo}`);
-      if (vehiculo.transmision) extras.push(`Transmisión: ${vehiculo.transmision}`);
-      if (vehiculo.combustible) extras.push(`Combustible: ${vehiculo.combustible}`);
-      [
-        ["aire_acondicionado", "Aire acondicionado"],
-        ["ventanas_electricas", "Ventanas eléctricas"],
-        ["pantalla_multimedia", "Pantalla multimedia"]
-      ].forEach(([campo, etiqueta]) => {
-        extras.push(`${etiqueta}: ${vehiculo[campo] === true ? "Sí" : vehiculo[campo] === false ? "No" : "No especificado"}`);
-      });
-      const detalleExtra = tarjeta.querySelector(".vehicle-extra");
-      detalleExtra.textContent = extras.join(" · ");
-      detalleExtra.hidden = extras.length === 0;
 
       const insignia = tarjeta.querySelector(".vehicle-badge");
       insignia.textContent = disponible ? "Disponible" : "Vendido";
