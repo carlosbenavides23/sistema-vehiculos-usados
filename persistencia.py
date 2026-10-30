@@ -278,3 +278,58 @@ def importar_legacy_si_nuevo(vehiculos, aplicar=False):
         "omitidos": omitidos,
         "modo": "aplicado" if aplicar else "previsualización",
     }
+
+
+def _clave_catalogo(datos):
+    """Identidad estable del anuncio para que reimportar no cree otra unidad."""
+    return (
+        datos["marca"].strip().casefold(),
+        datos["modelo"].strip().casefold(),
+        datos["anio"],
+    )
+
+
+def importar_catalogo_si_nuevo(vehiculos, aplicar=False):
+    """Importa solo marcas/modelos/años aún ausentes; por defecto solo previsualiza."""
+    if not vehiculos:
+        return {"candidatos": 0, "insertados": 0, "omitidos": 0,
+                "modo": "aplicado" if aplicar else "previsualización"}
+
+    claves = [_clave_catalogo(datos) for datos in vehiculos]
+    if len(set(claves)) != len(claves):
+        raise ValueError("La importación contiene vehículos con la misma marca, modelo y año.")
+
+    columnas = ", ".join(CAMPOS_DATOS)
+    marcadores = ", ".join(["%s"] * len(CAMPOS_DATOS))
+    insertados = 0
+    omitidos = 0
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            if aplicar:
+                cursor.execute("LOCK TABLE public.vehiculos IN SHARE ROW EXCLUSIVE MODE")
+            cursor.execute(f"SELECT {SELECCION} FROM public.vehiculos ORDER BY id")
+            filas_existentes = cursor.fetchall()
+            existentes = {_clave_catalogo(fila) for fila in filas_existentes}
+            nuevos = sum(clave not in existentes for clave in claves)
+            if len(filas_existentes) + nuevos > MAX_VEHICULOS:
+                raise ValueError(f"La importación superaría el límite de {MAX_VEHICULOS} vehículos.")
+
+            for datos, clave in zip(vehiculos, claves):
+                if clave in existentes:
+                    omitidos += 1
+                    continue
+                insertados += 1
+                if aplicar:
+                    valores = tuple(datos[campo] for campo in CAMPOS_DATOS)
+                    cursor.execute(
+                        f"INSERT INTO public.vehiculos ({columnas}) VALUES ({marcadores})",
+                        valores,
+                    )
+                    existentes.add(clave)
+
+    return {
+        "candidatos": insertados,
+        "insertados": insertados if aplicar else 0,
+        "omitidos": omitidos,
+        "modo": "aplicado" if aplicar else "previsualización",
+    }

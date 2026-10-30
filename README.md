@@ -111,6 +111,8 @@ setTimeout(() => URL.revokeObjectURL(url), 1000);
 
 Guarda cada exportación fuera del repositorio, respáldala y reconcilia inventarios de distintos navegadores. Sus IDs pueden coincidir; el importador asigna IDs nuevos y omite coincidencias exactas, sin inferir equipamiento desde descripciones. Previsualiza con `python scripts/importar_localstorage.py /ruta/export.json`; solo añade `--apply` después de revisar el respaldo y el resumen. Usa el ejecutable de tu entorno. El proceso no sobrescribe anuncios ni borra el dato del navegador.
 
+El catálogo ficticio adicional está en `data/catalogo_adicional_10.json`. Valídalo y revisa cuántos anuncios nuevos propone con `.\.venv\Scripts\python.exe scripts\importar_catalogo_adicional.py`; este modo no inserta datos. Solo después de aprobar expresamente los registros propuestos, ejecútalo con `--apply`. La carga valida cada anuncio con las reglas de Flask, omite una marca/modelo/año ya existente y es segura al repetirse. Confirma el resumen de insertados/omitidos y consulta el catálogo para verificar los anuncios. No compartas el archivo `.env` ni sus valores.
+
 ## Pruebas reproducibles
 
 Las pruebas normales se ejecutan con `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` o `./.venv/bin/python -m unittest discover -s tests -v`. Sin `TEST_DATABASE_URL`, las pruebas reales se informan como **omitidas**, no aprobadas. Los demás tests usan dobles explícitos y Pillow real.
