@@ -1456,8 +1456,10 @@ legend.formulario-seccion__titulo {
 }
 
 .filtros-avanzados {
+  display: block;
   grid-column: 1/-1;
   min-width: 0;
+  width: 100%;
   border-top: 1px solid var(--line);
   padding-top: var(--space-2);
 }
@@ -1491,23 +1493,7 @@ legend.formulario-seccion__titulo {
   transform: rotate(180deg);
 }
 
-.filtros-avanzados[open] {
-  display: grid;
-  grid-template-columns: repeat(4,minmax(0,1fr));
-  align-items: end;
-  gap: var(--space-3) var(--space-4);
-}
-
-.filtros-avanzados[open] > summary {
-  grid-column: 1/-1;
-}
-
-.filtros-avanzados[open] > .field {
-  margin: 0;
-}
-
 .filtros-avanzados > p {
-  grid-column: 1/-1;
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--type-caption);
@@ -1516,10 +1502,15 @@ legend.formulario-seccion__titulo {
 
 .filtros-avanzados-contenido {
   display: grid;
-  grid-column: 1/-1;
-  grid-template-columns: repeat(4,minmax(0,1fr));
+  grid-template-columns: repeat(3,minmax(0,1fr));
   align-items: end;
   gap: var(--space-3) var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-3);
+}
+
+.filtros-avanzados-contenido > .field {
+  min-width: 0;
 }
 
 .filter-advanced-active {
@@ -1681,9 +1672,6 @@ legend.formulario-seccion__titulo {
   .catalog-filters {
     grid-template-columns: minmax(0,1.35fr) minmax(145px,.75fr) auto;
   }
-  .filtros-avanzados[open] {
-    grid-template-columns: repeat(2,minmax(0,1fr));
-  }
   .filtros-avanzados-contenido {
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
@@ -1731,15 +1719,8 @@ legend.formulario-seccion__titulo {
     flex: 1 1 auto;
     min-width: 0;
   }
-  .filtros-avanzados[open] {
-    grid-template-columns: minmax(0,1fr);
-    gap: var(--space-3);
-  }
   .filtros-avanzados-contenido {
-    grid-template-columns: repeat(2,minmax(0,1fr));
-  }
-  .filtros-avanzados[open] > .field {
-    grid-column: 1/-1;
+    grid-template-columns: minmax(0,1fr);
   }
   .formulario-seccion {
     grid-template-columns: minmax(0,1fr);
@@ -1773,12 +1754,6 @@ legend.formulario-seccion__titulo {
     font-size: 27px;
   }
   .feature-list {
-    grid-template-columns: minmax(0,1fr);
-  }
-}
-
-@media(max-width:520px) {
-  .filtros-avanzados-contenido {
     grid-template-columns: minmax(0,1fr);
   }
 }
