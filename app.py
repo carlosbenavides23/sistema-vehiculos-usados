@@ -338,6 +338,27 @@ def create_app(configuracion=None):
                 return respuesta, 401
             return jsonify({"ok": True, "csrf_token": csrf_chat(visitante["token"])})
 
+        # La dirección solo aporta una clave seudónima al límite compartido;
+        # no se usa como identidad, no se persiste en claro y no se confía XFF.
+        secreto = current_app.secret_key
+        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
+        direccion = (request.remote_addr or "sin-direccion").encode("utf-8")
+        clave_limite = hmac.new(
+            secreto, b"chat-session-init-rate-limit-v1\0" + direccion, hashlib.sha256,
+        ).hexdigest()
+        try:
+            espera = chat_repositorio("reservar_inicio_sesion_chat", clave_limite)
+        except Exception as error:
+            if isinstance(error, persistencia_chat.LimiteInicioSesionChat):
+                respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
+                respuesta.headers["Retry-After"] = str(max(1, int(error.retry_after)))
+                return respuesta, 429
+            return error_persistencia(error)
+        if espera:
+            respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
+            respuesta.headers["Retry-After"] = str(max(1, int(espera)))
+            return respuesta, 429
+
         # La credencial solo se emite aquí, en el servidor. PostgreSQL recibe
         # únicamente su verificador hash; el valor claro viaja solo en cookie.
         token = secrets.token_urlsafe(32)

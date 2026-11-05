@@ -30,6 +30,10 @@ class ChatPersistenciaValidacionTest(unittest.TestCase):
         resultado = chat._validar_mensaje(clave, hash_valido, "  mensaje  ")
         self.assertEqual(resultado[2], "mensaje")
 
+    def test_digest_de_origen_exige_hmac_sha256_hexadecimal(self):
+        with self.assertRaises(ValueError):
+            chat.reservar_inicio_sesion_chat("172.16.0.4")
+
 
 @skipUnless(os.environ.get("TEST_DATABASE_URL"), "Requiere PostgreSQL local aislado en TEST_DATABASE_URL")
 class ChatPersistenciaPostgresTest(unittest.TestCase):
@@ -65,6 +69,28 @@ class ChatPersistenciaPostgresTest(unittest.TestCase):
         self.assertIsNone(chat.resolver_visitante(hash_desconocido))
         self.assertTrue(chat.revocar_sesion_visitante(token_hash))
         self.assertIsNone(chat.resolver_visitante(token_hash))
+
+    def test_limite_de_inicio_de_sesion_ventana_fija_y_reinicio(self):
+        clave = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
+        for _ in range(chat.MAX_INICIOS_SESION_POR_HORA):
+            self.assertEqual(chat.reservar_inicio_sesion_chat(clave), 0)
+        with self.assertRaises(chat.LimiteInicioSesionChat) as contexto:
+            chat.reservar_inicio_sesion_chat(clave)
+        self.assertGreaterEqual(contexto.exception.retry_after, 1)
+        self.assertLessEqual(contexto.exception.retry_after, chat.VENTANA_INICIO_SESION_SEGUNDOS)
+        with psycopg.connect(self.dsn) as conexion:
+            conexion.execute(
+                "UPDATE public.chat_inicio_sesion_limites SET ventana_desde = now() - interval '2 hours' WHERE clave_hash = %s",
+                (clave,),
+            )
+        self.assertEqual(chat.reservar_inicio_sesion_chat(clave), 0)
+
+    def test_verificador_de_sesion_es_unico_y_no_reemite_credencial(self):
+        token_hash, _ = self.identidad()
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            chat.crear_visitante_y_sesion(
+                token_hash, datetime.now(timezone.utc) + timedelta(days=30),
+            )
 
     def test_visitante_reserva_relacion_futura_con_auth_sin_exigir_cuenta(self):
         with psycopg.connect(self.dsn) as conexion:
@@ -136,6 +162,7 @@ class ChatPersistenciaPostgresTest(unittest.TestCase):
     def test_rls_y_roles_publicos_sin_privilegios_directos(self):
         tablas = (
             "visitantes_anonimos", "sesiones_visitante", "conversaciones", "mensajes_chat",
+            "chat_inicio_sesion_limites",
         )
         with psycopg.connect(self.dsn) as conexion:
             for tabla in tablas:

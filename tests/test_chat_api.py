@@ -8,6 +8,7 @@ import unittest
 from werkzeug.security import generate_password_hash
 
 from app import create_app
+import persistencia_chat
 
 
 def limite_falso():
@@ -20,12 +21,22 @@ class RepositorioChatFalso:
         self.conversaciones = {}
         self.mensajes = {}
         self.claves = {}
+        self.inicios_chat = 0
+        self.espera_inicio_chat = 0
+        self.claves_limite_chat = []
         self.vehiculos = {1: {"id": 1, "marca": "Toyota", "modelo": "Corolla", "anio": 2021}}
 
     def crear_visitante_y_sesion(self, verificador, expira):
         visitante_id, sesion_id = str(uuid.uuid4()), str(uuid.uuid4())
         self.sesiones[verificador] = {"visitante_id": visitante_id, "sesion_id": sesion_id, "expires_at": expira}
         return {"visitante_id": visitante_id, "sesion_id": sesion_id}
+
+    def reservar_inicio_sesion_chat(self, clave_hash):
+        self.inicios_chat += 1
+        self.claves_limite_chat.append(clave_hash)
+        if self.espera_inicio_chat:
+            raise persistencia_chat.LimiteInicioSesionChat(self.espera_inicio_chat)
+        return 0
 
     def resolver_visitante(self, verificador):
         datos = self.sesiones.get(verificador)
@@ -106,6 +117,7 @@ class ChatApiTest(unittest.TestCase):
         self.app.config["CHAT_REPOSITORY"] = {
             nombre: getattr(self.repo, nombre) for nombre in (
                 "crear_visitante_y_sesion", "resolver_visitante", "revocar_sesion_visitante",
+                "reservar_inicio_sesion_chat",
                 "listar_conversaciones_visitante", "enviar_mensaje_comprador", "listar_mensajes",
                 "listar_conversaciones_admin", "responder_admin", "marcar_atendida",
             )
@@ -156,9 +168,26 @@ class ChatApiTest(unittest.TestCase):
         self.assertEqual(cookie.same_site, "Lax")
         self.assertEqual(len(cookie.value), 43)
         self.assertEqual(len(self.repo.sesiones), 1)
+        self.assertEqual(self.repo.inicios_chat, 1)
+        self.assertRegex(self.repo.claves_limite_chat[0], r"^[0-9a-f]{64}$")
+        self.assertNotIn("127.0.0.1", self.repo.claves_limite_chat[0])
         self.assertNotIn(cookie.value, next(iter(self.repo.sesiones.keys())))
         self.assertEqual(len(csrf), 64)
         self.assertEqual(self.repo.conversaciones, {})
+
+    def test_emision_cookie_existente_no_gasta_cupo_y_nuevos_inicios_tienen_429(self):
+        self.crear_sesion_chat()
+        self.cliente.post("/api/chat/sesion", headers={"X-CSRF-Token": self.csrf_admin()})
+        self.assertEqual(self.repo.inicios_chat, 1)
+        otro = self.app.test_client()
+        pagina = otro.get("/")
+        import re
+        bootstrap = re.search(rb'<meta name="csrf-token" content="([^"]+)', pagina.data).group(1).decode()
+        self.repo.espera_inicio_chat = 3600
+        limite = otro.post("/api/chat/sesion", headers={"X-CSRF-Token": bootstrap})
+        self.assertEqual(limite.status_code, 429)
+        self.assertEqual(limite.headers["Retry-After"], "3600")
+        self.assertEqual(len(self.repo.sesiones), 1)
 
     def test_mensaje_persistido_reintento_idempotente_y_cursor(self):
         csrf = self.crear_sesion_chat()

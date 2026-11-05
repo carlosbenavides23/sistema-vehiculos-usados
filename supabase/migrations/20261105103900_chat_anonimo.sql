@@ -64,19 +64,33 @@ CREATE INDEX mensajes_chat_recientes_comprador_idx
     ON public.mensajes_chat (created_at DESC)
     WHERE remitente = 'comprador';
 
+-- Emisión de sesiones limitada por digest HMAC de origen, sin persistir IP.
+-- Una sola fila por digest permite que el control sea atómico entre funciones.
+CREATE TABLE public.chat_inicio_sesion_limites (
+    clave_hash CHAR(64) PRIMARY KEY,
+    ventana_desde TIMESTAMPTZ NOT NULL,
+    intentos SMALLINT NOT NULL CHECK (intentos BETWEEN 1 AND 21),
+    CONSTRAINT chat_inicio_sesion_hash_valido CHECK (clave_hash ~ '^[0-9a-f]{64}$')
+);
+CREATE INDEX chat_inicio_sesion_ventana_idx
+    ON public.chat_inicio_sesion_limites (ventana_desde);
+
 ALTER TABLE public.visitantes_anonimos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sesiones_visitante ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mensajes_chat ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_inicio_sesion_limites ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL PRIVILEGES ON TABLE public.visitantes_anonimos,
-    public.sesiones_visitante, public.conversaciones, public.mensajes_chat
+    public.sesiones_visitante, public.conversaciones, public.mensajes_chat,
+    public.chat_inicio_sesion_limites
     FROM PUBLIC, anon, authenticated;
 REVOKE ALL PRIVILEGES ON SEQUENCE public.mensajes_chat_id_seq
     FROM PUBLIC, anon, authenticated;
 
 -- Reversión manual (ejecutar en orden inverso y solo si se autorizó este DDL):
 -- DROP TABLE IF EXISTS public.mensajes_chat;
+-- DROP TABLE IF EXISTS public.chat_inicio_sesion_limites;
 -- DROP TABLE IF EXISTS public.conversaciones;
 -- DROP TABLE IF EXISTS public.sesiones_visitante;
 -- DROP TABLE IF EXISTS public.visitantes_anonimos;

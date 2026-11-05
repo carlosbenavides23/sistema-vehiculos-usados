@@ -15,6 +15,8 @@ from persistencia import _conectar
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 MAX_MENSAJES_POR_MINUTO = 8
 VENTANA_LIMITE_SEGUNDOS = 60
+MAX_INICIOS_SESION_POR_HORA = 20
+VENTANA_INICIO_SESION_SEGUNDOS = 3600
 MAX_CONTENIDO = 4000
 MAX_LISTADO = 100
 
@@ -27,10 +29,65 @@ class LimiteMensajesChat(Exception):
         super().__init__("Se alcanzó el límite temporal de mensajes.")
 
 
+class LimiteInicioSesionChat(Exception):
+    """Se alcanzó el límite persistente de emisión de sesiones anónimas."""
+
+    def __init__(self, retry_after):
+        self.retry_after = max(1, int(retry_after))
+        super().__init__("Se alcanzó el límite temporal de nuevas sesiones de chat.")
+
+
 def _hash_valido(valor, campo):
     if not isinstance(valor, str) or not _HASH.fullmatch(valor):
         raise ValueError(f"{campo} debe ser SHA-256 hexadecimal en minúsculas.")
     return valor
+
+
+def reservar_inicio_sesion_chat(clave_hash):
+    """Reserva un inicio dentro de una ventana horaria fija, atómicamente.
+
+    `clave_hash` debe ser un digest HMAC generado por Flask a partir del origen
+    de red. Este módulo no recibe ni guarda direcciones IP en claro.
+    """
+    clave_hash = _hash_valido(clave_hash, "clave_hash")
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                """DELETE FROM public.chat_inicio_sesion_limites
+                   WHERE clave_hash IN (
+                       SELECT clave_hash FROM public.chat_inicio_sesion_limites
+                       WHERE ventana_desde < now() - interval '1 day'
+                       ORDER BY ventana_desde LIMIT 100
+                   )""",
+            )
+            cursor.execute(
+                """INSERT INTO public.chat_inicio_sesion_limites
+                       (clave_hash, ventana_desde, intentos)
+                   VALUES (
+                       %s,
+                       date_trunc('hour', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC',
+                       1
+                   )
+                   ON CONFLICT (clave_hash) DO UPDATE SET
+                       intentos = CASE
+                           WHEN chat_inicio_sesion_limites.ventana_desde < EXCLUDED.ventana_desde
+                               THEN 1
+                           ELSE LEAST(chat_inicio_sesion_limites.intentos + 1, %s + 1)
+                       END,
+                       ventana_desde = CASE
+                           WHEN chat_inicio_sesion_limites.ventana_desde < EXCLUDED.ventana_desde
+                               THEN EXCLUDED.ventana_desde
+                           ELSE chat_inicio_sesion_limites.ventana_desde
+                       END
+                   RETURNING intentos,
+                       GREATEST(1, ceil(extract(epoch FROM
+                           (ventana_desde + interval '1 hour' - now())))) AS retry_after""",
+                (clave_hash, MAX_INICIOS_SESION_POR_HORA),
+            )
+            reserva = cursor.fetchone()
+            if reserva["intentos"] > MAX_INICIOS_SESION_POR_HORA:
+                raise LimiteInicioSesionChat(reserva["retry_after"])
+            return 0
 
 
 def _uuid(valor, campo):

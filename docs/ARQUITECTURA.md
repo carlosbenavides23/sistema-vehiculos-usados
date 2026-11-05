@@ -45,7 +45,7 @@ RLS está habilitado en las seis tablas y se revocaron privilegios a PUBLIC/anon
 
 ## Consistencia e idempotencia
 
-La migración `20261105103900_chat_anonimo.sql` agrega `visitantes_anonimos`, `sesiones_visitante`, `conversaciones` y `mensajes_chat`. PostgreSQL recibe solo el hash SHA-256 del secreto anónimo; el ID de conversación no autoriza acceso. Cada consulta comprueba la propiedad. La cookie dura 30 días y no depende de la sesión administrativa. La tabla admite hasta 4.000 caracteres; el límite HTTP es 2.000. Los envíos se serializan por visitante y se limitan a ocho por minuto; UUID idempotentes permiten reintentar sin duplicar.
+La migración `20261105103900_chat_anonimo.sql` agrega `visitantes_anonimos`, `sesiones_visitante`, `conversaciones`, `mensajes_chat` y `chat_inicio_sesion_limites`. PostgreSQL recibe solo el hash SHA-256 del secreto anónimo; el ID de conversación no autoriza acceso. Cada consulta comprueba la propiedad. La cookie dura 30 días y no depende de la sesión administrativa. La tabla admite hasta 4.000 caracteres; el límite HTTP es 2.000. Los envíos se serializan por visitante y se limitan a ocho por minuto; UUID idempotentes permiten reintentar sin duplicar. Las nuevas sesiones se limitan a 20 por hora mediante HMAC de `remote_addr`, sin guardar IP ni usarla como identidad.
 
 `visitantes_anonimos.auth_user_id` es un espacio de relación nullable para un futuro vínculo con Supabase Auth; esta etapa no crea cuentas ni agrega una FK a una tabla de Auth que no está presente en PostgreSQL local aislado.
 
