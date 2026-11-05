@@ -10,9 +10,16 @@
   const idVehiculoFicha = cuerpo.dataset.vehiculoId || "";
   const fichaChat = porId("comprador-chat");
   const botonAbrirAdmin = porId("abrir-mensajes");
+  const botonMensajesComprador = porId("abrir-chat-comprador-global");
   const dialogoAdmin = porId("mensajes-dialogo");
   const dialogoComprador = porId("chat-comprador-dialogo");
-  const borradoresComprador = new Map();
+  const claveStorageBorradores = "vehiculos-chat-borradores-v1";
+  let borradoresComprador = new Map();
+  let ultimoAbridorComprador = botonMensajesComprador;
+  try {
+    const guardados = JSON.parse(sessionStorage.getItem(claveStorageBorradores) || "[]");
+    if (Array.isArray(guardados)) borradoresComprador = new Map(guardados.filter((fila) => Array.isArray(fila) && typeof fila[0] === "string" && fila[1] && typeof fila[1].texto === "string"));
+  } catch { /* El chat sigue funcionando si el navegador bloquea el almacenamiento de sesión. */ }
   const borradoresAdmin = new Map();
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   let csrfComprador = "";
@@ -120,6 +127,7 @@
   function claveBorradorComprador() { return conversacionComprador ? String(conversacionComprador.id) : `nueva:${idVehiculoFicha}`; }
   function guardarBorradorComprador() {
     borradoresComprador.set(claveBorradorComprador(), { texto: porId("chat-comprador-texto").value, solicitud: solicitudCompradorPendiente });
+    try { sessionStorage.setItem(claveStorageBorradores, JSON.stringify([...borradoresComprador])); } catch { /* borrador disponible durante esta página */ }
   }
   function restaurarBorradorComprador() {
     const borrador = borradoresComprador.get(claveBorradorComprador());
@@ -166,15 +174,17 @@
   }
 
   async function cargarListaComprador({ elegirFicha = false } = {}) {
-    if (listaCompradorEnVuelo || !compradorPreparado) return;
+    if (listaCompradorEnVuelo) return;
     listaCompradorEnVuelo = true;
     try {
-      const { conversaciones = [] } = await api("/api/chat/conversaciones");
+      const { conversaciones = [], csrf_token: csrfLista = "" } = await api("/api/chat/conversaciones");
+      if (csrfLista) csrfComprador = csrfLista;
+      compradorPreparado = Boolean(csrfComprador);
       const lista = porId("chat-comprador-lista");
       lista.replaceChildren();
       const estadoLista = porId("chat-comprador-lista-estado");
       if (!conversaciones.length) {
-        estadoLista.textContent = "Aún no tienes conversaciones. Escribe tu primera consulta para iniciar una.";
+        estadoLista.textContent = "Todavía no tienes conversaciones. Explora el catálogo y contacta al vendedor desde la ficha de un vehículo";
         if (elegirFicha) prepararBorradorComprador();
         return;
       }
@@ -201,12 +211,14 @@
         else prepararBorradorComprador();
       }
     } catch (error) {
-      estado(porId("chat-comprador-lista-estado"), error.status === 401 ? "La sesión de chat venció. Intenta volver a contactar al vendedor." : error.message, "error");
+      estado(porId("chat-comprador-lista-estado"), error.status === 401
+        ? "Todavía no tienes conversaciones. Explora el catálogo y contacta al vendedor desde la ficha de un vehículo"
+        : error.message, error.status === 401 ? "" : "error");
       if (error.status === 401) {
         compradorPreparado = false;
         conversacionComprador = null;
         porId("chat-comprador-form").hidden = true;
-        cerrarComprador();
+        porId("chat-comprador-lista").replaceChildren();
       }
     } finally { listaCompradorEnVuelo = false; }
   }
@@ -583,12 +595,29 @@
     detenerPollingComprador();
     if (dialogoComprador.open) dialogoComprador.close();
     document.body.classList.remove("dialog-open");
-    porId("mostrar-chat").focus();
+    const destino = ultimoAbridorComprador && !ultimoAbridorComprador.hidden ? ultimoAbridorComprador : botonMensajesComprador;
+    destino?.focus();
   }
+
+  async function abrirBandejaCompradorGlobal() {
+    ultimoAbridorComprador = botonMensajesComprador;
+    compradorAbierto = true;
+    vistaComprador("lista");
+    porId("chat-comprador-panel").hidden = false;
+    dialogoComprador.showModal();
+    document.body.classList.add("dialog-open");
+    porId("cerrar-chat-comprador").focus();
+    estado(porId("chat-comprador-lista-estado"), "Cargando conversaciones…");
+    await cargarListaComprador();
+  }
+
+  botonMensajesComprador?.addEventListener("click", abrirBandejaCompradorGlobal);
+  porId("chat-comprador-texto").addEventListener("input", guardarBorradorComprador);
 
   if (idVehiculoFicha && fichaChat) {
     fichaChat.hidden = false;
     porId("mostrar-chat").addEventListener("click", async () => {
+      ultimoAbridorComprador = porId("mostrar-chat");
       compradorAbierto = true;
       porId("chat-comprador-panel").hidden = false;
       vistaComprador("hilo");

@@ -404,7 +404,13 @@ def create_app(configuracion=None):
             conversaciones = chat_repositorio("listar_conversaciones_visitante", visitante["datos"]["visitante_id"])
         except Exception as error:
             return error_persistencia(error)
-        return jsonify({"ok": True, "conversaciones": conversaciones})
+        return jsonify({
+            "ok": True,
+            "conversaciones": conversaciones,
+            # Permite abrir la bandeja global con una sesión existente sin
+            # llamar al POST de emisión, que podría crear una identidad nueva.
+            "csrf_token": csrf_chat(visitante["token"]),
+        })
 
     @aplicacion.post("/api/chat/vehiculos/<int:identificador>/mensajes")
     def enviar_primer_mensaje_chat(identificador):

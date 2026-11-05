@@ -45,7 +45,8 @@ test("el polling usa cursor, una sola petición por hilo y se pausa con la pesta
 test("los mensajes se renderizan como texto y no se guardan credenciales en web storage", () => {
   assert.match(script, /texto\.textContent = mensaje\.contenido \|\| ""/);
   assert.match(script, /\["admin", "administrador"\]\.includes\(mensaje\.remitente\)/);
-  assert.doesNotMatch(script, /\.innerHTML\s*=|localStorage|sessionStorage/);
+  assert.doesNotMatch(script, /\.innerHTML\s*=|localStorage/);
+  assert.match(script, /sessionStorage\.setItem\(claveStorageBorradores/);
   assert.match(script, /credentials: "same-origin"/);
   assert.match(script, /csrf: csrfComprador/);
   assert.match(script, /csrf: csrfAdmin\(\)/);
@@ -101,14 +102,38 @@ test("el comprador tiene un diálogo modal con navegación y cierre accesibles",
   }
   assert.match(script, /dialogoComprador\.showModal\(\)/);
   assert.match(script, /dialogoComprador\.addEventListener\("cancel"/);
-  assert.match(script, /porId\("mostrar-chat"\)\.focus\(\)/);
+  assert.match(script, /const destino = ultimoAbridorComprador[\s\S]*destino\?\.focus\(\)/);
 });
 
 test("el borrador se conserva por conversación y el polling se detiene al cerrar", () => {
-  assert.match(script, /const borradoresComprador = new Map\(\)/);
+  assert.match(script, /let borradoresComprador = new Map\(\)/);
   assert.match(script, /guardarBorradorComprador\(\)/);
   assert.match(script, /restaurarBorradorComprador\(\)/);
   const cierre = script.slice(script.indexOf("function cerrarComprador"), script.indexOf("if (idVehiculoFicha && fichaChat)"));
   assert.match(cierre, /detenerPollingComprador\(\)/);
   assert.match(cierre, /compradorAbierto = false/);
+});
+
+test("el acceso global del comprador abre la lista con una lectura y sin emitir sesión", () => {
+  assert.match(template, /id="abrir-chat-comprador-global"[^>]*>\s*<span aria-hidden="true">✉<\/span> Mis mensajes/);
+  assert.match(template, /id="abrir-mensajes"[^>]*>Bandeja de consultas/);
+  assert.match(script, /botonMensajesComprador\?\.addEventListener\("click", abrirBandejaCompradorGlobal\)/);
+  assert.match(script, /async function abrirBandejaCompradorGlobal\(\)[\s\S]*?vistaComprador\("lista"\)[\s\S]*?await cargarListaComprador\(\)/);
+  assert.match(script, /await api\("\/api\/chat\/conversaciones"\)/);
+  assert.match(script, /if \(elegirFicha\) prepararBorradorComprador\(\)/);
+});
+
+test("una lista global sin sesión informa el estado vacío sin disparar el endpoint de emisión", () => {
+  const abrir = script.slice(script.indexOf("async function abrirBandejaCompradorGlobal"), script.indexOf("botonMensajesComprador?.addEventListener"));
+  assert.doesNotMatch(abrir, /prepararComprador|\/api\/chat\/sesion/);
+  assert.match(script, /Todavía no tienes conversaciones\. Explora el catálogo y contacta al vendedor desde la ficha de un vehículo/);
+});
+
+test("borradores sobreviven la navegación del mismo tab y los botones comprador/admin no se confunden", () => {
+  assert.match(script, /vehiculos-chat-borradores-v1/);
+  assert.match(script, /sessionStorage\.getItem\(claveStorageBorradores/);
+  assert.match(template, /Mis mensajes/);
+  assert.match(template, /Bandeja de consultas/);
+  assert.match(css, /@media\(max-width:650px\)/);
+  assert.match(css, /min-width:44px/);
 });

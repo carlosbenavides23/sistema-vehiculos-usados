@@ -21,7 +21,8 @@
         <span>Vehículos usados<small>PUBLICACIÓN Y CONSULTA</small></span>
       </a>
       <div class="header-actions">
-        <button id="abrir-mensajes" class="button button-secondary" type="button" hidden>Mensajes <span id="mensajes-pendientes" class="chat-count" hidden></span></button>
+        <button id="abrir-chat-comprador-global" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" {% if not chat_habilitado %}hidden{% endif %}><span aria-hidden="true">✉</span> Mis mensajes</button>
+        <button id="abrir-mensajes" class="button button-secondary" type="button" hidden>Bandeja de consultas <span id="mensajes-pendientes" class="chat-count" hidden></span></button>
         <button id="abrir-login" class="button button-secondary" type="button">Administrar</button>
         <button id="cerrar-sesion" class="button button-secondary" type="button" hidden>Cerrar sesión</button>
       </div>
@@ -95,7 +96,7 @@
   <dialog id="chat-comprador-dialogo" class="buyer-chat-drawer" aria-labelledby="chat-comprador-titulo">
     <header class="buyer-chat-header">
       <button id="chat-comprador-volver" class="icon-button" type="button" aria-label="Volver a mis conversaciones">←</button>
-      <h2 id="chat-comprador-titulo">Mensajes</h2>
+      <h2 id="chat-comprador-titulo">Mis mensajes</h2>
       <button id="cerrar-chat-comprador" class="icon-button" type="button" aria-label="Cerrar mensajes">×</button>
     </header>
     <div id="chat-comprador-panel" class="buyer-chat-panel">

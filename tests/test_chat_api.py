@@ -289,6 +289,18 @@ class ChatApiTest(unittest.TestCase):
         self.assertEqual(respuesta.status_code, 401)
         self.assertEqual(len(self.repo.sesiones), 0)
 
+    def test_lista_global_sin_cookie_no_crea_sesion_y_con_sesion_entrega_csrf(self):
+        respuesta = self.cliente.get("/api/chat/conversaciones")
+        self.assertEqual(respuesta.status_code, 401)
+        self.assertEqual(self.repo.inicios_chat, 0)
+        self.assertEqual(self.repo.sesiones, {})
+
+        self.crear_sesion_chat()
+        lista = self.cliente.get("/api/chat/conversaciones")
+        self.assertEqual(lista.status_code, 200)
+        self.assertTrue(lista.json["csrf_token"])
+        self.assertEqual(self.repo.inicios_chat, 1)
+
     def test_admin_requiere_sesion_y_csrf_para_responder_y_atender(self):
         csrf = self.crear_sesion_chat()
         mensaje = self.cliente.post("/api/chat/vehiculos/1/mensajes", json={"contenido": "¿Está disponible?"}, headers={"X-CSRF-Token": csrf, "Idempotency-Key": str(uuid.uuid4())})
