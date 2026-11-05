@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import ipaddress
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,20 @@ MAX_INTENTOS_LOGIN = 5
 PAUSA_LOGIN_SEGUNDOS = 10 * 60
 DURACION_SESION_CHAT_DIAS = 30
 MAX_LONGITUD_MENSAJE_CHAT = 2000
+
+
+def _direccion_cliente_para_limites():
+    """Devuelve origen confiable para cuotas: cabecera sobrescrita por Vercel o peer local."""
+    if os.environ.get("VERCEL"):
+        origen_vercel = request.headers.get("x-vercel-forwarded-for", "").strip()
+        try:
+            # Vercel documenta esta cabecera como la IP pública del cliente. No
+            # se aceptan listas ni valores arbitrarios; el proxy de plataforma
+            # sustituye el valor recibido antes de invocar la Function.
+            return str(ipaddress.ip_address(origen_vercel))
+        except ValueError:
+            pass
+    return request.remote_addr or "sin-direccion"
 
 
 def _cargar_dotenv():
@@ -278,9 +293,10 @@ def create_app(configuracion=None):
 
         secreto = current_app.secret_key
         secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        # Nunca se usa X-Forwarded-For arbitrario ni una cookie para el contador.
-        # Si un proxy comparte remote_addr, el límite es conservador y compartido.
-        clave_cliente = hmac.new(secreto, (request.remote_addr or "sin-direccion").encode(), hashlib.sha256).hexdigest()
+        # Vercel reemplaza x-vercel-forwarded-for con la IP pública de origen;
+        # en cualquier otro entorno se ignoran cabeceras de proxy del cliente.
+        origen_cliente = _direccion_cliente_para_limites().encode("utf-8")
+        clave_cliente = hmac.new(secreto, origen_cliente, hashlib.sha256).hexdigest()
         try:
             restante = limitar_login("reservar_intento_login", clave_cliente, MAX_INTENTOS_LOGIN, PAUSA_LOGIN_SEGUNDOS)
         except Exception as error:
@@ -342,7 +358,7 @@ def create_app(configuracion=None):
         # no se usa como identidad, no se persiste en claro y no se confía XFF.
         secreto = current_app.secret_key
         secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        direccion = (request.remote_addr or "sin-direccion").encode("utf-8")
+        direccion = _direccion_cliente_para_limites().encode("utf-8")
         clave_limite = hmac.new(
             secreto, b"chat-session-init-rate-limit-v1\0" + direccion, hashlib.sha256,
         ).hexdigest()
@@ -462,11 +478,25 @@ def create_app(configuracion=None):
         estado = request.args.get("estado")
         if estado not in (None, "abierta", "atendida"):
             return jsonify(respuesta_error("El estado solicitado no es válido.")), 400
+        cursor_id = request.args.get("cursor_id")
+        if cursor_id:
+            try:
+                cursor_id = str(UUID(cursor_id))
+            except (ValueError, TypeError, AttributeError):
+                return jsonify(respuesta_error("El cursor solicitado no es válido.")), 400
         try:
-            conversaciones = chat_repositorio("listar_conversaciones_admin", estado, None, 50)
+            pagina = chat_repositorio("listar_conversaciones_admin", estado, cursor_id, 51)
         except Exception as error:
             return error_persistencia(error)
-        return jsonify({"ok": True, "conversaciones": conversaciones})
+        hay_mas = len(pagina) > 50
+        conversaciones = pagina[:50]
+        siguiente_cursor = conversaciones[-1]["id"] if hay_mas and conversaciones else None
+        return jsonify({
+            "ok": True,
+            "conversaciones": conversaciones,
+            "hay_mas": hay_mas,
+            "siguiente_cursor": siguiente_cursor,
+        })
 
     @aplicacion.get("/api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes")
     def listar_mensajes_chat_admin(conversacion_id):

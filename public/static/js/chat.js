@@ -30,6 +30,11 @@
   let idsAdmin = new Set();
   let solicitudCompradorPendiente = null;
   let solicitudAdminPendiente = null;
+  let conversacionesAdmin = [];
+  let filtroListaAdmin = null;
+  let cursorSiguienteAdmin = null;
+  let hayMasAdmin = false;
+  let paginasAdminCargadas = false;
 
   function csrfAdmin() { return csrfMeta?.content || ""; }
 
@@ -315,34 +320,93 @@
 
   function listarConversacionesAdmin(conversaciones) {
     const lista = porId("chat-admin-lista");
-    lista.replaceChildren();
-    porId("chat-admin-estado").textContent = conversaciones.length ? `${conversaciones.length} conversación${conversaciones.length === 1 ? "" : "es"}.` : "No hay conversaciones en esta vista.";
+    const elementoEnFoco = document.activeElement?.closest?.("button[data-conversation-id]");
+    const idEnFoco = elementoEnFoco?.dataset.conversationId;
+    const existentes = new Map(Array.from(lista.children, (li) => [li.firstElementChild?.dataset.conversationId, li]));
+    const ordenNuevo = [];
+    const idsActuales = new Set();
     for (const conversacion of conversaciones) {
-      const li = document.createElement("li");
-      const boton = document.createElement("button");
-      boton.type = "button";
-      boton.className = "chat-conversation-button";
+      const id = String(conversacion.id);
+      idsActuales.add(id);
+      let li = existentes.get(id);
+      if (!li) {
+        li = document.createElement("li");
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "chat-conversation-button";
+        const titulo = document.createElement("strong");
+        const extracto = document.createElement("span");
+        boton.append(titulo, extracto);
+        boton.addEventListener("click", () => seleccionarConversacionAdmin(boton._conversation));
+        li.append(boton);
+      }
+      const boton = li.firstElementChild;
+      boton._conversation = conversacion;
       boton.dataset.conversationId = conversacion.id;
       boton.setAttribute("aria-current", conversacionAdmin?.id === conversacion.id ? "true" : "false");
-      const titulo = document.createElement("strong");
-      titulo.textContent = nombreVehiculo(conversacion);
-      const extracto = document.createElement("span");
-      extracto.textContent = `${conversacion.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversacion.ultimo_mensaje || "Sin mensajes"}`;
-      boton.append(titulo, extracto);
-      boton.addEventListener("click", () => seleccionarConversacionAdmin(conversacion));
-      li.append(boton);
-      lista.append(li);
+      const titulo = boton.querySelector("strong");
+      const extracto = boton.querySelector("span");
+      const textoTitulo = nombreVehiculo(conversacion);
+      const textoExtracto = `${conversacion.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversacion.ultimo_mensaje || "Sin mensajes"}`;
+      if (titulo.textContent !== textoTitulo) titulo.textContent = textoTitulo;
+      if (extracto.textContent !== textoExtracto) extracto.textContent = textoExtracto;
+      const seleccionActual = conversacionAdmin?.id === conversacion.id ? "true" : "false";
+      if (boton.getAttribute("aria-current") !== seleccionActual) boton.setAttribute("aria-current", seleccionActual);
+      ordenNuevo.push(li);
+      existentes.delete(id);
+      if (String(conversacionAdmin?.id) === id) conversacionAdmin = conversacion;
+    }
+    for (const li of existentes.values()) li.remove();
+    // Mantiene los nodos y el foco entre polls; solo mueve elementos si cambió
+    // realmente el orden (por ejemplo, al llegar un mensaje nuevo).
+    ordenNuevo.forEach((li, indice) => {
+      if (lista.children[indice] !== li) lista.insertBefore(li, lista.children[indice] || null);
+    });
+    const estadoLista = porId("chat-admin-estado");
+    const textoEstado = conversaciones.length
+      ? `${conversaciones.length} conversación${conversaciones.length === 1 ? "" : "es"}${hayMasAdmin ? " cargadas; hay más disponibles." : "."}`
+      : "No hay conversaciones en esta vista.";
+    if (estadoLista.textContent !== textoEstado) estadoLista.textContent = textoEstado;
+    if (idEnFoco) {
+      const botonEnFoco = lista.querySelector(`[data-conversation-id="${CSS.escape(idEnFoco)}"]`);
+      if (botonEnFoco && document.activeElement !== botonEnFoco) botonEnFoco.focus({ preventScroll: true });
     }
   }
 
-  async function cargarListaAdmin() {
+  async function cargarListaAdmin({ append = false } = {}) {
     if (listaAdminEnVuelo || !adminAutenticado) return;
     listaAdminEnVuelo = true;
     try {
       const filtro = porId("chat-admin-filtro").value;
-      const query = filtro === "todas" ? "" : `?estado=${encodeURIComponent(filtro)}`;
-      const { conversaciones = [] } = await api(`/api/admin/chat/conversaciones${query}`);
-      listarConversacionesAdmin(conversaciones);
+      if (filtro !== filtroListaAdmin) {
+        filtroListaAdmin = filtro;
+        conversacionesAdmin = [];
+        cursorSiguienteAdmin = null;
+        hayMasAdmin = false;
+        paginasAdminCargadas = false;
+      }
+      const parametros = new URLSearchParams();
+      if (filtro !== "todas") parametros.set("estado", filtro);
+      if (append && cursorSiguienteAdmin) parametros.set("cursor_id", cursorSiguienteAdmin);
+      const query = parametros.size ? `?${parametros}` : "";
+      const { conversaciones = [], hay_mas: hayMas = false, siguiente_cursor: siguienteCursorLista = null } = await api(`/api/admin/chat/conversaciones${query}`);
+      if (append) {
+        const yaCargadas = new Set(conversacionesAdmin.map((item) => String(item.id)));
+        conversacionesAdmin = [...conversacionesAdmin, ...conversaciones.filter((item) => !yaCargadas.has(String(item.id)))];
+        paginasAdminCargadas = true;
+        cursorSiguienteAdmin = siguienteCursorLista;
+        hayMasAdmin = hayMas;
+      } else {
+        const idsPaginaReciente = new Set(conversaciones.map((item) => String(item.id)));
+        const paginadasAnteriores = paginasAdminCargadas
+          ? conversacionesAdmin.filter((item) => !idsPaginaReciente.has(String(item.id)))
+          : [];
+        conversacionesAdmin = [...conversaciones, ...paginadasAnteriores];
+        if (!paginasAdminCargadas) cursorSiguienteAdmin = siguienteCursorLista;
+        hayMasAdmin = paginasAdminCargadas ? hayMasAdmin : hayMas;
+      }
+      porId("chat-admin-cargar-mas").hidden = !hayMasAdmin;
+      listarConversacionesAdmin(conversacionesAdmin);
     } catch (error) {
       estado(porId("chat-admin-estado"), error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
       if (error.status === 401) comprobarAdmin();
@@ -360,7 +424,13 @@
     porId("chat-admin-form").hidden = false;
     cargarMensajesAdmin(true);
     reiniciarPollingAdmin();
-    listarConversacionesAdmin([conversacion]);
+    listaAdminMarcarSeleccionada(conversacion.id);
+  }
+
+  function listaAdminMarcarSeleccionada(identificador) {
+    porId("chat-admin-lista").querySelectorAll("button[data-conversation-id]").forEach((boton) => {
+      boton.setAttribute("aria-current", boton.dataset.conversationId === String(identificador) ? "true" : "false");
+    });
   }
 
   async function cargarMensajesAdmin() {
@@ -377,7 +447,12 @@
     } catch (error) {
       estado(porId("chat-admin-feedback"), error.status === 401 ? "Tu sesión administrativa venció." : "No pudimos actualizar los mensajes. Reintentaremos automáticamente.", "error");
       if (error.status === 401) comprobarAdmin();
-    } finally { adminEnVuelo = false; }
+    } finally {
+      adminEnVuelo = false;
+      if (String(conversacionAdmin?.id) !== conversacionSolicitada && dialogoAdmin.open && adminAutenticado) {
+        queueMicrotask(() => cargarMensajesAdmin());
+      }
+    }
   }
 
   function detenerPollingAdmin() { clearTimeout(timerAdmin); timerAdmin = null; }
@@ -475,6 +550,7 @@
   porId("chat-admin-form").addEventListener("submit", enviarAdmin);
   porId("chat-admin-atendida").addEventListener("click", marcarAtendida);
   porId("chat-admin-filtro").addEventListener("change", cargarListaAdmin);
+  porId("chat-admin-cargar-mas").addEventListener("click", () => cargarListaAdmin({ append: true }));
   porId("actualizar-conversaciones").addEventListener("click", async () => {
     await cargarListaAdmin();
     await cargarMensajesAdmin();

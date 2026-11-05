@@ -413,14 +413,17 @@ def responder_admin(conversacion_id, clave_idempotencia, huella, contenido):
     clave, huella, contenido = _validar_mensaje(clave_idempotencia, huella, contenido)
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
+            # Serializa respuestas de la misma conversación y vuelve a consultar
+            # la clave tras adquirir el bloqueo: dos reintentos simultáneos no
+            # pueden observar ambos "ausente" e intentar duplicar el INSERT.
+            cursor.execute("SELECT id FROM public.conversaciones WHERE id = %s FOR UPDATE", (conversacion_id,))
+            if cursor.fetchone() is None:
+                return None
             existente = _mensaje_existente(
                 cursor, clave, huella, "administrador", conversacion_id=conversacion_id,
             )
             if existente is not None:
                 return {"mensaje": existente["mensaje"], "duplicado": True}
-            cursor.execute("SELECT id FROM public.conversaciones WHERE id = %s FOR UPDATE", (conversacion_id,))
-            if cursor.fetchone() is None:
-                return None
             cursor.execute(
                 """INSERT INTO public.mensajes_chat
                    (conversacion_id, remitente, contenido, clave_idempotencia, huella_solicitud)

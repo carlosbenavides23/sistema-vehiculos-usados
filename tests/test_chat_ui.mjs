@@ -60,3 +60,36 @@ test("la interfaz conserva la composición ante error y ofrece tamaños responsi
   assert.match(css, /\.chat-workspace:not\(\[hidden\]\)/);
   assert.match(css, /@media\(max-width:650px\)[\s\S]*\.admin-chat-workspace \{ grid-template-columns:minmax\(0,1fr\)/);
 });
+
+test("al seleccionar una conversación no reduce el listado lateral", () => {
+  const seleccionar = script.slice(script.indexOf("function seleccionarConversacionAdmin"), script.indexOf("async function cargarMensajesAdmin"));
+  assert.doesNotMatch(seleccionar, /listarConversacionesAdmin\(\s*\[/);
+  assert.match(seleccionar, /listaAdminMarcarSeleccionada\(conversacion\.id\)/);
+});
+
+test("si se cambia de conversación durante una consulta, carga los mensajes de la selección vigente", () => {
+  const cargar = script.slice(script.indexOf("async function cargarMensajesAdmin"), script.indexOf("function detenerPollingAdmin"));
+  assert.match(cargar, /if \(String\(conversacionAdmin\?\.id\) !== conversacionSolicitada\) return/);
+  assert.match(cargar, /queueMicrotask\(\(\) => cargarMensajesAdmin\(\)\)/);
+});
+
+test("el polling actualiza nodos existentes y conserva el foco del teclado", () => {
+  const render = script.slice(script.indexOf("function listarConversacionesAdmin"), script.indexOf("async function cargarListaAdmin"));
+  assert.match(render, /new Map\(Array\.from\(lista\.children/);
+  assert.match(render, /lista\.insertBefore/);
+  assert.match(render, /botonEnFoco\.focus\(\{ preventScroll: true \}\)/);
+  assert.doesNotMatch(render, /replaceChildren/);
+});
+
+test("el listado administrativo permite cargar páginas cursor y conserva lo ya cargado", () => {
+  assert.match(template, /id="chat-admin-cargar-mas"[^>]*hidden/);
+  assert.match(script, /parametros\.set\("cursor_id", cursorSiguienteAdmin\)/);
+  assert.match(script, /hay_mas: hayMas/);
+  assert.match(script, /siguiente_cursor: siguienteCursorLista/);
+  assert.match(script, /paginasAdminCargadas/);
+});
+
+test("el aviso de privacidad identifica PostgreSQL como almacenamiento de mensajes", () => {
+  assert.match(template, /mensajes se almacenan en PostgreSQL/);
+  assert.doesNotMatch(template, /Tu conversación se guarda en este navegador/);
+});

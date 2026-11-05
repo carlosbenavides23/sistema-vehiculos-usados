@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import uuid
 import unittest
+from unittest.mock import patch
 
 from werkzeug.security import generate_password_hash
 
@@ -77,7 +78,12 @@ class RepositorioChatFalso:
 
     def listar_conversaciones_admin(self, estado=None, cursor_id=None, limite=50):
         items = list(self.conversaciones.values())
-        return [c for c in items if estado is None or c["estado"] == estado][:limite]
+        items = [c for c in items if estado is None or c["estado"] == estado]
+        if cursor_id:
+            ids = [str(c["id"]) for c in items]
+            if cursor_id in ids:
+                items = items[ids.index(cursor_id) + 1:]
+        return items[:limite]
 
     def responder_admin(self, conversacion_id, clave, huella, contenido):
         conversacion = self.conversaciones.get(str(conversacion_id))
@@ -188,6 +194,57 @@ class ChatApiTest(unittest.TestCase):
         self.assertEqual(limite.status_code, 429)
         self.assertEqual(limite.headers["Retry-After"], "3600")
         self.assertEqual(len(self.repo.sesiones), 1)
+
+    def test_limite_de_sesion_usa_origen_confiable_de_vercel_y_comparte_cuota_por_ip_publica(self):
+        import os
+        import re
+        clientes = [self.app.test_client() for _ in range(3)]
+        ips = ["198.51.100.11", "198.51.100.12", "198.51.100.11"]
+        with patch.dict(os.environ, {"VERCEL": "1"}):
+            for cliente, ip in zip(clientes, ips):
+                pagina = cliente.get("/")
+                token = re.search(rb'<meta name="csrf-token" content="([^"]+)', pagina.data).group(1).decode()
+                resultado = cliente.post(
+                    "/api/chat/sesion", headers={"X-CSRF-Token": token, "x-vercel-forwarded-for": ip},
+                    environ_overrides={"REMOTE_ADDR": "10.0.0.9"},
+                )
+                self.assertEqual(resultado.status_code, 201)
+        digest_a, digest_b, digest_a_repetido = self.repo.claves_limite_chat[-3:]
+        self.assertNotEqual(digest_a, digest_b)
+        self.assertEqual(digest_a, digest_a_repetido)
+
+    def test_cabecera_de_ip_se_ignora_fuera_de_vercel(self):
+        import os
+        from app import _direccion_cliente_para_limites
+        with patch.dict(os.environ, {"VERCEL": ""}):
+            with self.app.test_request_context(
+                "/", headers={"x-vercel-forwarded-for": "203.0.113.90"},
+                environ_overrides={"REMOTE_ADDR": "127.0.0.7"},
+            ):
+                self.assertEqual(_direccion_cliente_para_limites(), "127.0.0.7")
+
+    def test_listado_admin_agrega_paginacion_sin_quebrar_la_clave_conversaciones(self):
+        csrf = self.csrf_admin()
+        login = self.cliente.post("/api/admin/login", json={"password": "clave-admin"}, headers={"X-CSRF-Token": csrf})
+        self.assertEqual(login.status_code, 200)
+        for numero in range(51):
+            identificador = str(uuid.uuid4())
+            self.repo.conversaciones[identificador] = {
+                "id": identificador, "vehiculo_id": 1, "visitante_id": str(uuid.uuid4()),
+                "marca": "Toyota", "modelo": str(numero), "estado": "abierta",
+            }
+        primera = self.cliente.get("/api/admin/chat/conversaciones")
+        self.assertEqual(primera.status_code, 200)
+        self.assertEqual(len(primera.json["conversaciones"]), 50)
+        self.assertTrue(primera.json["hay_mas"])
+        self.assertEqual(set(primera.json) >= {"ok", "conversaciones"}, True)
+        segunda = self.cliente.get(
+            "/api/admin/chat/conversaciones?cursor_id=" + primera.json["siguiente_cursor"],
+        )
+        self.assertEqual(len(segunda.json["conversaciones"]), 1)
+        self.assertFalse(segunda.json["hay_mas"])
+        invalida = self.cliente.get("/api/admin/chat/conversaciones?cursor_id=no-es-uuid")
+        self.assertEqual(invalida.status_code, 400)
 
     def test_mensaje_persistido_reintento_idempotente_y_cursor(self):
         csrf = self.crear_sesion_chat()

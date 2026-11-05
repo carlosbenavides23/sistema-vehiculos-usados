@@ -47,7 +47,7 @@ CREATE INDEX conversaciones_admin_actualizadas_idx
 CREATE TABLE public.mensajes_chat (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     conversacion_id UUID NOT NULL REFERENCES public.conversaciones(id) ON DELETE CASCADE,
-    remitente VARCHAR(12) NOT NULL,
+    remitente VARCHAR(16) NOT NULL,
     contenido VARCHAR(4000) NOT NULL,
     clave_idempotencia UUID NOT NULL UNIQUE,
     huella_solicitud CHAR(64) NOT NULL,

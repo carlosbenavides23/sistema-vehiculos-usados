@@ -3,8 +3,10 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
+import threading
 import unittest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from unittest import skipUnless
 
 import psycopg
@@ -158,6 +160,51 @@ class ChatPersistenciaPostgresTest(unittest.TestCase):
         self.assertEqual(respuesta["mensaje"]["id"], repetida["mensaje"]["id"])
         atendida = chat.marcar_atendida(conversacion_id)
         self.assertEqual(atendida["estado"], "atendida")
+
+    def test_reintento_administrativo_concurrente_inserta_un_solo_mensaje(self):
+        _, ids = self.identidad()
+        envio = self.enviar(ids["visitante_id"])
+        conversacion_id = envio["conversacion"]["id"]
+        clave = uuid.uuid4()
+        contenido = "Confirmación enviada en dos solicitudes simultáneas"
+        huella = self.huella(contenido)
+        barrera = threading.Barrier(2)
+
+        def responder():
+            barrera.wait(timeout=5)
+            return chat.responder_admin(conversacion_id, clave, huella, contenido)
+
+        with ThreadPoolExecutor(max_workers=2) as ejecutor:
+            resultados = list(ejecutor.map(lambda _: responder(), range(2)))
+        self.assertEqual(sorted(resultado["duplicado"] for resultado in resultados), [False, True])
+        self.assertEqual(resultados[0]["mensaje"]["id"], resultados[1]["mensaje"]["id"])
+        mensajes = chat.listar_mensajes(conversacion_id, admin=True)
+        self.assertEqual(sum(m["remitente"] == "administrador" for m in mensajes), 1)
+
+    def test_listado_admin_paginado_por_cursor_no_repite_conversaciones(self):
+        identificadores = []
+        with psycopg.connect(self.dsn) as conexion:
+            total_anterior = conexion.execute("SELECT count(*) FROM public.conversaciones").fetchone()[0]
+        for _ in range(51):
+            _, ids = self.identidad()
+            with psycopg.connect(self.dsn) as conexion:
+                fila = conexion.execute(
+                    "INSERT INTO public.conversaciones (vehiculo_id, visitante_id) VALUES (1, %s) RETURNING id",
+                    (ids["visitante_id"],),
+                ).fetchone()
+            identificadores.append(str(fila[0]))
+        acumuladas = []
+        cursor_id = None
+        while True:
+            pagina = chat.listar_conversaciones_admin(cursor_id=cursor_id, limite=10)
+            acumuladas.extend(pagina)
+            if len(pagina) < 10:
+                break
+            cursor_id = pagina[-1]["id"]
+        ids_paginados = [fila["id"] for fila in acumuladas]
+        self.assertEqual(len(acumuladas), total_anterior + 51)
+        self.assertEqual(len(set(ids_paginados)), len(ids_paginados))
+        self.assertEqual(len(acumuladas), len(identificadores) + total_anterior)
 
     def test_rls_y_roles_publicos_sin_privilegios_directos(self):
         tablas = (
