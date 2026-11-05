@@ -36,7 +36,7 @@ test("la mensajería administrativa está separada y permite atender conversacio
 test("el polling usa cursor, una sola petición por hilo y se pausa con la pestaña oculta", () => {
   assert.match(script, /const intervalo = 4000/);
   assert.match(script, /despues_de_id=/);
-  assert.match(script, /if \(!conversacionComprador \|\| compradorEnVuelo\) return/);
+  assert.match(script, /if \(!compradorAbierto \|\| !dialogoComprador\.open \|\| !conversacionComprador \|\| compradorEnVuelo\) return/);
   assert.match(script, /if \(!conversacionAdmin \|\| adminEnVuelo \|\| !adminAutenticado\) return/);
   assert.match(script, /document\.addEventListener\("visibilitychange"/);
   assert.match(script, /if \(document\.hidden\)/);
