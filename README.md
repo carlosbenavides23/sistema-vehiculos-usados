@@ -52,6 +52,7 @@ Si `.env` ya existe, edítalo y conserva sus valores; no vuelvas a copiar la pla
 | `ADMIN_PASSWORD_HASH` | Hash Werkzeug scrypt. Sin él la administración no inicia sesión. |
 | `SESSION_COOKIE_SECURE` | `false` solo en HTTP local; `true` en HTTPS. Vercel la fuerza a segura. |
 | `APP_READ_ONLY` | `true` bloquea login y todas las escrituras. Preview de Vercel siempre fuerza este modo. |
+| `CHAT_ENABLED` | `false` por defecto. Preview y solo lectura lo fuerzan a `false`; habilitar Production requiere autorización y migración aplicada. |
 | `ALLOW_LOCAL_DATABASE` | `true` solo para PostgreSQL loopback aislado sin TLS. En remoto el driver siempre exige TLS. |
 
 Las claves se configuran dentro del archivo local o las variables del ambiente, nunca en Git, HTML, JavaScript, capturas o mensajes. El navegador no se conecta directamente a PostgreSQL ni recibe claves Supabase.
@@ -91,6 +92,16 @@ En Linux sustituye el ejecutable por `./.venv/bin/python`. La primera orden no b
 | `GET /api/admin/session`, `POST /api/admin/login`, `POST /api/admin/logout` | Estado, login `{password}` y logout; mutaciones con CSRF. |
 
 El token CSRF viaja en `X-CSRF-Token`; una alta o carga reintentada conserva su mismo UUID y contenido. Reutilizarlo con datos diferentes devuelve 409. Los formularios envían únicamente un vehículo, nunca la colección completa. Los precios permanecen en USD y PostgreSQL guarda centavos enteros. Las respuestas API y la página con CSRF llevan `Cache-Control: no-store`.
+
+## Mensajería (implementada, aún desactivada)
+
+El chat comprador-administrador usa Flask y PostgreSQL sin exponer tablas a Supabase Data API. El comprador recibe una credencial aleatoria del servidor en una cookie HttpOnly/SameSite=Lax, Secure bajo HTTPS, con expiración de **30 días**. PostgreSQL guarda solo el hash SHA-256. Esta identidad es independiente de la sesión administrativa.
+
+La conversación se crea al enviar el primer mensaje, nunca al abrir la ficha. El límite HTTP es 2.000 caracteres y hay un límite persistente de ocho mensajes de comprador por minuto. Reintentos con la misma clave UUID no duplican mensajes. El administrador usa la sesión y CSRF actuales. El polling consulta mensajes nuevos cada cuatro segundos con la conversación abierta y se pausa cuando la pestaña queda oculta.
+
+`CHAT_ENABLED` está en `false` por defecto y la interfaz no muestra el módulo. Vercel Preview y cualquier entorno de solo lectura lo fuerzan a `false`. Para probar en desarrollo, configura `CHAT_ENABLED=true` solo junto a PostgreSQL local aislado y aplica allí `supabase/migrations/20261105103900_chat_anonimo.sql`. Este PR no aplica migraciones a Supabase. Antes de habilitar el chat público se debe autorizar y aplicar el DDL, verificar respaldos/permisos, definir retención y borrado, y habilitar `CHAT_ENABLED=true` solo en Production.
+
+Las conversaciones y mensajes no tienen purga automática en esta entrega. La política y mecanismo de retención deben definirse antes de habilitar escrituras públicas; la expiración de la cookie a los 30 días no borra los datos almacenados.
 
 ## Semillas e importación antigua
 
@@ -149,4 +160,4 @@ Antes de Production: comprobar credenciales y conectividad reales; verificar Sto
 
 ## Documentación
 
-[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md) e [instrucciones de mantenimiento](AGENTS.md).
+[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md), [cuarto avance](docs/AVANCE_04.md) e [instrucciones de mantenimiento](AGENTS.md).

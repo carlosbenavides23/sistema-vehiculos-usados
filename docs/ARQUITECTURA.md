@@ -21,6 +21,8 @@ flowchart LR
 | `imagenes.py` | Decodificación Pillow, límites, orientación y WebP nuevo sin metadatos. |
 | `almacenamiento.py` | REST de Storage, URLs públicas, errores seguros y procesamiento de cola. |
 | `app.py` | Flask, contratos HTTP, sesión, CSRF, autorización y modo de consulta. |
+| `persistencia_chat.py` | Sesiones anónimas con hash, ownership de conversaciones, mensajes, idempotencia y límites persistentes. |
+| `static/js/chat.js` | Panel comprador/administrador; polling incremental, serializado y pausado en segundo plano. |
 | `static/js/interfaz.js` | Formularios, galería, administración y HTTP; conserva UUID ante resultados inciertos. |
 | `static/js/fotografias.js` | Compresión y vista previa de un archivo por vez en navegador. |
 
@@ -42,6 +44,10 @@ Tablas auxiliares privadas al API público:
 RLS está habilitado en las seis tablas y se revocaron privilegios a PUBLIC/anon/authenticated. No hay políticas públicas. Las lecturas públicas pasan por Flask y la conexión privilegiada permanece en el servidor. Los avisos INFO RLS sin políticas reflejan ese cierre; no se añaden políticas abiertas para silenciarlos.
 
 ## Consistencia e idempotencia
+
+La migración `20261105103900_chat_anonimo.sql` agrega `visitantes_anonimos`, `sesiones_visitante`, `conversaciones` y `mensajes_chat`. PostgreSQL recibe solo el hash SHA-256 del secreto anónimo; el ID de conversación no autoriza acceso. Cada consulta comprueba la propiedad. La cookie dura 30 días y no depende de la sesión administrativa. La tabla admite hasta 4.000 caracteres; el límite HTTP es 2.000. Los envíos se serializan por visitante y se limitan a ocho por minuto; UUID idempotentes permiten reintentar sin duplicar.
+
+`visitantes_anonimos.auth_user_id` es un espacio de relación nullable para un futuro vínculo con Supabase Auth; esta etapa no crea cuentas ni agrega una FK a una tabla de Auth que no está presente en PostgreSQL local aislado.
 
 Las altas bloquean la tabla para comprobar el límite de 500 e insertar la solicitud idempotente en la misma transacción. PostgreSQL genera los IDs. Las fotos bloquean la fila del vehículo, por lo que altas concurrentes no superan cinco órdenes ni duplican una clave de envío.
 
@@ -68,6 +74,8 @@ El límite es cinco intentos por diez minutos para HMAC(remote_addr), reservados
 El navegador acepta originales de hasta 10 MB y prepara WebP ≤1600 px, calidad inicial 78 y ≤1 MB. Flask limita cada solicitud a 1.1 MB, solo acepta un archivo, rechaza animaciones/corrupción y vuelve a codificar sin EXIF/ICC/XMP. Una clave secreta moderna viaja solo en apikey; el JWT service_role heredado usa apikey/Bearer. HTTPS es obligatorio y se rechazan redirecciones para no reenviar secretos.
 
 ## Ambientes y Vercel
+
+El chat está deshabilitado por defecto con `CHAT_ENABLED=false`; Preview y modo de solo lectura lo fuerzan apagado. La migración está preparada, no ejecutada en Supabase. Definir la retención y el borrado de mensajes es requisito para habilitarlo públicamente.
 
 Desarrollo usa `.env` ignorado. PostgreSQL remoto siempre requiere TLS, con prepared statements desactivados para Transaction Pooler. La excepción sin TLS exige opt-in y loopback fijo; rechaza redirecciones hostaddr/service del destino local.
 

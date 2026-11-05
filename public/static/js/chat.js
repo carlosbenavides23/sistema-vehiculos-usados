@@ -1,0 +1,501 @@
+"use strict";
+
+(() => {
+  const porId = (id) => document.getElementById(id);
+  const cuerpo = document.body;
+  const habilitado = cuerpo.dataset.chatEnabled === "true";
+  if (!habilitado) return;
+
+  const intervalo = 4000;
+  const idVehiculoFicha = cuerpo.dataset.vehiculoId || "";
+  const fichaChat = porId("comprador-chat");
+  const botonAbrirAdmin = porId("abrir-mensajes");
+  const dialogoAdmin = porId("mensajes-dialogo");
+  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  let csrfComprador = "";
+  let adminAutenticado = false;
+  let compradorPreparado = false;
+  let compradorAbierto = false;
+  let conversacionComprador = null;
+  let conversacionAdmin = null;
+  let timerComprador = null;
+  let timerAdmin = null;
+  let compradorEnVuelo = false;
+  let adminEnVuelo = false;
+  let listaAdminEnVuelo = false;
+  let listaCompradorEnVuelo = false;
+  let cursorComprador = null;
+  let cursorAdmin = null;
+  let idsComprador = new Set();
+  let idsAdmin = new Set();
+  let solicitudCompradorPendiente = null;
+  let solicitudAdminPendiente = null;
+
+  function csrfAdmin() { return csrfMeta?.content || ""; }
+
+  async function api(ruta, { metodo = "GET", cuerpoJson = null, csrf = "", idempotencyKey = "" } = {}) {
+    const headers = { Accept: "application/json" };
+    if (cuerpoJson !== null) headers["Content-Type"] = "application/json";
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    let respuesta;
+    try {
+      respuesta = await fetch(ruta, {
+        method: metodo,
+        headers,
+        credentials: "same-origin",
+        cache: "no-store",
+        body: cuerpoJson === null ? undefined : JSON.stringify(cuerpoJson),
+      });
+    } catch {
+      throw new Error("No hay conexión. Conservamos tu texto para que puedas volver a intentarlo.");
+    }
+    let datos = {};
+    try { datos = await respuesta.json(); } catch { /* Respuestas vacías se gestionan con el estado HTTP. */ }
+    if (!respuesta.ok || datos.ok === false) {
+      const error = new Error(datos.mensaje || "No pudimos completar la operación. Inténtalo de nuevo.");
+      error.status = respuesta.status;
+      throw error;
+    }
+    return datos;
+  }
+
+  function estado(elemento, texto, tipo = "") {
+    elemento.textContent = texto;
+    if (tipo) elemento.dataset.tipo = tipo;
+    else delete elemento.dataset.tipo;
+  }
+
+  function idValido(valor) { return valor !== undefined && valor !== null && String(valor) !== ""; }
+
+  function fechaLegible(valor) {
+    if (!valor) return "";
+    const fecha = new Date(valor);
+    return Number.isNaN(fecha.getTime()) ? "" : new Intl.DateTimeFormat("es-NI", { dateStyle: "short", timeStyle: "short" }).format(fecha);
+  }
+
+  function fechaDeMensaje(mensaje) {
+    const time = document.createElement("time");
+    time.dateTime = mensaje.created_at || "";
+    time.textContent = fechaLegible(mensaje.created_at);
+    return time;
+  }
+
+  function agregarMensajes(contenedor, mensajes, idsVistos) {
+    let agregados = 0;
+    const estabaAlFinal = contenedor.scrollHeight - contenedor.scrollTop - contenedor.clientHeight < 48;
+    for (const mensaje of mensajes || []) {
+      if (!idValido(mensaje.id) || idsVistos.has(String(mensaje.id))) continue;
+      idsVistos.add(String(mensaje.id));
+      const articulo = document.createElement("article");
+      articulo.className = "chat-message";
+      articulo.dataset.remitente = ["admin", "administrador"].includes(mensaje.remitente) ? "admin" : "comprador";
+      const texto = document.createElement("p");
+      texto.textContent = mensaje.contenido || "";
+      articulo.append(texto, fechaDeMensaje(mensaje));
+      contenedor.append(articulo);
+      agregados += 1;
+    }
+    if (agregados && estabaAlFinal) contenedor.scrollTop = contenedor.scrollHeight;
+    return agregados;
+  }
+
+  function siguienteCursor(mensajes, actual) {
+    if (!mensajes?.length) return actual;
+    return mensajes[mensajes.length - 1].id ?? actual;
+  }
+
+  function nombreVehiculo(conversacion) {
+    return `${conversacion.marca || "Vehículo"} ${conversacion.modelo || ""}`.trim();
+  }
+
+  function seleccionarConversacionComprador(conversacion) {
+    conversacionComprador = conversacion;
+    cursorComprador = null;
+    idsComprador = new Set();
+    porId("chat-comprador-mensajes").replaceChildren();
+    porId("chat-comprador-vehiculo").textContent = nombreVehiculo(conversacion);
+    porId("chat-comprador-estado").textContent = conversacion.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
+    porId("chat-comprador-form").hidden = false;
+    porId("chat-comprador-lista").querySelectorAll("button").forEach((boton) => {
+      boton.setAttribute("aria-current", boton.dataset.conversationId === String(conversacion.id) ? "true" : "false");
+    });
+    cargarMensajesComprador(true);
+    reiniciarPollingComprador();
+  }
+
+  function prepararBorradorComprador() {
+    conversacionComprador = null;
+    cursorComprador = null;
+    idsComprador = new Set();
+    porId("chat-comprador-mensajes").replaceChildren();
+    porId("chat-comprador-vehiculo").textContent = porId("ficha-titulo").textContent || "Nueva conversación";
+    porId("chat-comprador-estado").textContent = "Nueva consulta";
+    porId("chat-comprador-form").hidden = false;
+    estado(porId("chat-comprador-feedback"), "Escribe tu consulta para iniciar la conversación.");
+  }
+
+  async function cargarListaComprador({ elegirFicha = false } = {}) {
+    if (listaCompradorEnVuelo || !compradorPreparado) return;
+    listaCompradorEnVuelo = true;
+    try {
+      const { conversaciones = [] } = await api("/api/chat/conversaciones");
+      const lista = porId("chat-comprador-lista");
+      lista.replaceChildren();
+      const estadoLista = porId("chat-comprador-lista-estado");
+      if (!conversaciones.length) {
+        estadoLista.textContent = "Aún no tienes conversaciones. Escribe tu primera consulta para iniciar una.";
+        if (elegirFicha) prepararBorradorComprador();
+        return;
+      }
+      estadoLista.textContent = "Selecciona una conversación para continuar.";
+      for (const conversacion of conversaciones) {
+        const li = document.createElement("li");
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "chat-conversation-button";
+        boton.dataset.conversationId = conversacion.id;
+        boton.setAttribute("aria-current", conversacionComprador?.id === conversacion.id ? "true" : "false");
+        const titulo = document.createElement("strong");
+        titulo.textContent = nombreVehiculo(conversacion);
+        const extracto = document.createElement("span");
+        extracto.textContent = conversacion.ultimo_mensaje || conversacion.estado || "Sin mensajes";
+        boton.append(titulo, extracto);
+        boton.addEventListener("click", () => seleccionarConversacionComprador(conversacion));
+        li.append(boton);
+        lista.append(li);
+      }
+      if (elegirFicha) {
+        const existente = conversaciones.find((item) => String(item.vehiculo_id) === idFichaFicha());
+        if (existente) seleccionarConversacionComprador(existente);
+        else prepararBorradorComprador();
+      }
+    } catch (error) {
+      estado(porId("chat-comprador-lista-estado"), error.status === 401 ? "La sesión de chat venció. Intenta volver a contactar al vendedor." : error.message, "error");
+      if (error.status === 401) {
+        compradorPreparado = false;
+        conversacionComprador = null;
+        porId("chat-comprador-form").hidden = true;
+        porId("chat-comprador-panel").hidden = true;
+        porId("mostrar-chat").hidden = false;
+        compradorAbierto = false;
+      }
+    } finally { listaCompradorEnVuelo = false; }
+  }
+
+  function idFichaFicha() { return String(idVehiculoFicha); }
+
+  async function prepararComprador() {
+    if (compradorPreparado) return;
+    estado(porId("chat-comprador-feedback"), "Preparando una sesión privada…");
+    try {
+      const respuesta = await api("/api/chat/sesion", { metodo: "POST", csrf: csrfAdmin() });
+      csrfComprador = respuesta.csrf_token || "";
+      if (!csrfComprador) throw new Error("No pudimos asegurar la sesión. Inténtalo de nuevo.");
+      compradorPreparado = true;
+      estado(porId("chat-comprador-feedback"), "Tu sesión privada está lista.");
+      await cargarListaComprador({ elegirFicha: true });
+    } catch (error) {
+      estado(porId("chat-comprador-feedback"), error.status === 503 ? "La mensajería no está habilitada en este entorno." : error.message, "error");
+      if (error.status !== 503) porId("mostrar-chat").hidden = false;
+      else fichaChat.hidden = true;
+    }
+  }
+
+  async function cargarMensajesComprador(inicial = false) {
+    if (!conversacionComprador || compradorEnVuelo) return;
+    compradorEnVuelo = true;
+    const conversacionSolicitada = String(conversacionComprador.id);
+    try {
+      const despues = cursorComprador === null ? 0 : encodeURIComponent(cursorComprador);
+      const { mensajes = [] } = await api(`/api/chat/conversaciones/${encodeURIComponent(conversacionComprador.id)}/mensajes?despues_de_id=${despues}`);
+      if (String(conversacionComprador?.id) !== conversacionSolicitada) return;
+      agregarMensajes(porId("chat-comprador-mensajes"), mensajes, idsComprador);
+      cursorComprador = siguienteCursor(mensajes, cursorComprador);
+      if (mensajes.length) estado(porId("chat-comprador-feedback"), "Conectado. Los mensajes se actualizan automáticamente.");
+      else if (inicial && !idsComprador.size) estado(porId("chat-comprador-feedback"), "Aún no hay mensajes. Puedes escribir al vendedor.");
+    } catch (error) {
+      if (error.status === 401 || error.status === 404) {
+        estado(porId("chat-comprador-feedback"), "La sesión venció o la conversación ya no está disponible. Vuelve a contactar al vendedor.", "error");
+        compradorPreparado = false;
+        conversacionComprador = null;
+        porId("chat-comprador-form").hidden = true;
+        detenerPollingComprador();
+        porId("chat-comprador-panel").hidden = true;
+        porId("mostrar-chat").hidden = false;
+        compradorAbierto = false;
+      } else estado(porId("chat-comprador-feedback"), "Se perdió la conexión. Seguiremos intentando; el texto escrito se conserva.", "error");
+    } finally { compradorEnVuelo = false; }
+  }
+
+  function detenerPollingComprador() { clearTimeout(timerComprador); timerComprador = null; }
+  function reiniciarPollingComprador() {
+    detenerPollingComprador();
+    if (!document.hidden && compradorAbierto && conversacionComprador) timerComprador = setTimeout(cicloComprador, intervalo);
+  }
+  async function cicloComprador() {
+    timerComprador = null;
+    if (document.hidden || !compradorAbierto || !conversacionComprador || compradorEnVuelo) return reiniciarPollingComprador();
+    await cargarMensajesComprador();
+    reiniciarPollingComprador();
+  }
+
+  async function enviarComprador(evento) {
+    evento.preventDefault();
+    const texto = porId("chat-comprador-texto").value.trim();
+    const boton = porId("chat-comprador-enviar");
+    if (!texto || boton.disabled) return;
+    if (!solicitudCompradorPendiente || solicitudCompradorPendiente.texto !== texto) {
+      solicitudCompradorPendiente = { texto, clave: crypto.randomUUID() };
+    }
+    boton.disabled = true;
+    estado(porId("chat-comprador-feedback"), "Enviando mensaje…");
+    const vehiculoDestino = conversacionComprador?.vehiculo_id || idVehiculoFicha;
+    const ruta = `/api/chat/vehiculos/${encodeURIComponent(vehiculoDestino)}/mensajes`;
+    try {
+      const respuesta = await api(ruta, {
+        metodo: "POST",
+        cuerpoJson: { contenido: texto },
+        csrf: csrfComprador,
+        idempotencyKey: solicitudCompradorPendiente.clave,
+      });
+      const campoTexto = porId("chat-comprador-texto");
+      if (campoTexto.value.trim() === texto) campoTexto.value = "";
+      solicitudCompradorPendiente = null;
+      if (respuesta.conversacion) {
+        conversacionComprador = respuesta.conversacion;
+      } else if (!conversacionComprador) {
+        conversacionComprador = {
+          id: respuesta.conversacion_id, vehiculo_id: idVehiculoFicha,
+          marca: porId("ficha-titulo").textContent, modelo: "", estado: "abierta",
+        };
+        cursorComprador = null;
+        idsComprador = new Set();
+        porId("chat-comprador-vehiculo").textContent = porId("ficha-titulo").textContent;
+        porId("chat-comprador-estado").textContent = "Pendiente de respuesta";
+        porId("chat-comprador-form").hidden = false;
+      }
+      if (respuesta.mensaje) {
+        agregarMensajes(porId("chat-comprador-mensajes"), [respuesta.mensaje], idsComprador);
+        cursorComprador = respuesta.mensaje.id;
+      }
+      estado(porId("chat-comprador-feedback"), "Mensaje enviado.");
+      await cargarListaComprador();
+      reiniciarPollingComprador();
+      porId("chat-comprador-texto").focus();
+    } catch (error) {
+      if (error.status === 401) {
+        estado(porId("chat-comprador-feedback"), "La sesión venció. Vuelve a iniciar el contacto para continuar.", "error");
+        compradorPreparado = false;
+        compradorAbierto = false;
+        detenerPollingComprador();
+        porId("chat-comprador-form").hidden = true;
+        porId("chat-comprador-panel").hidden = true;
+        porId("mostrar-chat").hidden = false;
+        porId("mostrar-chat").textContent = "Reiniciar contacto";
+        // solicitudCompradorPendiente y su texto se conservan para un reintento
+        // idempotente después de establecer una sesión nueva.
+      } else estado(porId("chat-comprador-feedback"), error.message, "error");
+    } finally { boton.disabled = false; }
+  }
+
+  async function comprobarAdmin() {
+    try {
+      const respuesta = await api("/api/admin/session");
+      const siguiente = Boolean(respuesta.autenticado) && !respuesta.solo_lectura;
+      adminAutenticado = siguiente;
+      botonAbrirAdmin.hidden = !siguiente;
+      if (!siguiente && dialogoAdmin.open) cerrarAdmin();
+    } catch {
+      adminAutenticado = false;
+      botonAbrirAdmin.hidden = true;
+      if (dialogoAdmin.open) cerrarAdmin();
+    }
+  }
+
+  function listarConversacionesAdmin(conversaciones) {
+    const lista = porId("chat-admin-lista");
+    lista.replaceChildren();
+    porId("chat-admin-estado").textContent = conversaciones.length ? `${conversaciones.length} conversación${conversaciones.length === 1 ? "" : "es"}.` : "No hay conversaciones en esta vista.";
+    for (const conversacion of conversaciones) {
+      const li = document.createElement("li");
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "chat-conversation-button";
+      boton.dataset.conversationId = conversacion.id;
+      boton.setAttribute("aria-current", conversacionAdmin?.id === conversacion.id ? "true" : "false");
+      const titulo = document.createElement("strong");
+      titulo.textContent = nombreVehiculo(conversacion);
+      const extracto = document.createElement("span");
+      extracto.textContent = `${conversacion.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversacion.ultimo_mensaje || "Sin mensajes"}`;
+      boton.append(titulo, extracto);
+      boton.addEventListener("click", () => seleccionarConversacionAdmin(conversacion));
+      li.append(boton);
+      lista.append(li);
+    }
+  }
+
+  async function cargarListaAdmin() {
+    if (listaAdminEnVuelo || !adminAutenticado) return;
+    listaAdminEnVuelo = true;
+    try {
+      const filtro = porId("chat-admin-filtro").value;
+      const query = filtro === "todas" ? "" : `?estado=${encodeURIComponent(filtro)}`;
+      const { conversaciones = [] } = await api(`/api/admin/chat/conversaciones${query}`);
+      listarConversacionesAdmin(conversaciones);
+    } catch (error) {
+      estado(porId("chat-admin-estado"), error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
+      if (error.status === 401) comprobarAdmin();
+    } finally { listaAdminEnVuelo = false; }
+  }
+
+  function seleccionarConversacionAdmin(conversacion) {
+    conversacionAdmin = conversacion;
+    cursorAdmin = null;
+    idsAdmin = new Set();
+    porId("chat-admin-mensajes").replaceChildren();
+    porId("chat-admin-vehiculo").textContent = nombreVehiculo(conversacion);
+    porId("chat-admin-estado-conversacion").textContent = conversacion.estado === "atendida" ? "Atendida" : "Pendiente";
+    porId("chat-admin-atendida").hidden = conversacion.estado === "atendida";
+    porId("chat-admin-form").hidden = false;
+    cargarMensajesAdmin(true);
+    reiniciarPollingAdmin();
+    listarConversacionesAdmin([conversacion]);
+  }
+
+  async function cargarMensajesAdmin() {
+    if (!conversacionAdmin || adminEnVuelo || !adminAutenticado) return;
+    adminEnVuelo = true;
+    const conversacionSolicitada = String(conversacionAdmin.id);
+    try {
+      const despues = cursorAdmin === null ? 0 : encodeURIComponent(cursorAdmin);
+      const { mensajes = [] } = await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/mensajes?despues_de_id=${despues}`);
+      if (String(conversacionAdmin?.id) !== conversacionSolicitada) return;
+      agregarMensajes(porId("chat-admin-mensajes"), mensajes, idsAdmin);
+      cursorAdmin = siguienteCursor(mensajes, cursorAdmin);
+      if (mensajes.length) estado(porId("chat-admin-feedback"), "Conectado.");
+    } catch (error) {
+      estado(porId("chat-admin-feedback"), error.status === 401 ? "Tu sesión administrativa venció." : "No pudimos actualizar los mensajes. Reintentaremos automáticamente.", "error");
+      if (error.status === 401) comprobarAdmin();
+    } finally { adminEnVuelo = false; }
+  }
+
+  function detenerPollingAdmin() { clearTimeout(timerAdmin); timerAdmin = null; }
+  function reiniciarPollingAdmin() {
+    detenerPollingAdmin();
+    if (!document.hidden && dialogoAdmin.open && adminAutenticado) timerAdmin = setTimeout(cicloAdmin, intervalo);
+  }
+  async function cicloAdmin() {
+    timerAdmin = null;
+    if (document.hidden || !dialogoAdmin.open || !adminAutenticado || adminEnVuelo || listaAdminEnVuelo) return reiniciarPollingAdmin();
+    await cargarListaAdmin();
+    await cargarMensajesAdmin();
+    reiniciarPollingAdmin();
+  }
+
+  async function enviarAdmin(evento) {
+    evento.preventDefault();
+    const texto = porId("chat-admin-texto").value.trim();
+    const boton = porId("chat-admin-enviar");
+    if (!texto || boton.disabled || !conversacionAdmin) return;
+    if (!solicitudAdminPendiente || solicitudAdminPendiente.texto !== texto) solicitudAdminPendiente = { texto, clave: crypto.randomUUID() };
+    boton.disabled = true;
+    estado(porId("chat-admin-feedback"), "Enviando respuesta…");
+    try {
+      const respuesta = await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/mensajes`, {
+        metodo: "POST", cuerpoJson: { contenido: texto }, csrf: csrfAdmin(), idempotencyKey: solicitudAdminPendiente.clave,
+      });
+      const campoTexto = porId("chat-admin-texto");
+      if (campoTexto.value.trim() === texto) campoTexto.value = "";
+      solicitudAdminPendiente = null;
+      if (respuesta.mensaje) {
+        agregarMensajes(porId("chat-admin-mensajes"), [respuesta.mensaje], idsAdmin);
+        cursorAdmin = respuesta.mensaje.id;
+      }
+      estado(porId("chat-admin-feedback"), "Respuesta enviada.");
+      await cargarListaAdmin();
+      porId("chat-admin-texto").focus();
+    } catch (error) {
+      estado(porId("chat-admin-feedback"), error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
+      if (error.status === 401) comprobarAdmin();
+    } finally { boton.disabled = false; }
+  }
+
+  async function marcarAtendida() {
+    if (!conversacionAdmin || !adminAutenticado) return;
+    const boton = porId("chat-admin-atendida");
+    boton.disabled = true;
+    try {
+      await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/atendida`, {
+        metodo: "PATCH", cuerpoJson: { atendida: true }, csrf: csrfAdmin(),
+      });
+      conversacionAdmin = { ...conversacionAdmin, estado: "atendida" };
+      porId("chat-admin-estado-conversacion").textContent = "Atendida";
+      boton.hidden = true;
+      estado(porId("chat-admin-feedback"), "Conversación marcada como atendida.");
+      await cargarListaAdmin();
+    } catch (error) {
+      estado(porId("chat-admin-feedback"), error.message, "error");
+    } finally { boton.disabled = false; }
+  }
+
+  async function abrirAdmin() {
+    await comprobarAdmin();
+    if (!adminAutenticado) return;
+    dialogoAdmin.showModal();
+    document.body.classList.add("dialog-open");
+    await cargarListaAdmin();
+    reiniciarPollingAdmin();
+    porId("chat-admin-filtro").focus();
+  }
+
+  function cerrarAdmin() {
+    detenerPollingAdmin();
+    if (dialogoAdmin.open) dialogoAdmin.close();
+    document.body.classList.remove("dialog-open");
+    porId("abrir-mensajes").focus();
+  }
+
+  if (idVehiculoFicha && fichaChat) {
+    fichaChat.hidden = false;
+    porId("mostrar-chat").addEventListener("click", async (evento) => {
+      compradorAbierto = true;
+      porId("chat-comprador-panel").hidden = false;
+      evento.currentTarget.hidden = true;
+      await prepararComprador();
+      reiniciarPollingComprador();
+      porId("chat-comprador-texto").focus();
+    });
+    porId("chat-comprador-form").addEventListener("submit", enviarComprador);
+  }
+
+  botonAbrirAdmin.addEventListener("click", abrirAdmin);
+  porId("cerrar-mensajes").addEventListener("click", cerrarAdmin);
+  porId("cerrar-mensajes-pie").addEventListener("click", cerrarAdmin);
+  porId("chat-admin-form").addEventListener("submit", enviarAdmin);
+  porId("chat-admin-atendida").addEventListener("click", marcarAtendida);
+  porId("chat-admin-filtro").addEventListener("change", cargarListaAdmin);
+  porId("actualizar-conversaciones").addEventListener("click", async () => {
+    await cargarListaAdmin();
+    await cargarMensajesAdmin();
+  });
+  dialogoAdmin.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarAdmin(); });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      detenerPollingComprador();
+      detenerPollingAdmin();
+    } else {
+      reiniciarPollingComprador();
+      reiniciarPollingAdmin();
+    }
+  });
+
+  const observadorSesion = new MutationObserver(() => comprobarAdmin());
+  ["abrir-login", "cerrar-sesion"].forEach((id) => {
+    const boton = porId(id);
+    if (boton) observadorSesion.observe(boton, { attributes: true, attributeFilter: ["hidden"] });
+  });
+
+  comprobarAdmin();
+})();
