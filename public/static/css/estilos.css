@@ -1806,3 +1806,55 @@ legend.formulario-seccion__titulo {
   .chat-thread { min-height:260px; }
   .chat-section-heading { align-items:flex-start; flex-direction:column; }
 }
+
+/* La conversación del comprador vive fuera de la ficha, en un diálogo lateral. */
+.buyer-chat { padding-top:1rem; }
+.buyer-chat-drawer {
+  position:fixed; inset:0 0 0 auto; margin:0; padding:0;
+  width:min(26rem,100vw); max-width:none; height:100vh; height:100dvh;
+  max-height:none; overflow:hidden; border:0; border-radius:0;
+  background:var(--surface, #fff); box-shadow:-12px 0 40px rgba(20,48,54,.18);
+}
+.buyer-chat-drawer[open] { display:flex; flex-direction:column; animation:chat-drawer-open .2s ease-out; }
+.buyer-chat-drawer::backdrop { background:rgba(12,31,36,.5); }
+.buyer-chat-header { display:flex; align-items:center; gap:.5rem; flex:none; padding:.75rem 1rem; border-bottom:1px solid var(--line); background:#fff; }
+.buyer-chat-header h2 { flex:1; min-width:0; margin:0; color:var(--ink); font-size:1.05rem; }
+.buyer-chat-header button,.admin-chat-back { min-width:44px; min-height:44px; }
+.buyer-chat-drawer #chat-comprador-panel:not([hidden]) { display:flex; flex:1; min-height:0; flex-direction:column; gap:0; margin:0; }
+.buyer-chat-drawer #chat-comprador-lista-vista:not([hidden]),
+.buyer-chat-drawer #chat-comprador-hilo:not([hidden]) { display:flex; flex:1; min-height:0; flex-direction:column; }
+.buyer-chat-drawer .chat-conversation-list,
+.buyer-chat-drawer .chat-thread { min-height:0; max-height:none; padding:1rem; border:0; border-radius:0; }
+.buyer-chat-drawer .chat-conversation-list { overflow-y:auto; }
+.buyer-chat-drawer .chat-thread-heading { flex:none; }
+.buyer-chat-drawer .chat-messages { min-height:0; max-height:none; overscroll-behavior:contain; }
+.buyer-chat-drawer .chat-message { align-self:flex-end; background:#e6f1ed; border-radius:.75rem .75rem .2rem .75rem; }
+.buyer-chat-drawer .chat-message[data-remitente="admin"] { align-self:flex-start; background:#f1f5f3; border-radius:.75rem .75rem .75rem .2rem; }
+.buyer-chat-drawer .chat-compose { flex:none; padding-top:.6rem; border-top:1px solid var(--line); }
+.chat-compose textarea { min-height:3.2rem; max-height:8rem; resize:vertical; }
+.chat-conversation-button { min-height:60px; }
+.chat-conversation-button:focus-visible { outline:3px solid var(--teal); outline-offset:2px; }
+.admin-chat-back { display:none; }
+@keyframes chat-drawer-open { from { transform:translateX(100%); } to { transform:translateX(0); } }
+
+@media(max-width:650px) {
+  .buyer-chat-drawer { width:100%; width:100dvw; }
+  .buyer-chat-header { padding-top:max(.75rem,env(safe-area-inset-top)); }
+  .buyer-chat-drawer .chat-thread,
+  .buyer-chat-drawer .chat-conversation-list { padding:1rem max(1rem,env(safe-area-inset-right)) max(1rem,env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left)); }
+  .chat-admin-dialog { width:100vw; max-width:none; height:100vh; height:100dvh; max-height:none; margin:0; border-radius:0; padding:max(1rem,env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) max(1rem,env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left)); }
+  .chat-admin-dialog[open] { display:flex; flex-direction:column; overflow:hidden; }
+  .chat-admin-dialog .admin-chat-workspace { display:flex; flex:1; min-height:0; margin-top:.5rem; }
+  .chat-admin-dialog .chat-conversation-list,
+  .chat-admin-dialog .chat-thread { flex:1; min-height:0; max-height:none; overflow-y:auto; }
+  .chat-admin-dialog .chat-thread { overflow:hidden; }
+  .chat-admin-dialog .chat-messages { min-height:0; max-height:none; overscroll-behavior:contain; }
+  .chat-admin-dialog[data-vista="lista"] .chat-thread,
+  .chat-admin-dialog[data-vista="hilo"] .chat-conversation-list,
+  .chat-admin-dialog[data-vista="hilo"] .admin-chat-toolbar,
+  .chat-admin-dialog[data-vista="hilo"] #chat-admin-estado,
+  .chat-admin-dialog[data-vista="hilo"] #chat-admin-cargar-mas { display:none; }
+  .chat-admin-dialog .admin-chat-back:not([hidden]) { display:inline-flex; }
+  .chat-admin-dialog .form-footer { flex:none; }
+}
+@media(prefers-reduced-motion:reduce) { .buyer-chat-drawer[open] { animation:none; } }

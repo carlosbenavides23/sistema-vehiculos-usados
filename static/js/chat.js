@@ -11,6 +11,9 @@
   const fichaChat = porId("comprador-chat");
   const botonAbrirAdmin = porId("abrir-mensajes");
   const dialogoAdmin = porId("mensajes-dialogo");
+  const dialogoComprador = porId("chat-comprador-dialogo");
+  const borradoresComprador = new Map();
+  const borradoresAdmin = new Map();
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   let csrfComprador = "";
   let adminAutenticado = false;
@@ -114,8 +117,27 @@
     return `${conversacion.marca || "Vehículo"} ${conversacion.modelo || ""}`.trim();
   }
 
+  function claveBorradorComprador() { return conversacionComprador ? String(conversacionComprador.id) : `nueva:${idVehiculoFicha}`; }
+  function guardarBorradorComprador() {
+    borradoresComprador.set(claveBorradorComprador(), { texto: porId("chat-comprador-texto").value, solicitud: solicitudCompradorPendiente });
+  }
+  function restaurarBorradorComprador() {
+    const borrador = borradoresComprador.get(claveBorradorComprador());
+    porId("chat-comprador-texto").value = borrador?.texto || "";
+    solicitudCompradorPendiente = borrador?.solicitud || null;
+  }
+  function vistaComprador(vista) {
+    porId("chat-comprador-lista-vista").hidden = vista !== "lista";
+    porId("chat-comprador-hilo").hidden = vista !== "hilo";
+    if (vista === "lista") porId("chat-comprador-volver").hidden = true;
+    else porId("chat-comprador-volver").hidden = false;
+  }
   function seleccionarConversacionComprador(conversacion) {
+    guardarBorradorComprador();
     conversacionComprador = conversacion;
+    restaurarBorradorComprador();
+    vistaComprador("hilo");
+    if (compradorAbierto && dialogoComprador.open) porId("chat-comprador-volver").focus();
     cursorComprador = null;
     idsComprador = new Set();
     porId("chat-comprador-mensajes").replaceChildren();
@@ -130,7 +152,10 @@
   }
 
   function prepararBorradorComprador() {
+    guardarBorradorComprador();
     conversacionComprador = null;
+    restaurarBorradorComprador();
+    vistaComprador("hilo");
     cursorComprador = null;
     idsComprador = new Set();
     porId("chat-comprador-mensajes").replaceChildren();
@@ -164,7 +189,7 @@
         const titulo = document.createElement("strong");
         titulo.textContent = nombreVehiculo(conversacion);
         const extracto = document.createElement("span");
-        extracto.textContent = conversacion.ultimo_mensaje || conversacion.estado || "Sin mensajes";
+        extracto.textContent = `${conversacion.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversacion.ultimo_mensaje || "Sin mensajes"}`;
         boton.append(titulo, extracto);
         boton.addEventListener("click", () => seleccionarConversacionComprador(conversacion));
         li.append(boton);
@@ -181,9 +206,7 @@
         compradorPreparado = false;
         conversacionComprador = null;
         porId("chat-comprador-form").hidden = true;
-        porId("chat-comprador-panel").hidden = true;
-        porId("mostrar-chat").hidden = false;
-        compradorAbierto = false;
+        cerrarComprador();
       }
     } finally { listaCompradorEnVuelo = false; }
   }
@@ -226,11 +249,14 @@
         conversacionComprador = null;
         porId("chat-comprador-form").hidden = true;
         detenerPollingComprador();
-        porId("chat-comprador-panel").hidden = true;
-        porId("mostrar-chat").hidden = false;
-        compradorAbierto = false;
+        cerrarComprador();
       } else estado(porId("chat-comprador-feedback"), "Se perdió la conexión. Seguiremos intentando; el texto escrito se conserva.", "error");
-    } finally { compradorEnVuelo = false; }
+    } finally {
+      compradorEnVuelo = false;
+      if (compradorAbierto && conversacionComprador && String(conversacionComprador.id) !== conversacionSolicitada) {
+        queueMicrotask(() => cargarMensajesComprador(true));
+      }
+    }
   }
 
   function detenerPollingComprador() { clearTimeout(timerComprador); timerComprador = null; }
@@ -256,6 +282,7 @@
     boton.disabled = true;
     estado(porId("chat-comprador-feedback"), "Enviando mensaje…");
     const vehiculoDestino = conversacionComprador?.vehiculo_id || idVehiculoFicha;
+    const borradorEnviado = claveBorradorComprador();
     const ruta = `/api/chat/vehiculos/${encodeURIComponent(vehiculoDestino)}/mensajes`;
     try {
       const respuesta = await api(ruta, {
@@ -265,6 +292,12 @@
         idempotencyKey: solicitudCompradorPendiente.clave,
       });
       const campoTexto = porId("chat-comprador-texto");
+      const sigueSeleccionada = claveBorradorComprador() === borradorEnviado;
+      borradoresComprador.delete(borradorEnviado);
+      if (!sigueSeleccionada) {
+        await cargarListaComprador();
+        return;
+      }
       if (campoTexto.value.trim() === texto) campoTexto.value = "";
       solicitudCompradorPendiente = null;
       if (respuesta.conversacion) {
@@ -295,8 +328,7 @@
         compradorAbierto = false;
         detenerPollingComprador();
         porId("chat-comprador-form").hidden = true;
-        porId("chat-comprador-panel").hidden = true;
-        porId("mostrar-chat").hidden = false;
+        cerrarComprador();
         porId("mostrar-chat").textContent = "Reiniciar contacto";
         // solicitudCompradorPendiente y su texto se conservan para un reintento
         // idempotente después de establecer una sesión nueva.
@@ -414,7 +446,13 @@
   }
 
   function seleccionarConversacionAdmin(conversacion) {
+    if (conversacionAdmin) borradoresAdmin.set(String(conversacionAdmin.id), {
+      texto: porId("chat-admin-texto").value, solicitud: solicitudAdminPendiente,
+    });
     conversacionAdmin = conversacion;
+    const borrador = borradoresAdmin.get(String(conversacion.id));
+    porId("chat-admin-texto").value = borrador?.texto || "";
+    solicitudAdminPendiente = borrador?.solicitud || null;
     cursorAdmin = null;
     idsAdmin = new Set();
     porId("chat-admin-mensajes").replaceChildren();
@@ -425,6 +463,8 @@
     cargarMensajesAdmin(true);
     reiniciarPollingAdmin();
     listaAdminMarcarSeleccionada(conversacion.id);
+    dialogoAdmin.dataset.vista = "hilo";
+    if (window.matchMedia("(max-width: 650px)").matches) porId("chat-admin-volver").focus();
   }
 
   function listaAdminMarcarSeleccionada(identificador) {
@@ -474,12 +514,18 @@
     const boton = porId("chat-admin-enviar");
     if (!texto || boton.disabled || !conversacionAdmin) return;
     if (!solicitudAdminPendiente || solicitudAdminPendiente.texto !== texto) solicitudAdminPendiente = { texto, clave: crypto.randomUUID() };
+    const destino = String(conversacionAdmin.id);
     boton.disabled = true;
     estado(porId("chat-admin-feedback"), "Enviando respuesta…");
     try {
       const respuesta = await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/mensajes`, {
         metodo: "POST", cuerpoJson: { contenido: texto }, csrf: csrfAdmin(), idempotencyKey: solicitudAdminPendiente.clave,
       });
+      borradoresAdmin.delete(destino);
+      if (String(conversacionAdmin?.id) !== destino) {
+        await cargarListaAdmin();
+        return;
+      }
       const campoTexto = porId("chat-admin-texto");
       if (campoTexto.value.trim() === texto) campoTexto.value = "";
       solicitudAdminPendiente = null;
@@ -517,6 +563,7 @@
   async function abrirAdmin() {
     await comprobarAdmin();
     if (!adminAutenticado) return;
+    dialogoAdmin.dataset.vista = "lista";
     dialogoAdmin.showModal();
     document.body.classList.add("dialog-open");
     await cargarListaAdmin();
@@ -531,21 +578,45 @@
     porId("abrir-mensajes").focus();
   }
 
+  function cerrarComprador() {
+    compradorAbierto = false;
+    detenerPollingComprador();
+    if (dialogoComprador.open) dialogoComprador.close();
+    document.body.classList.remove("dialog-open");
+    porId("mostrar-chat").focus();
+  }
+
   if (idVehiculoFicha && fichaChat) {
     fichaChat.hidden = false;
-    porId("mostrar-chat").addEventListener("click", async (evento) => {
+    porId("mostrar-chat").addEventListener("click", async () => {
       compradorAbierto = true;
       porId("chat-comprador-panel").hidden = false;
-      evento.currentTarget.hidden = true;
-      await prepararComprador();
+      vistaComprador("hilo");
+      dialogoComprador.showModal();
+      document.body.classList.add("dialog-open");
+      porId("cerrar-chat-comprador").focus();
+      if (compradorPreparado) await cargarListaComprador({ elegirFicha: true });
+      else await prepararComprador();
+      if (!compradorAbierto) return;
       reiniciarPollingComprador();
-      porId("chat-comprador-texto").focus();
+    });
+    porId("cerrar-chat-comprador").addEventListener("click", cerrarComprador);
+    dialogoComprador.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarComprador(); });
+    porId("chat-comprador-volver").addEventListener("click", async () => {
+      guardarBorradorComprador();
+      vistaComprador("lista");
+      await cargarListaComprador();
+      (porId("chat-comprador-lista").querySelector("button") || porId("cerrar-chat-comprador")).focus();
     });
     porId("chat-comprador-form").addEventListener("submit", enviarComprador);
   }
 
   botonAbrirAdmin.addEventListener("click", abrirAdmin);
   porId("cerrar-mensajes").addEventListener("click", cerrarAdmin);
+  porId("chat-admin-volver").addEventListener("click", () => {
+    dialogoAdmin.dataset.vista = "lista";
+    porId("chat-admin-lista").querySelector('[aria-current="true"]')?.focus();
+  });
   porId("cerrar-mensajes-pie").addEventListener("click", cerrarAdmin);
   porId("chat-admin-form").addEventListener("submit", enviarAdmin);
   porId("chat-admin-atendida").addEventListener("click", marcarAtendida);

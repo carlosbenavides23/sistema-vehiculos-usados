@@ -90,6 +90,25 @@ test("el listado administrativo permite cargar páginas cursor y conserva lo ya 
 });
 
 test("el aviso de privacidad identifica PostgreSQL como almacenamiento de mensajes", () => {
-  assert.match(template, /mensajes se almacenan en PostgreSQL/);
+  assert.match(template, /mensajes se guardan en el servidor/);
   assert.doesNotMatch(template, /Tu conversación se guarda en este navegador/);
+});
+
+test("el comprador tiene un diálogo modal con navegación y cierre accesibles", () => {
+  assert.match(template, /<dialog id="chat-comprador-dialogo"/);
+  for (const id of ["chat-comprador-lista-vista", "chat-comprador-hilo", "chat-comprador-volver", "cerrar-chat-comprador"]) {
+    assert.ok(template.includes(`id="${id}"`));
+  }
+  assert.match(script, /dialogoComprador\.showModal\(\)/);
+  assert.match(script, /dialogoComprador\.addEventListener\("cancel"/);
+  assert.match(script, /porId\("mostrar-chat"\)\.focus\(\)/);
+});
+
+test("el borrador se conserva por conversación y el polling se detiene al cerrar", () => {
+  assert.match(script, /const borradoresComprador = new Map\(\)/);
+  assert.match(script, /guardarBorradorComprador\(\)/);
+  assert.match(script, /restaurarBorradorComprador\(\)/);
+  const cierre = script.slice(script.indexOf("function cerrarComprador"), script.indexOf("if (idVehiculoFicha && fichaChat)"));
+  assert.match(cierre, /detenerPollingComprador\(\)/);
+  assert.match(cierre, /compradorAbierto = false/);
 });
