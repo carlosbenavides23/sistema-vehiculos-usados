@@ -2,8 +2,10 @@
 
 import hashlib
 import hmac
+import ipaddress
 import os
 import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -16,6 +18,7 @@ import imagenes
 import limites_login
 import persistencia
 import persistencia_fotos
+import persistencia_chat
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
@@ -23,6 +26,22 @@ MAX_SOLICITUD = 1_100_000
 MAX_PASSWORD_LENGTH = 1024
 MAX_INTENTOS_LOGIN = 5
 PAUSA_LOGIN_SEGUNDOS = 10 * 60
+DURACION_SESION_CHAT_DIAS = 30
+MAX_LONGITUD_MENSAJE_CHAT = 2000
+
+
+def _direccion_cliente_para_limites():
+    """Devuelve origen confiable para cuotas: cabecera sobrescrita por Vercel o peer local."""
+    if os.environ.get("VERCEL"):
+        origen_vercel = request.headers.get("x-vercel-forwarded-for", "").strip()
+        try:
+            # Vercel documenta esta cabecera como la IP pública del cliente. No
+            # se aceptan listas ni valores arbitrarios; el proxy de plataforma
+            # sustituye el valor recibido antes de invocar la Function.
+            return str(ipaddress.ip_address(origen_vercel))
+        except ValueError:
+            pass
+    return request.remote_addr or "sin-direccion"
 
 
 def _cargar_dotenv():
@@ -50,13 +69,19 @@ def create_app(configuracion=None):
         MAX_FORM_MEMORY_SIZE=MAX_SOLICITUD,
         MAX_FORM_PARTS=3,
         APP_READ_ONLY=_solo_lectura_desde_entorno(),
+        CHAT_ENABLED=os.environ.get("CHAT_ENABLED", "false").lower() == "true",
         REPOSITORY=None,
         PHOTO_REPOSITORY=None,
         LOGIN_LIMITER=None,
+        CHAT_REPOSITORY=None,
         STORAGE=None,
     )
     if configuracion:
         aplicacion.config.update(configuracion)
+    # La función pública no se puede habilitar desde Preview ni en un entorno
+    # configurado como solo lectura, aunque alguien solicite CHAT_ENABLED.
+    if os.environ.get("VERCEL_ENV") == "preview" or aplicacion.config["APP_READ_ONLY"]:
+        aplicacion.config["CHAT_ENABLED"] = False
     if not aplicacion.config.get("SECRET_KEY"):
         raise RuntimeError("Configura FLASK_SECRET_KEY antes de iniciar Flask.")
 
@@ -87,6 +112,82 @@ def create_app(configuracion=None):
         if not csrf_valido():
             return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
         return None
+
+    def exigir_admin_sin_csrf():
+        if current_app.config["APP_READ_ONLY"]:
+            return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
+        if not session.get("admin_authenticated"):
+            return jsonify(respuesta_error("Inicia sesión como administrador para continuar.")), 401
+        return None
+
+    def chat_publico_habilitado():
+        return bool(
+            current_app.config.get("CHAT_ENABLED")
+            and not current_app.config.get("APP_READ_ONLY")
+            and os.environ.get("VERCEL_ENV") != "preview"
+        )
+
+    def exigir_chat_habilitado():
+        if not chat_publico_habilitado():
+            return jsonify(respuesta_error("El chat no está habilitado en este ambiente.")), 503
+        return None
+
+    def chat_repositorio(nombre, *argumentos):
+        personalizado = current_app.config.get("CHAT_REPOSITORY")
+        if personalizado is not None:
+            return personalizado[nombre](*argumentos)
+        return getattr(persistencia_chat, nombre)(*argumentos)
+
+    def nombre_cookie_chat():
+        nombre = current_app.config.get("CHAT_SESSION_COOKIE_NAME")
+        if nombre:
+            return nombre
+        return "__Host-chat_session" if current_app.config["SESSION_COOKIE_SECURE"] else "chat_session"
+
+    def csrf_chat(token):
+        secreto = current_app.secret_key
+        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
+        return hmac.new(secreto, b"chat-csrf-v1:" + token.encode(), hashlib.sha256).hexdigest()
+
+    def visitante_chat():
+        token = request.cookies.get(nombre_cookie_chat(), "")
+        if not token or len(token) > 128:
+            return None
+        verificador = hashlib.sha256(token.encode()).hexdigest()
+        visitante = chat_repositorio("resolver_visitante", verificador)
+        if visitante is None:
+            return None
+        return {"token": token, "verificador": verificador, "datos": visitante}
+
+    def csrf_chat_valido(token):
+        recibido = request.headers.get("X-CSRF-Token", "")
+        return bool(recibido and hmac.compare_digest(csrf_chat(token), recibido))
+
+    def exigir_visitante_chat(csrf=False):
+        visitante = visitante_chat()
+        if visitante is None:
+            return None, (jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión.")), 401)
+        if csrf and not csrf_chat_valido(visitante["token"]):
+            return None, (jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403)
+        return visitante, None
+
+    def mensaje_chat_desde_solicitud():
+        cuerpo, fallo = leer_json({"contenido"})
+        if fallo:
+            return None, fallo
+        contenido = cuerpo["contenido"]
+        if not isinstance(contenido, str) or not contenido.strip():
+            return None, (jsonify(respuesta_error("Escribe un mensaje antes de enviarlo.", {"contenido": "El mensaje no puede estar vacío."})), 422)
+        contenido = contenido.strip()
+        if len(contenido) > MAX_LONGITUD_MENSAJE_CHAT:
+            return None, (jsonify(respuesta_error("El mensaje supera el límite permitido.", {"contenido": f"El máximo es {MAX_LONGITUD_MENSAJE_CHAT} caracteres."})), 422)
+        return contenido, None
+
+    def cursor_mensajes():
+        valor = request.args.get("despues_de_id", "0")
+        if not valor.isdecimal() or len(valor) > 18:
+            return None, (jsonify(respuesta_error("El cursor de mensajes no es válido.")), 400)
+        return int(valor), None
 
     def repositorio(nombre, *argumentos):
         personalizado = current_app.config.get("REPOSITORY")
@@ -152,13 +253,14 @@ def create_app(configuracion=None):
 
     @aplicacion.get("/")
     def inicio():
-        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None)
+        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None, chat_habilitado=chat_publico_habilitado())
 
     @aplicacion.get("/vehiculo/<int:identificador>")
     def pagina_vehiculo(identificador):
         # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
         return render_template(
             "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
+            chat_habilitado=chat_publico_habilitado(),
         )
 
     @aplicacion.get("/api/admin/session")
@@ -191,9 +293,10 @@ def create_app(configuracion=None):
 
         secreto = current_app.secret_key
         secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        # Nunca se usa X-Forwarded-For arbitrario ni una cookie para el contador.
-        # Si un proxy comparte remote_addr, el límite es conservador y compartido.
-        clave_cliente = hmac.new(secreto, (request.remote_addr or "sin-direccion").encode(), hashlib.sha256).hexdigest()
+        # Vercel reemplaza x-vercel-forwarded-for con la IP pública de origen;
+        # en cualquier otro entorno se ignoran cabeceras de proxy del cliente.
+        origen_cliente = _direccion_cliente_para_limites().encode("utf-8")
+        clave_cliente = hmac.new(secreto, origen_cliente, hashlib.sha256).hexdigest()
         try:
             restante = limitar_login("reservar_intento_login", clave_cliente, MAX_INTENTOS_LOGIN, PAUSA_LOGIN_SEGUNDOS)
         except Exception as error:
@@ -227,6 +330,241 @@ def create_app(configuracion=None):
         session.clear()
         session["csrf_token"] = secrets.token_urlsafe(32)
         return jsonify({"ok": True, "autenticado": False, "csrf_token": session["csrf_token"]})
+
+    @aplicacion.post("/api/chat/sesion")
+    def iniciar_sesion_chat():
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        if not csrf_valido():
+            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
+        nombre_cookie = nombre_cookie_chat()
+        token_existente = request.cookies.get(nombre_cookie, "")
+        if token_existente:
+            try:
+                visitante = visitante_chat()
+            except Exception as error:
+                return error_persistencia(error)
+            if visitante is None:
+                respuesta = jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión."))
+                respuesta.set_cookie(
+                    nombre_cookie, "", max_age=0, path="/", secure=current_app.config["SESSION_COOKIE_SECURE"],
+                    httponly=True, samesite="Lax",
+                )
+                return respuesta, 401
+            return jsonify({"ok": True, "csrf_token": csrf_chat(visitante["token"])})
+
+        # La dirección solo aporta una clave seudónima al límite compartido;
+        # no se usa como identidad, no se persiste en claro y no se confía XFF.
+        secreto = current_app.secret_key
+        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
+        direccion = _direccion_cliente_para_limites().encode("utf-8")
+        clave_limite = hmac.new(
+            secreto, b"chat-session-init-rate-limit-v1\0" + direccion, hashlib.sha256,
+        ).hexdigest()
+        try:
+            espera = chat_repositorio("reservar_inicio_sesion_chat", clave_limite)
+        except Exception as error:
+            if isinstance(error, persistencia_chat.LimiteInicioSesionChat):
+                respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
+                respuesta.headers["Retry-After"] = str(max(1, int(error.retry_after)))
+                return respuesta, 429
+            return error_persistencia(error)
+        if espera:
+            respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
+            respuesta.headers["Retry-After"] = str(max(1, int(espera)))
+            return respuesta, 429
+
+        # La credencial solo se emite aquí, en el servidor. PostgreSQL recibe
+        # únicamente su verificador hash; el valor claro viaja solo en cookie.
+        token = secrets.token_urlsafe(32)
+        verificador = hashlib.sha256(token.encode()).hexdigest()
+        vence = datetime.now(timezone.utc) + timedelta(days=DURACION_SESION_CHAT_DIAS)
+        try:
+            chat_repositorio("crear_visitante_y_sesion", verificador, vence)
+        except Exception as error:
+            return error_persistencia(error)
+        respuesta = jsonify({"ok": True, "csrf_token": csrf_chat(token)})
+        respuesta.set_cookie(
+            nombre_cookie, token, max_age=DURACION_SESION_CHAT_DIAS * 24 * 60 * 60,
+            path="/", secure=current_app.config["SESSION_COOKIE_SECURE"],
+            httponly=True, samesite="Lax",
+        )
+        return respuesta, 201
+
+    @aplicacion.get("/api/chat/conversaciones")
+    def listar_conversaciones_chat():
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        try:
+            visitante = visitante_chat()
+            if visitante is None:
+                return jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión.")), 401
+            conversaciones = chat_repositorio("listar_conversaciones_visitante", visitante["datos"]["visitante_id"])
+        except Exception as error:
+            return error_persistencia(error)
+        return jsonify({
+            "ok": True,
+            "conversaciones": conversaciones,
+            # Permite abrir la bandeja global con una sesión existente sin
+            # llamar al POST de emisión, que podría crear una identidad nueva.
+            "csrf_token": csrf_chat(visitante["token"]),
+        })
+
+    @aplicacion.post("/api/chat/vehiculos/<int:identificador>/mensajes")
+    def enviar_primer_mensaje_chat(identificador):
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        visitante, fallo = exigir_visitante_chat(csrf=True)
+        if fallo:
+            return fallo
+        clave, fallo = clave_idempotencia()
+        if fallo:
+            return fallo
+        contenido, fallo = mensaje_chat_desde_solicitud()
+        if fallo:
+            return fallo
+        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+        try:
+            resultado = chat_repositorio(
+                "enviar_mensaje_comprador", visitante["datos"]["visitante_id"],
+                identificador, clave, huella, contenido,
+            )
+        except LookupError:
+            return jsonify(respuesta_error("No se pudo iniciar la conversación para este vehículo.")), 404
+        except ValueError:
+            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
+        except Exception as error:
+            if isinstance(error, persistencia_chat.LimiteMensajesChat):
+                respuesta = jsonify(respuesta_error("Enviaste mensajes demasiado rápido. Espera un momento."))
+                respuesta.headers["Retry-After"] = str(max(1, int(getattr(error, "retry_after", 30))))
+                return respuesta, 429
+            return error_persistencia(error)
+        if resultado is None:
+            return jsonify(respuesta_error("No se pudo iniciar la conversación para este vehículo.")), 404
+        return jsonify({
+            "ok": True, "conversacion": resultado["conversacion"],
+            "mensaje": resultado["mensaje"], "duplicado": resultado["duplicado"],
+        }), 200 if resultado["duplicado"] else 201
+
+    @aplicacion.get("/api/chat/conversaciones/<uuid:conversacion_id>/mensajes")
+    def listar_mensajes_chat(conversacion_id):
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        visitante, fallo = exigir_visitante_chat()
+        if fallo:
+            return fallo
+        despues_de_id, fallo = cursor_mensajes()
+        if fallo:
+            return fallo
+        try:
+            mensajes = chat_repositorio(
+                "listar_mensajes", str(conversacion_id), despues_de_id,
+                visitante["datos"]["visitante_id"], False,
+            )
+        except Exception as error:
+            return error_persistencia(error)
+        # El repositorio aplica ownership en SQL: no se revela si la charla
+        # existe cuando no pertenece a la sesión actual.
+        if mensajes is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "mensajes": mensajes})
+
+    @aplicacion.get("/api/admin/chat/conversaciones")
+    def listar_conversaciones_admin():
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        rechazo = exigir_admin_sin_csrf()
+        if rechazo:
+            return rechazo
+        estado = request.args.get("estado")
+        if estado not in (None, "abierta", "atendida"):
+            return jsonify(respuesta_error("El estado solicitado no es válido.")), 400
+        cursor_id = request.args.get("cursor_id")
+        if cursor_id:
+            try:
+                cursor_id = str(UUID(cursor_id))
+            except (ValueError, TypeError, AttributeError):
+                return jsonify(respuesta_error("El cursor solicitado no es válido.")), 400
+        try:
+            pagina = chat_repositorio("listar_conversaciones_admin", estado, cursor_id, 51)
+        except Exception as error:
+            return error_persistencia(error)
+        hay_mas = len(pagina) > 50
+        conversaciones = pagina[:50]
+        siguiente_cursor = conversaciones[-1]["id"] if hay_mas and conversaciones else None
+        return jsonify({
+            "ok": True,
+            "conversaciones": conversaciones,
+            "hay_mas": hay_mas,
+            "siguiente_cursor": siguiente_cursor,
+        })
+
+    @aplicacion.get("/api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes")
+    def listar_mensajes_chat_admin(conversacion_id):
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        rechazo = exigir_admin_sin_csrf()
+        if rechazo:
+            return rechazo
+        despues_de_id, fallo = cursor_mensajes()
+        if fallo:
+            return fallo
+        try:
+            mensajes = chat_repositorio("listar_mensajes", str(conversacion_id), despues_de_id, None, True)
+        except Exception as error:
+            return error_persistencia(error)
+        if mensajes is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "mensajes": mensajes})
+
+    @aplicacion.post("/api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes")
+    def responder_conversacion_admin(conversacion_id):
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        rechazo = exigir_admin_y_csrf()
+        if rechazo:
+            return rechazo
+        clave, fallo = clave_idempotencia()
+        if fallo:
+            return fallo
+        contenido, fallo = mensaje_chat_desde_solicitud()
+        if fallo:
+            return fallo
+        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+        try:
+            resultado = chat_repositorio("responder_admin", str(conversacion_id), clave, huella, contenido)
+        except LookupError:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        except ValueError:
+            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
+        except Exception as error:
+            return error_persistencia(error)
+        if resultado is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "mensaje": resultado["mensaje"], "duplicado": resultado["duplicado"]}), 200 if resultado["duplicado"] else 201
+
+    @aplicacion.patch("/api/admin/chat/conversaciones/<uuid:conversacion_id>/atendida")
+    def marcar_conversacion_atendida(conversacion_id):
+        rechazo = exigir_chat_habilitado()
+        if rechazo:
+            return rechazo
+        rechazo = exigir_admin_y_csrf()
+        if rechazo:
+            return rechazo
+        try:
+            conversacion = chat_repositorio("marcar_atendida", str(conversacion_id))
+        except Exception as error:
+            return error_persistencia(error)
+        if conversacion is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "conversacion": conversacion})
 
     @aplicacion.get("/api/vehiculos")
     def listar_vehiculos():

@@ -10,8 +10,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
   <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </head>
-<body data-vehiculo-id="{{ vehiculo_id or '' }}">
+<body data-vehiculo-id="{{ vehiculo_id or '' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}">
   <a class="skip-link" href="#inventario">Saltar al inventario</a>
   <header class="site-header">
     <div class="shell header-inner">
@@ -20,6 +21,8 @@
         <span>Vehículos usados<small>PUBLICACIÓN Y CONSULTA</small></span>
       </a>
       <div class="header-actions">
+        <button id="abrir-chat-comprador-global" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" {% if not chat_habilitado %}hidden{% endif %}><span aria-hidden="true">✉</span> Mis mensajes</button>
+        <button id="abrir-mensajes" class="button button-secondary" type="button" hidden>Bandeja de consultas <span id="mensajes-pendientes" class="chat-count" hidden></span></button>
         <button id="abrir-login" class="button button-secondary" type="button">Administrar</button>
         <button id="cerrar-sesion" class="button button-secondary" type="button" hidden>Cerrar sesión</button>
       </div>
@@ -77,13 +80,43 @@
       <div id="ficha-error" class="empty-state blocked-state" role="alert" hidden><span class="empty-icon" aria-hidden="true">!</span><h2>No pudimos cargar este vehículo</h2><p id="ficha-error-detalle"></p><a class="button button-secondary" href="/">Volver al catálogo</a></div>
       <article id="ficha-contenido" class="detail-card" hidden>
         <div class="detail-gallery" aria-label="Fotografías del vehículo"><img id="ficha-imagen" alt="" width="960" height="640"><div class="detail-photo-navigation" id="ficha-navegacion" hidden><button id="ficha-anterior" class="button button-secondary" type="button" aria-label="Fotografía anterior">←</button><span id="ficha-contador" aria-live="polite"></span><button id="ficha-siguiente" class="button button-secondary" type="button" aria-label="Fotografía siguiente">→</button></div></div>
-        <div class="detail-body"><p id="ficha-estado" class="vehicle-badge"></p><p id="ficha-ubicacion" class="vehicle-location"></p><h1 id="ficha-titulo"></h1><p id="ficha-anio" class="detail-year"></p><p id="ficha-precio" class="detail-price"></p><p id="ficha-kilometraje" class="detail-mileage"></p><section aria-labelledby="ficha-descripcion-titulo"><h2 id="ficha-descripcion-titulo">Descripción</h2><p id="ficha-descripcion"></p></section><section id="ficha-caracteristicas-seccion" aria-labelledby="ficha-caracteristicas-titulo"><h2 id="ficha-caracteristicas-titulo">Características</h2><ul id="ficha-caracteristicas" class="feature-list"></ul></section></div>
+        <div class="detail-body"><p id="ficha-estado" class="vehicle-badge"></p><p id="ficha-ubicacion" class="vehicle-location"></p><h1 id="ficha-titulo"></h1><p id="ficha-anio" class="detail-year"></p><p id="ficha-precio" class="detail-price"></p><p id="ficha-kilometraje" class="detail-mileage"></p><section aria-labelledby="ficha-descripcion-titulo"><h2 id="ficha-descripcion-titulo">Descripción</h2><p id="ficha-descripcion"></p></section><section id="ficha-caracteristicas-seccion" aria-labelledby="ficha-caracteristicas-titulo"><h2 id="ficha-caracteristicas-titulo">Características</h2><ul id="ficha-caracteristicas" class="feature-list"></ul></section>
+          <section id="comprador-chat" class="buyer-chat" aria-label="Contacto con el vendedor" hidden>
+            <button id="mostrar-chat" class="button button-primary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo">Contactar al vendedor</button>
+            <p class="chat-privacy-note">Los mensajes se guardan en el servidor. No compartas contraseñas ni información financiera.</p>
+          </section>
+        </div>
       </article>
     </section>
 
     <aside class="demo-note"><span class="demo-label">Prototipo demostrativo</span></aside>
   </main>
   <footer class="shell footer"><span>Catálogo de vehículos usados</span></footer>
+
+  <dialog id="chat-comprador-dialogo" class="buyer-chat-drawer" aria-labelledby="chat-comprador-titulo">
+    <header class="buyer-chat-header">
+      <button id="chat-comprador-volver" class="icon-button" type="button" aria-label="Volver a mis conversaciones">←</button>
+      <h2 id="chat-comprador-titulo">Mis mensajes</h2>
+      <button id="cerrar-chat-comprador" class="icon-button" type="button" aria-label="Cerrar mensajes">×</button>
+    </header>
+    <div id="chat-comprador-panel" class="buyer-chat-panel">
+      <section id="chat-comprador-lista-vista" class="chat-conversation-list" aria-label="Mis conversaciones" hidden>
+        <h3>Mis conversaciones</h3>
+        <p id="chat-comprador-lista-estado" class="chat-muted" role="status" aria-live="polite">Cargando conversaciones…</p>
+        <ul id="chat-comprador-lista"></ul>
+      </section>
+      <section id="chat-comprador-hilo" class="chat-thread" aria-labelledby="chat-comprador-vehiculo">
+        <div class="chat-thread-heading"><div><h3 id="chat-comprador-vehiculo">Nueva conversación</h3><span id="chat-comprador-estado" class="chat-state"></span></div></div>
+        <div id="chat-comprador-mensajes" class="chat-messages" role="log" aria-label="Mensajes de la conversación" aria-live="polite" aria-relevant="additions"></div>
+        <p id="chat-comprador-feedback" class="chat-feedback" role="status" aria-live="polite"></p>
+        <form id="chat-comprador-form" class="chat-compose" hidden>
+          <label for="chat-comprador-texto">Escribe tu mensaje</label>
+          <textarea id="chat-comprador-texto" name="mensaje" rows="2" maxlength="2000" placeholder="Consulta sobre este vehículo…" required></textarea>
+          <div class="chat-compose-footer"><small>Máximo 2,000 caracteres</small><button id="chat-comprador-enviar" class="button button-primary" type="submit">Enviar</button></div>
+        </form>
+      </section>
+    </div>
+  </dialog>
 
   <template id="plantilla-vehiculo">
     <article class="vehicle-card">
@@ -148,6 +181,26 @@
       <div class="field"><label for="admin-password">Contraseña administrativa</label><input id="admin-password" name="password" type="password" maxlength="1024" autocomplete="current-password" required aria-describedby="error-login"></div>
       <div class="form-footer"><button id="cancelar-login" class="button button-secondary" type="button">Cancelar</button><button id="enviar-login" class="button button-primary" type="submit">Iniciar sesión</button></div>
     </form>
+  </dialog>
+  <dialog id="mensajes-dialogo" class="chat-admin-dialog" aria-labelledby="titulo-mensajes" data-vista="lista">
+    <div class="dialog-header"><div><p class="eyebrow">ATENCIÓN AL COMPRADOR</p><h2 id="titulo-mensajes">Conversaciones</h2></div><button id="cerrar-mensajes" type="button" class="icon-button" aria-label="Cerrar mensajes">×</button></div>
+    <div class="admin-chat-toolbar"><label for="chat-admin-filtro">Mostrar</label><select id="chat-admin-filtro"><option value="todas">Todas</option><option value="abierta">Pendientes</option><option value="atendida">Atendidas</option></select><button id="actualizar-conversaciones" class="button button-secondary" type="button">Actualizar</button></div>
+    <p id="chat-admin-estado" class="chat-muted" role="status" aria-live="polite">Cargando conversaciones…</p>
+    <button id="chat-admin-cargar-mas" class="button button-secondary" type="button" hidden>Cargar 50 conversaciones anteriores</button>
+    <div class="admin-chat-workspace">
+      <aside class="chat-conversation-list" aria-label="Conversaciones recibidas"><ul id="chat-admin-lista"></ul></aside>
+      <section class="chat-thread" aria-labelledby="chat-admin-vehiculo">
+        <div class="chat-thread-heading"><button id="chat-admin-volver" class="admin-chat-back icon-button" type="button" aria-label="Volver a conversaciones">←</button><div><h3 id="chat-admin-vehiculo">Selecciona una conversación</h3><span id="chat-admin-estado-conversacion" class="chat-state"></span></div><button id="chat-admin-atendida" class="button button-secondary" type="button" hidden>Marcar atendida</button></div>
+        <div id="chat-admin-mensajes" class="chat-messages" role="log" aria-label="Mensajes de la conversación seleccionada" aria-live="polite" aria-relevant="additions text"></div>
+        <p id="chat-admin-feedback" class="chat-feedback" role="status" aria-live="polite"></p>
+        <form id="chat-admin-form" class="chat-compose" hidden>
+          <label for="chat-admin-texto">Responder</label>
+          <textarea id="chat-admin-texto" name="mensaje" rows="2" maxlength="2000" placeholder="Escribe una respuesta…" required></textarea>
+          <div class="chat-compose-footer"><small>Máximo 2,000 caracteres</small><button id="chat-admin-enviar" class="button button-primary" type="submit">Enviar respuesta</button></div>
+        </form>
+      </section>
+    </div>
+    <div class="form-footer"><button id="cerrar-mensajes-pie" class="button button-secondary" type="button">Cerrar</button></div>
   </dialog>
   <dialog id="fotografias-dialogo" aria-labelledby="titulo-fotografias">
     <div class="dialog-header"><div><p class="eyebrow">MI INVENTARIO</p><h2 id="titulo-fotografias">Fotografías</h2></div><button id="cerrar-fotografias" type="button" class="icon-button" aria-label="Cerrar fotografías">×</button></div>
