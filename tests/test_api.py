@@ -261,6 +261,20 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(cambiado.json["vehiculo"]["disponibilidad"], "vendido")
         self.assertEqual(self.cliente.put("/api/vehiculos/99", json={"vehiculo": formulario()}, headers={"X-CSRF-Token": self.token()}).status_code, 404)
 
+    def test_editar_precio_preserva_transmision_y_combustible_historicos(self):
+        self.iniciar_admin()
+        creado = self.crear_vehiculo(transmision="automatica", combustible="gasolina")
+        actualizado = self.cliente.put(
+            f"/api/vehiculos/{creado['id']}",
+            json={"vehiculo": formulario(precio_venta="19500.00", transmision="automatica", combustible="gasolina")},
+            headers={"X-CSRF-Token": self.token()},
+        )
+
+        self.assertEqual(actualizado.status_code, 200, actualizado.get_data(as_text=True))
+        self.assertEqual(actualizado.json["vehiculo"]["precio_centavos"], 1_950_000)
+        self.assertEqual(actualizado.json["vehiculo"]["transmision"], "automatica")
+        self.assertEqual(actualizado.json["vehiculo"]["combustible"], "gasolina")
+
     def test_escrituras_requieren_sesion_y_csrf(self):
         sin_sesion = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers={"X-CSRF-Token": self.token()})
         self.assertEqual(sin_sesion.status_code, 401)

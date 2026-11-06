@@ -18,6 +18,9 @@ CAMPOS_TEXTO_OPCIONALES = {
     "transmision": 30,
     "combustible": 30,
 }
+# Estos dos campos pueden contener valores históricos y el formulario debe
+# poder reenviarlos sin alterar sus mayúsculas, tildes ni espacios exteriores.
+CAMPOS_TEXTO_PRESERVAR = {"transmision", "combustible"}
 CAMPOS_BOOLEANOS_OPCIONALES = (
     "aire_acondicionado", "ventanas_electricas", "pantalla_multimedia",
 )
@@ -252,10 +255,14 @@ def validar_vehiculo(datos):
         valor = datos.get(campo)
         if valor is None or valor == "":
             resultado[campo] = None
-        elif not isinstance(valor, str) or not 1 <= len(valor.strip()) <= maximo:
+        elif (
+            not isinstance(valor, str)
+            or not 1 <= len(valor.strip()) <= maximo
+            or (campo in CAMPOS_TEXTO_PRESERVAR and len(valor) > maximo)
+        ):
             errores[campo] = f"{campo.replace('_', ' ').capitalize()} debe tener como máximo {maximo} caracteres."
         else:
-            resultado[campo] = valor.strip()
+            resultado[campo] = valor if campo in CAMPOS_TEXTO_PRESERVAR else valor.strip()
 
     for campo in CAMPOS_BOOLEANOS_OPCIONALES:
         valor = datos.get(campo)

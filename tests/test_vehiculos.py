@@ -85,6 +85,32 @@ class ValidacionVehiculosTest(unittest.TestCase):
         self.assertIs(resultado["ventanas_electricas"], False)
         self.assertIsNone(resultado["pantalla_multimedia"])
 
+    def test_transmision_y_combustible_validan_texto_historico_sin_normalizarlo(self):
+        valores = (
+            ("transmision", "automatica"),
+            ("transmision", "manual"),
+            ("transmision", "Automática de 6 velocidades"),
+            ("combustible", "gasolina"),
+            ("combustible", "Diésel"),
+            ("combustible", "HÍBRIDO enchufable"),
+            ("combustible", "Gasolina/GLP"),
+        )
+        for campo, valor in valores:
+            with self.subTest(campo=campo, valor=valor):
+                resultado, errores = validar_vehiculo(formulario(**{campo: valor}))
+                self.assertEqual(errores, {})
+                self.assertEqual(resultado[campo], valor)
+
+        for campo, valor in (("transmision", " automatica "), ("combustible", " Gasolina ")):
+            with self.subTest(campo=campo, valor=valor):
+                resultado, errores = validar_vehiculo(formulario(**{campo: valor}))
+                self.assertEqual(errores, {})
+                self.assertEqual(resultado[campo], valor)
+
+        for campo, valor in (("transmision", " " * 31), ("combustible", "x" * 31)):
+            with self.subTest(campo=campo, longitud=len(valor)):
+                self.assertIn(campo, validar_vehiculo(formulario(**{campo: valor}))[1])
+
     def test_rechaza_booleanos_no_triestado_y_extras(self):
         for valor in ("yes", "no", 0, 1, [], {}):
             with self.subTest(valor=valor):

@@ -5,6 +5,7 @@ import test from "node:test";
 const template = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
 const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
 const adminStyles = await readFile(new URL("../static/css/admin-v6.css", import.meta.url), "utf8");
+const fieldValuesScript = await readFile(new URL("../static/js/admin-v6-field-values.js", import.meta.url), "utf8");
 const backend = await readFile(new URL("../app.py", import.meta.url), "utf8");
 
 const apiContracts = new Set([
@@ -60,6 +61,15 @@ test("registro, edición y fotografías mantienen sesión, CSRF, idempotencia y 
   assert.ok(savePosition >= 0 && photoEnablePosition > savePosition, "La subida de fotos se habilita después de confirmar el guardado del vehículo.");
   assert.match(adminScript, /\/vehiculos\/\$\{encodeURIComponent\(savedVehicle\.id\)\}\/fotografias/);
   assert.doesNotMatch(adminScript, /localStorage/);
+});
+
+test("la edición V6 serializa transmisión y combustible mediante el guardado histórico explícito", () => {
+  assert.match(template, /admin-v6-field-values\.js[\s\S]*admin-v6\.js/);
+  assert.match(adminScript, /setPreservingCurrentValue\(form\.elements\.namedItem\(name\), vehicle\[name\]\)/);
+  assert.match(adminScript, /values\[name\]\s*=\s*vehicleFieldValues\.serializedValue\(form\.elements\.namedItem\(name\)\)/);
+  assert.match(adminScript, /vehicleFieldValues\.clearHistoricalValue\(form\.elements\.namedItem\(name\)\)/);
+  assert.match(fieldValuesScript, /option\.textContent\s*=\s*`\$\{original\} \(valor actual\)`/);
+  assert.match(fieldValuesScript, /select\.value\s*===\s*\(original\s*\?\?\s*""\)/);
 });
 
 test("la bandeja y respuestas admin usan endpoints existentes y el estado real del chat", () => {
