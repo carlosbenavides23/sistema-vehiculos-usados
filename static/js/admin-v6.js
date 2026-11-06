@@ -861,12 +861,12 @@
   one("#admin-chat-status")?.addEventListener("change", () => loadInbox());
   one("#admin-chat-load-more")?.addEventListener("click", () => loadInbox({ append: true }));
 
-  function appendMessage(message) {
+  function appendMessage(message, animateNew = false) {
     const id = String(message.id);
     if (messageIds.has(id)) return;
     messageIds.add(id);
     const node = document.createElement("article");
-    node.className = `admin-message${message.remitente === "administrador" ? " is-admin" : ""}`;
+    node.className = `admin-message${message.remitente === "administrador" ? " is-admin" : ""}${animateNew ? " is-entering" : ""}`;
     node.dataset.messageId = id;
     const content = document.createElement("span");
     content.textContent = message.contenido || "";
@@ -931,7 +931,7 @@
     try {
       const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(selectedId)}/mensajes?despues_de_id=${encodeURIComponent(messageCursor)}`);
       if (generation !== threadGeneration || String(currentConversation?.id) !== selectedId) return;
-      (result.mensajes || []).forEach(appendMessage);
+      (result.mensajes || []).forEach((message) => appendMessage(message, true));
       if (result.mensajes?.length) one("#admin-thread-feedback").textContent = "";
     } catch (error) {
       if (error.status === 401) {
@@ -976,7 +976,7 @@
       const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(conversationId)}/mensajes`, {
         method: "POST", body: { contenido: content }, idempotencyKey: pendingReply.key,
       });
-      if (result.mensaje && String(currentConversation?.id) === conversationId) appendMessage(result.mensaje);
+      if (result.mensaje && String(currentConversation?.id) === conversationId) appendMessage(result.mensaje, true);
       if (String(currentConversation?.id) === conversationId && one("#admin-reply-text").value.trim() === content) {
         one("#admin-reply-text").value = "";
         drafts.set(conversationId, "");

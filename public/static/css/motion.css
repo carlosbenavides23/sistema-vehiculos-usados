@@ -1,0 +1,202 @@
+/* V6.4 motion tokens and state feedback; loaded after the V6 component styles. */
+:root {
+  --motion-duration-feedback: 140ms;
+  --motion-duration-state: 180ms;
+  --motion-duration-panel: 220ms;
+  --motion-duration-panel-exit: 150ms;
+  --motion-duration-gallery: 180ms;
+  --motion-duration-message: 180ms;
+  --motion-ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --motion-ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --motion-ease-exit: cubic-bezier(.4, 0, 1, 1);
+}
+
+.button:not(:disabled):not([aria-busy="true"]),
+.admin-v6 .admin-button:not(:disabled):not([aria-busy="true"]),
+.admin-v6 .admin-icon-button:not(:disabled):not([aria-busy="true"]) {
+  transition:
+    background-color var(--motion-duration-state) var(--motion-ease-standard),
+    border-color var(--motion-duration-state) var(--motion-ease-standard),
+    color var(--motion-duration-state) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-state) var(--motion-ease-standard),
+    transform var(--motion-duration-feedback) var(--motion-ease-standard);
+}
+
+.button:not(:disabled):not([aria-busy="true"]):active,
+.admin-v6 .admin-button:not(:disabled):not([aria-busy="true"]):active,
+.admin-v6 .admin-icon-button:not(:disabled):not([aria-busy="true"]):active,
+.buyer-chat-header .icon-button:not(:disabled):not([aria-busy="true"]):active {
+  transform: scale(.985);
+}
+
+.field input:not(:disabled),
+.field select:not(:disabled),
+.field textarea:not(:disabled),
+.admin-v6 input:not(:disabled),
+.admin-v6 select:not(:disabled),
+.admin-v6 textarea:not(:disabled) {
+  transition: border-color var(--motion-duration-state) var(--motion-ease-standard);
+}
+
+.admin-v6 .admin-nav-link {
+  transition: background-color var(--motion-duration-state) var(--motion-ease-standard),
+    color var(--motion-duration-state) var(--motion-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .vehicle-card {
+    transition: transform var(--motion-duration-state) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-state) var(--motion-ease-standard),
+      border-color var(--motion-duration-state) var(--motion-ease-standard);
+  }
+
+  .vehicle-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px rgb(25 58 66 / 11%);
+  }
+
+  .vehicle-card:hover .vehicle-art.has-photos .vehicle-image {
+    transform: scale(1.02);
+  }
+}
+
+.filters-chevron {
+  transition: transform var(--motion-duration-state) var(--motion-ease-standard);
+}
+
+#filtros-avanzados[open] > .filtros-avanzados-contenido {
+  animation: motion-filter-content var(--motion-duration-state) var(--motion-ease-enter) both;
+}
+
+.admin-v6 .admin-view:not([hidden]) {
+  animation: motion-admin-view-enter var(--motion-duration-panel) var(--motion-ease-enter) both;
+}
+
+#mensaje:not([hidden]),
+.empty-state:not([hidden]),
+.admin-status:not([hidden]) {
+  animation: motion-feedback-enter var(--motion-duration-feedback) var(--motion-ease-enter) both;
+}
+
+.chat-message.is-entering,
+.admin-message.is-entering {
+  animation: motion-message-enter var(--motion-duration-message) var(--motion-ease-enter) both;
+}
+
+.buyer-chat-drawer {
+  opacity: 0;
+  transform: translateX(16px);
+  transition:
+    opacity var(--motion-duration-panel-exit) var(--motion-ease-exit),
+    transform var(--motion-duration-panel-exit) var(--motion-ease-exit),
+    display var(--motion-duration-panel-exit) allow-discrete,
+    overlay var(--motion-duration-panel-exit) allow-discrete;
+}
+
+.buyer-chat-drawer[open] {
+  opacity: 1;
+  transform: translateX(0);
+  transition-duration: var(--motion-duration-panel);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+.buyer-chat-drawer::backdrop {
+  transition: background-color var(--motion-duration-panel-exit) var(--motion-ease-exit);
+}
+
+.buyer-chat-drawer[open]::backdrop {
+  transition-duration: var(--motion-duration-panel);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+.buyer-chat-drawer:not([open])::backdrop {
+  background-color: transparent;
+}
+
+@starting-style {
+  .buyer-chat-drawer[open] {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  .buyer-chat-drawer[open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+.admin-confirm-dialog {
+  opacity: 0;
+  transform: translateY(6px) scale(.99);
+  transition:
+    opacity var(--motion-duration-panel-exit) var(--motion-ease-exit),
+    transform var(--motion-duration-panel-exit) var(--motion-ease-exit),
+    display var(--motion-duration-panel-exit) allow-discrete,
+    overlay var(--motion-duration-panel-exit) allow-discrete;
+}
+
+.admin-confirm-dialog[open] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition-duration: var(--motion-duration-panel);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+.admin-confirm-dialog::backdrop {
+  transition: background-color var(--motion-duration-panel-exit) var(--motion-ease-exit);
+}
+
+.admin-confirm-dialog[open]::backdrop {
+  transition-duration: var(--motion-duration-panel);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+.admin-confirm-dialog:not([open])::backdrop {
+  background-color: transparent;
+}
+
+@starting-style {
+  .admin-confirm-dialog[open] {
+    opacity: 0;
+    transform: translateY(6px) scale(.99);
+  }
+
+  .admin-confirm-dialog[open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+@keyframes motion-filter-content {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-admin-view-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-feedback-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-message-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  .buyer-chat-drawer::backdrop,
+  .admin-confirm-dialog::backdrop {
+    animation: none !important;
+    transition: none !important;
+  }
+}

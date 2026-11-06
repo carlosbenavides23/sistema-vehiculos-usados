@@ -79,14 +79,14 @@
     return time;
   }
 
-  function agregarMensajes(contenedor, mensajes, idsVistos) {
+  function agregarMensajes(contenedor, mensajes, idsVistos, animarNuevos = false) {
     let agregados = 0;
     const estabaAlFinal = contenedor.scrollHeight - contenedor.scrollTop - contenedor.clientHeight < 48;
     for (const mensaje of mensajes || []) {
       if (!idValido(mensaje.id) || idsVistos.has(String(mensaje.id))) continue;
       idsVistos.add(String(mensaje.id));
       const articulo = document.createElement("article");
-      articulo.className = "chat-message";
+      articulo.className = `chat-message${animarNuevos ? " is-entering" : ""}`;
       articulo.dataset.remitente = ["admin", "administrador"].includes(mensaje.remitente) ? "admin" : "comprador";
       const texto = document.createElement("p");
       texto.textContent = mensaje.contenido || "";
@@ -252,7 +252,7 @@
       const despues = cursorComprador === null ? 0 : encodeURIComponent(cursorComprador);
       const { mensajes = [] } = await api(`/api/chat/conversaciones/${encodeURIComponent(conversacionComprador.id)}/mensajes?despues_de_id=${despues}`);
       if (!compradorAbierto || !dialogoComprador.open || generacionSolicitada !== generacionComprador || String(conversacionComprador?.id) !== conversacionSolicitada) return;
-      agregarMensajes(porId("chat-comprador-mensajes"), mensajes, idsComprador);
+      agregarMensajes(porId("chat-comprador-mensajes"), mensajes, idsComprador, !inicial);
       cursorComprador = siguienteCursor(mensajes, cursorComprador);
       if (mensajes.length) estado(porId("chat-comprador-feedback"), "Conectado. Los mensajes se actualizan automáticamente.");
       else if (inicial && !idsComprador.size) estado(porId("chat-comprador-feedback"), "Aún no hay mensajes. Puedes escribir al vendedor.");
@@ -346,7 +346,7 @@
         porId("chat-comprador-form").hidden = false;
       }
       if (respuesta.mensaje) {
-        agregarMensajes(porId("chat-comprador-mensajes"), [respuesta.mensaje], idsComprador);
+        agregarMensajes(porId("chat-comprador-mensajes"), [respuesta.mensaje], idsComprador, true);
         cursorComprador = respuesta.mensaje.id;
       }
       estado(porId("chat-comprador-feedback"), "Mensaje enviado.");
