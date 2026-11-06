@@ -59,4 +59,7 @@ test("prepara la foto antes del fundido y descarta cambios atrasados de galería
   assert.ok(publicScript.includes('window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches'));
   assert.match(publicScript, /imagen\.animate\(/);
   assert.match(publicScript, /imagen\.onerror = fallar/);
+  assert.match(publicScript, /let entradaIniciada = false/);
+  assert.match(publicScript, /if \(!vigente\(\) \|\| entradaIniciada\) return/);
+  assert.match(publicScript, /requestAnimationFrame\(iniciarEntrada\)/);
 });

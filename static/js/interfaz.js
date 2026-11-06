@@ -148,8 +148,10 @@
       animacionSalida.finished.then(() => {
         if (!vigente()) return;
         imagen.alt = textoAlternativo;
-        imagen.onload = () => {
-          if (!vigente()) return;
+        let entradaIniciada = false;
+        const iniciarEntrada = () => {
+          if (!vigente() || entradaIniciada) return;
+          entradaIniciada = true;
           imagen.onload = null;
           const animacionEntrada = imagen.animate(
             [{ opacity: 0 }, { opacity: 1 }],
@@ -166,9 +168,10 @@
             alCompletar();
           }).catch(() => {});
         };
+        imagen.onload = iniciarEntrada;
         imagen.onerror = fallar;
         imagen.src = url;
-        if (imagen.complete && imagen.naturalWidth) requestAnimationFrame(imagen.onload);
+        if (imagen.complete && imagen.naturalWidth) requestAnimationFrame(iniciarEntrada);
       }).catch(() => {});
     };
 
