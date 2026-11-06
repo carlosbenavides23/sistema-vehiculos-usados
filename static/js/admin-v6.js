@@ -11,6 +11,8 @@
   const number = new Intl.NumberFormat("es-NI", { maximumFractionDigits: 0 });
   const readonly = body.dataset.readOnly === "true";
   const chatEnabled = body.dataset.chatEnabled === "true";
+  const vehicleFieldValues = window.AdminV6FieldValues;
+  const historicalVehicleSelects = ["transmision", "combustible"];
 
   const auth = one("#admin-auth");
   const workspace = one("#admin-workspace");
@@ -459,6 +461,7 @@
     savedVehicle = null;
     pendingCreate = null;
     clearFormErrors();
+    historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
     form.reset();
     one("#vehicle-form-title").textContent = "Registrar vehículo";
     one("#vehicle-form-subtitle").textContent = "Completá los datos para registrar un vehículo.";
@@ -479,10 +482,14 @@
     editingId = vehicle.id;
     savedVehicle = vehicle;
     clearFormErrors();
+    historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
     form.reset();
-    ["marca", "modelo", "anio", "kilometraje", "ubicacion", "descripcion", "disponibilidad", "color", "placa", "tipo_vehiculo", "transmision", "combustible"].forEach((name) => {
+    ["marca", "modelo", "anio", "kilometraje", "ubicacion", "descripcion", "disponibilidad", "color", "placa", "tipo_vehiculo"].forEach((name) => {
       const field = form.elements.namedItem(name);
       if (field) field.value = vehicle[name] ?? "";
+    });
+    historicalVehicleSelects.forEach((name) => {
+      vehicleFieldValues.setPreservingCurrentValue(form.elements.namedItem(name), vehicle[name]);
     });
     ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia"].forEach((name) => {
       const field = form.elements.namedItem(name);
@@ -511,7 +518,10 @@
 
   function formData() {
     const values = Object.fromEntries(new FormData(form));
-    ["color", "placa", "tipo_vehiculo", "transmision", "combustible"].forEach((name) => { values[name] = values[name]?.trim() || null; });
+    ["color", "placa", "tipo_vehiculo"].forEach((name) => { values[name] = values[name]?.trim() || null; });
+    historicalVehicleSelects.forEach((name) => {
+      values[name] = vehicleFieldValues.serializedValue(form.elements.namedItem(name));
+    });
     ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia"].forEach((name) => {
       values[name] = values[name] === "" ? null : values[name] === "true";
     });
@@ -549,6 +559,9 @@
         method: isNew ? "POST" : "PUT", body: { vehiculo: dataToSave }, idempotencyKey: isNew ? pendingCreate.key : undefined,
       });
       savedVehicle = result.vehiculo;
+      historicalVehicleSelects.forEach((name) => {
+        vehicleFieldValues.setPreservingCurrentValue(form.elements.namedItem(name), savedVehicle[name]);
+      });
       editingId = savedVehicle.id;
       pendingCreate = null;
       one("#vehicle-form-title").textContent = "Editar vehículo";
