@@ -68,7 +68,17 @@ class Element {
   remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((child) => child !== this); this.isConnected = false; }
 }
 
-async function iniciar({ ficha = false, demoraLista = false, demoraEnvio = false } = {}) {
+async function iniciar({
+  ficha = false,
+  demoraLista = false,
+  demoraEnvio = false,
+  errorLista = null,
+  errorEnvio = null,
+  errorPrimerEnvio = null,
+  conversacionesIniciales = null,
+  conversacionCreada = null,
+  storageInicial = null,
+} = {}) {
   const ids = new Set([...source.matchAll(/porId\("([^"]+)"\)/g)].map((match) => match[1]));
   const elementos = new Map([...ids].map((id) => [id, new Element(id)]));
   const cuerpo = new Element("body");
@@ -101,8 +111,9 @@ async function iniciar({ ficha = false, demoraLista = false, demoraEnvio = false
     elementos.get("mostrar-chat").hidden = false;
     elementos.get("ficha-titulo").textContent = "Toyota Corolla";
   }
-  const conversaciones = [{ id: 22, vehiculo_id: 2, marca: "Toyota", modelo: "Corolla", estado: "abierta", ultimo_mensaje: "Hola" }];
+  const conversaciones = conversacionesIniciales || [{ id: "22", vehiculo_id: 2, marca: "Toyota", modelo: "Corolla", estado: "abierta", ultimo_mensaje: "Hola" }];
   const requests = [];
+  let envios = 0;
   let liberarLista;
   let liberarEnvio;
   const fetch = async (path, options = {}) => {
@@ -114,14 +125,27 @@ async function iniciar({ ficha = false, demoraLista = false, demoraEnvio = false
       await new Promise((resolve) => { liberarEnvio = resolve; });
     }
     let data = {};
-    if (path === "/api/chat/conversaciones") data = { ok: true, conversaciones, csrf_token: "buyer-csrf" };
-    else if (path === "/api/chat/sesion") data = { ok: true, csrf_token: "buyer-csrf" };
-    else if (path.includes("/mensajes") && options.method === "POST") data = { ok: true, conversacion: conversaciones[0], mensaje: { id: 30, contenido: "Prueba", remitente: "comprador" } };
-    else if (path.includes("/mensajes")) data = { ok: true, mensajes: [] };
-    return { ok: true, status: 200, async json() { return data; } };
+    let status = 200;
+    if (path === "/api/chat/conversaciones") {
+      if (errorLista) { status = errorLista.status; data = { ok: false, mensaje: errorLista.mensaje }; }
+      else data = { ok: true, conversaciones, csrf_token: "buyer-csrf" };
+    } else if (path === "/api/chat/sesion") data = { ok: true, csrf_token: "buyer-csrf" };
+    else if (path.includes("/mensajes") && options.method === "POST") {
+      envios += 1;
+      const fallo = envios === 1 ? errorPrimerEnvio || errorEnvio : errorEnvio;
+      if (fallo) {
+        status = fallo.status;
+        data = { ok: false, mensaje: fallo.mensaje || "Respuesta de prueba" };
+      } else {
+        const nueva = conversacionCreada || conversaciones[0] || { id: 44, vehiculo_id: 2, marca: "Toyota", modelo: "Corolla", estado: "abierta", ultimo_mensaje: "Consulta inicial" };
+        if (!conversaciones.some((item) => String(item.id) === String(nueva.id))) conversaciones.push(nueva);
+        data = { ok: true, conversacion: nueva, mensaje: { id: 30 + envios, contenido: options.body ? JSON.parse(options.body).contenido : "Prueba", remitente: "comprador" } };
+      }
+    } else if (path.includes("/mensajes")) data = { ok: true, mensajes: [] };
+    return { ok: status >= 200 && status < 300, status, async json() { return data; } };
   };
   const timers = new Map();
-  const storage = new Map();
+  const storage = storageInicial || new Map();
   let nextTimer = 0;
   const context = {
     document: documento,
@@ -167,9 +191,13 @@ test("desde catálogo abre, vuelve y cierra X/Escape liberando scroll, polling y
   await boton.click();
   assert.equal(e.get("chat-comprador-dialogo").open, true);
   assert.equal(cuerpo.classList.contains("dialog-open"), true);
-  await e.get("chat-comprador-lista").querySelector("button").click();
+  const conversacion = e.get("chat-comprador-lista").querySelector("button");
+  await conversacion.click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(e.get("chat-comprador-hilo").hidden, false);
+  assert.equal(e.get("chat-comprador-vehiculo").textContent, "Toyota Corolla");
+  assert.equal(e.get("chat-comprador-estado").textContent, "Pendiente de respuesta");
+  assert.equal(conversacion.getAttribute("aria-current"), "true");
   assert.equal(timers.size, 1);
   await e.get("chat-comprador-volver").click();
   assert.equal(e.get("chat-comprador-lista-vista").hidden, false);
@@ -198,6 +226,12 @@ test("desde catálogo abre, vuelve y cierra X/Escape liberando scroll, polling y
   assert.equal(e.get("chat-comprador-dialogo").open, false);
   assert.equal(cuerpo.classList.contains("dialog-open"), false);
   assert.equal(documento.activeElement, boton);
+
+  const paginaSiguiente = await iniciar({ storageInicial: app.storage });
+  await paginaSiguiente.elementos.get("abrir-chat-comprador-global").click();
+  await paginaSiguiente.elementos.get("chat-comprador-lista").querySelector("button").click();
+  assert.equal(paginaSiguiente.elementos.get("chat-comprador-vehiculo").textContent, "Toyota Corolla");
+  assert.equal(paginaSiguiente.elementos.get("chat-comprador-texto").value, "Borrador conservado");
 });
 
 test("Contactar al vendedor sigue abriendo el hilo desde la ficha y crea la sesión al iniciar contacto", async () => {
@@ -241,4 +275,73 @@ test("un envío aceptado después del cierre limpia el borrador ya enviado sin r
   assert.equal(e.get("chat-comprador-dialogo").open, false);
   assert.equal(app.cuerpo.classList.contains("dialog-open"), false);
   assert.equal(app.timers.size, 0);
+});
+
+test("un listado 401 muestra el estado vacío sin crear sesión y un envío 401 conserva borrador y libera el diálogo", async () => {
+  const lista = await iniciar({ errorLista: { status: 401, mensaje: "Sesión no disponible" } });
+  await lista.elementos.get("abrir-chat-comprador-global").click();
+  assert.equal(lista.elementos.get("chat-comprador-lista-estado").textContent, "Todavía no tienes conversaciones. Explora el catálogo y contacta al vendedor desde la ficha de un vehículo");
+  assert.equal(lista.elementos.get("chat-comprador-dialogo").open, true);
+  assert.equal(lista.requests.some(({ path }) => path === "/api/chat/sesion"), false);
+  assert.equal(lista.elementos.get("chat-comprador-form").hidden, true);
+
+  const ficha = await iniciar({ ficha: true, errorEnvio: { status: 401, mensaje: "Sesión vencida" } });
+  const contacto = ficha.elementos.get("mostrar-chat");
+  await contacto.click();
+  ficha.elementos.get("chat-comprador-texto").value = "Conservar esta consulta";
+  await ficha.elementos.get("chat-comprador-texto").fire("input");
+  await ficha.elementos.get("chat-comprador-form").submit();
+
+  assert.equal(ficha.elementos.get("chat-comprador-dialogo").open, false);
+  assert.equal(ficha.cuerpo.classList.contains("dialog-open"), false);
+  assert.equal(ficha.timers.size, 0);
+  assert.equal(ficha.documento.activeElement, contacto);
+  assert.equal(contacto.textContent, "Reiniciar contacto");
+  assert.equal(ficha.elementos.get("chat-comprador-texto").value, "Conservar esta consulta");
+  const borradores = JSON.parse(ficha.storage.get("vehiculos-chat-borradores-v1"));
+  assert.equal(borradores[0][1].texto, "Conservar esta consulta");
+  assert.ok(borradores[0][1].solicitud.clave);
+});
+
+test("el primer mensaje adopta el hilo creado por el servidor y actualiza el listado", async () => {
+  const creada = { id: "44", vehiculo_id: 2, marca: "Toyota", modelo: "Corolla", estado: "abierta", ultimo_mensaje: "Consulta inicial" };
+  const app = await iniciar({ ficha: true, conversacionesIniciales: [], conversacionCreada: creada });
+  const e = app.elementos;
+  await e.get("mostrar-chat").click();
+  assert.equal(e.get("chat-comprador-form").hidden, false);
+  e.get("chat-comprador-texto").value = "¿Sigue disponible?";
+  await e.get("chat-comprador-texto").fire("input");
+  await e.get("chat-comprador-form").submit();
+
+  assert.equal(e.get("chat-comprador-vehiculo").textContent, "Toyota Corolla");
+  assert.equal(e.get("chat-comprador-estado").textContent, "Pendiente de respuesta");
+  assert.equal(e.get("chat-comprador-mensajes").children.length, 1);
+  const item = e.get("chat-comprador-lista").querySelector('[data-conversation-id="44"]');
+  assert.ok(item, "El listado debe incorporar la conversación recién creada.");
+  assert.equal(item.children[1].textContent, "Pendiente · Consulta inicial");
+  assert.ok(app.requests.some(({ path, options }) => path === "/api/chat/vehiculos/2/mensajes" && options.method === "POST"));
+});
+
+test("un reintento tras un error transitorio reutiliza la clave idempotente y envía el borrador una vez", async () => {
+  const creada = { id: "45", vehiculo_id: 2, marca: "Toyota", modelo: "Corolla", estado: "abierta", ultimo_mensaje: "Consulta" };
+  const app = await iniciar({
+    ficha: true,
+    conversacionesIniciales: [],
+    conversacionCreada: creada,
+    errorPrimerEnvio: { status: 503, mensaje: "Servicio temporalmente no disponible" },
+  });
+  const e = app.elementos;
+  await e.get("mostrar-chat").click();
+  e.get("chat-comprador-texto").value = "Consulta idempotente";
+  await e.get("chat-comprador-texto").fire("input");
+  await e.get("chat-comprador-form").submit();
+  assert.equal(e.get("chat-comprador-texto").value, "Consulta idempotente");
+
+  await e.get("chat-comprador-form").submit();
+  const envios = app.requests.filter(({ path, options }) => path === "/api/chat/vehiculos/2/mensajes" && options.method === "POST");
+  assert.equal(envios.length, 2);
+  assert.ok(envios[0].options.headers["Idempotency-Key"]);
+  assert.equal(envios[0].options.headers["Idempotency-Key"], envios[1].options.headers["Idempotency-Key"]);
+  assert.equal(e.get("chat-comprador-texto").value, "");
+  assert.equal(e.get("chat-comprador-mensajes").children.length, 1);
 });

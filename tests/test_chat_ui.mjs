@@ -8,7 +8,7 @@ const css = await readFile(new URL("../static/css/estilos.css", import.meta.url)
 const adminTemplate = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
 const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
 
- test("el chat queda apagado por defecto y el navegador respeta la capability del servidor", () => {
+test("el chat queda apagado por defecto y el navegador respeta la capability del servidor", () => {
   assert.match(template, /data-chat-enabled="\{\{ 'true' if chat_habilitado else 'false' \}\}"/);
   assert.match(template, /js\/chat\.js/);
   assert.match(script, /if \(!habilitado\) return/);
@@ -77,10 +77,6 @@ test("el comprador tiene un diálogo modal accesible y una acción global indepe
   assert.match(script, /dialogoComprador\.addEventListener\("cancel"/);
   assert.match(script, /const destino = ultimoAbridorComprador[\s\S]*destino\?\.focus\(\)/);
   assert.match(template, /id="abrir-chat-comprador-global"[^>]*>[^]*?Mis mensajes[^]*?<\/button>/);
-});
-
-test("el primer mensaje adopta la conversación creada por el servidor", () => {
-  assert.match(script, /if \(respuesta\.conversacion\) \{\s*conversacionComprador = respuesta\.conversacion;\s*porId\("chat-comprador-vehiculo"\)\.textContent = nombreVehiculo\(respuesta\.conversacion\);/);
 });
 
 test("los borradores sobreviven a la navegación del mismo tab y el cierre detiene el polling", () => {
