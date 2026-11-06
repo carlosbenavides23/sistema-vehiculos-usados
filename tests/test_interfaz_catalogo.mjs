@@ -36,6 +36,16 @@ test("la ficha individual conserva descripción y detalles del vehículo", () =>
   assert.match(plantillaHtml, /id="ficha-caracteristicas"/);
 });
 
+test("la ficha no muestra centavos .00 en precios enteros y conserva centavos reales", () => {
+  const declaracion = source.match(/function precioLegible\(centavos\)\s*\{[\s\S]*?\n  \}/)?.[0];
+  assert.ok(declaracion, "Debe existir el formateador del precio de la ficha.");
+  const precioLegible = vm.runInNewContext(`(${declaracion})`, {
+    dolaresEnteros: new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }),
+  });
+  assert.equal(precioLegible(1_850_000), "$18,500");
+  assert.equal(precioLegible(1_250_025), "$12,500.25");
+});
+
 test("las tarjetas conservan las acciones administrativas sin mostrarlas al público", () => {
   const plantilla = plantillaHtml.match(/<template id="plantilla-vehiculo">([\s\S]*?)<\/template>/)?.[1];
   assert.match(plantilla, /class="vehicle-actions" hidden/);

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const template = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
 const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
+const adminStyles = await readFile(new URL("../static/css/admin-v6.css", import.meta.url), "utf8");
 const backend = await readFile(new URL("../app.py", import.meta.url), "utf8");
 
 const apiContracts = new Set([
@@ -72,6 +73,11 @@ test("la bandeja y respuestas admin usan endpoints existentes y el estado real d
   assert.match(adminScript, /\/atendida/);
   assert.match(adminScript, /Idempotency-Key/);
   assert.doesNotMatch(adminScript, /localStorage/);
+});
+
+test("el selector de estado de la bandeja conserva espacio para sus opciones y la flecha en móvil", () => {
+  assert.match(adminStyles, /\.admin-chat-list-heading select\s*\{[^}]*width:\s*134px;[^}]*flex:\s*0 0 134px;[^}]*padding:\s*0 34px 0 8px !important;/);
+  assert.match(adminStyles, /\.admin-chat-list-heading select\s*\{\s*width:\s*120px;\s*max-width:\s*120px;\s*flex-basis:\s*120px;/);
 });
 
 test("la página nueva no amplía el contrato de APIs ni expone datos en la ruta HTML", () => {

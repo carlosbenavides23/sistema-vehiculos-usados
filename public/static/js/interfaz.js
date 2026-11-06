@@ -582,7 +582,7 @@
   function precioLegible(centavos) {
     const enteroPrecio = dolaresEnteros.format(Math.floor(centavos / 100));
     const centavosPrecio = String(centavos % 100).padStart(2, "0");
-    return `$${enteroPrecio}.${centavosPrecio} USD`;
+    return centavos % 100 === 0 ? `$${enteroPrecio}` : `$${enteroPrecio}.${centavosPrecio}`;
   }
 
   function inicializarGaleriaFicha(vehiculo) {
