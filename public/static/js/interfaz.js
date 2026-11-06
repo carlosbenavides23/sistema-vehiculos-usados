@@ -441,11 +441,19 @@
       tarjeta.querySelector(".vehicle-location").textContent = vehiculo.ubicacion;
       tarjeta.querySelector(".vehicle-description").textContent = vehiculo.descripcion;
       tarjeta.querySelector(".vehicle-mileage").textContent = `${entero.format(vehiculo.kilometraje)} km`;
+      for (const [selector, valor] of [[".vehicle-transmission", vehiculo.transmision], [".vehicle-fuel", vehiculo.combustible]]) {
+        const campo = tarjeta.querySelector(selector);
+        campo.textContent = valor || "";
+        campo.parentElement.hidden = !valor;
+      }
       const parteEntera = dolaresEnteros.format(Math.floor(vehiculo.precio_centavos / 100));
       const parteDecimal = String(vehiculo.precio_centavos % 100).padStart(2, "0");
-      tarjeta.querySelector(".vehicle-price").textContent = `$${parteEntera}.${parteDecimal}`;
+      tarjeta.querySelector(".vehicle-price").textContent = `$${parteEntera}${parteDecimal === "00" ? "" : `.${parteDecimal}`}`;
       const enlaceFicha = tarjeta.querySelector(".detail-link");
-      const retorno = `${location.pathname}${location.search}`;
+      const parametrosRetorno = new URLSearchParams(location.search);
+      const propuesta = document.body.dataset.propuesta;
+      if (propuesta === "a" || propuesta === "b") parametrosRetorno.set("propuesta", propuesta);
+      const retorno = `${location.pathname}${parametrosRetorno.size ? `?${parametrosRetorno}` : ""}`;
       enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`;
       enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
 
@@ -572,6 +580,8 @@
     const imagen = porId("ficha-imagen");
     const navegacion = porId("ficha-navegacion");
     const contador = porId("ficha-contador");
+    const miniaturas = porId("ficha-miniaturas");
+    miniaturas.replaceChildren();
     const fotos = [...(vehiculo.fotografias || [])]
       .filter((foto) => urlFotoSegura(foto.url))
       .sort((a, b) => (a.orden || 0) - (b.orden || 0));
@@ -583,7 +593,22 @@
       return;
     }
     let posicion = 0;
+    const botones = fotos.map((foto, indice) => {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "detail-thumbnail";
+      boton.setAttribute("aria-label", `Ver fotografía ${indice + 1} de ${fotos.length}`);
+      const miniatura = document.createElement("img");
+      miniatura.src = urlFotoSegura(foto.url);
+      miniatura.alt = "";
+      boton.append(miniatura);
+      boton.addEventListener("click", () => { posicion = indice; mostrar(); });
+      miniaturas.append(boton);
+      return boton;
+    });
+    miniaturas.hidden = fotos.length < 2;
     function mostrar() {
+      botones.forEach((boton, indice) => boton.setAttribute("aria-pressed", String(indice === posicion)));
       imagen.onerror = () => {
         imagen.onerror = null;
         imagen.src = respaldo;

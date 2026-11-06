@@ -115,7 +115,7 @@ test("el borrador se conserva por conversación y el polling se detiene al cerra
 });
 
 test("el acceso global del comprador abre la lista con una lectura y sin emitir sesión", () => {
-  assert.match(template, /id="abrir-chat-comprador-global"[^>]*>\s*<span aria-hidden="true">✉<\/span> Mis mensajes/);
+  assert.match(template, /id="abrir-chat-comprador-global"[^>]*>[^]*?Mis mensajes[^]*?<\/button>/);
   assert.match(template, /id="abrir-mensajes"[^>]*>Bandeja de consultas/);
   assert.match(script, /botonMensajesComprador\?\.addEventListener\("click", abrirBandejaCompradorGlobal\)/);
   assert.match(script, /async function abrirBandejaCompradorGlobal\(\)[\s\S]*?vistaComprador\("lista"\)[\s\S]*?await cargarListaComprador\(\)/);
