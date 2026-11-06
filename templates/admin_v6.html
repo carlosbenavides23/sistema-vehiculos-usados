@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Administración · Vehículos usados</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/vehiculo.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/redesign.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-v6.css') }}">
+  <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
+</head>
+<body class="admin-v6" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}">
+  <a class="skip-link" href="#admin-main">Saltar al panel</a>
+  <header class="admin-topbar">
+    <div class="admin-topbar-inner">
+      <a class="admin-brand" href="/" aria-label="Volver al catálogo">
+        <span class="admin-brand-mark" aria-hidden="true">V.</span>
+        <span>Vehículos usados</span>
+      </a>
+      <div class="admin-topbar-actions">
+        <span class="admin-topbar-label">Panel administrativo</span>
+        <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation">
+          <img src="{{ url_for('static', filename='img/admin-v6/menu.svg') }}" width="24" height="24" alt="">
+        </button>
+        <button id="admin-logout" class="admin-button admin-button-quiet" type="button" hidden>
+          <img src="{{ url_for('static', filename='img/admin-v6/logout.svg') }}" width="24" height="24" alt="">
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="admin-main" class="admin-main">
+    <section id="admin-readonly" class="admin-readonly-card" aria-labelledby="admin-readonly-title" {% if not solo_lectura %}hidden{% endif %}>
+      <span class="admin-brand-mark admin-readonly-mark" aria-hidden="true">V.</span>
+      <h1 id="admin-readonly-title">Panel administrativo</h1>
+      <p>Este ambiente permite únicamente consultar el catálogo. Las funciones administrativas no están disponibles aquí.</p>
+      <a class="admin-button admin-button-secondary" href="/">Volver al catálogo</a>
+    </section>
+
+    <section id="admin-auth" class="admin-auth-card" aria-labelledby="admin-auth-title" {% if solo_lectura %}hidden{% endif %}>
+      <span class="admin-brand-mark admin-auth-mark" aria-hidden="true">V.</span>
+      <h1 id="admin-auth-title">Acceso administrativo</h1>
+      <p class="admin-auth-copy">Ingresá con la contraseña autorizada para administrar las publicaciones.</p>
+      <form id="admin-login-form" class="admin-login-form" novalidate>
+        <div class="admin-field">
+          <label for="admin-password">Contraseña</label>
+          <input id="admin-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
+        </div>
+        <p id="admin-login-error" class="admin-form-message" role="alert" tabindex="-1" hidden></p>
+        <button class="admin-button admin-button-primary admin-login-submit" type="submit">
+          <img src="{{ url_for('static', filename='img/admin-v6/lock.svg') }}" width="20" height="20" alt="">
+          Iniciar sesión
+        </button>
+      </form>
+      <p class="admin-auth-footnote">Solo personal autorizado del sistema.</p>
+    </section>
+
+    <section id="admin-workspace" class="admin-workspace" hidden>
+      <aside id="admin-navigation" class="admin-sidebar" aria-label="Navegación administrativa">
+        <p class="admin-nav-heading">Administración</p>
+        <nav class="admin-nav-list">
+          <button class="admin-nav-link is-active" type="button" data-admin-view="inventory" aria-current="page">
+            <img src="{{ url_for('static', filename='img/admin-v6/car.svg') }}" width="22" height="22" alt="">
+            <span>Inventario</span>
+          </button>
+          <button class="admin-nav-link" type="button" data-admin-view="conversations" {% if not chat_habilitado %}hidden{% endif %}>
+            <img src="{{ url_for('static', filename='img/admin-v6/message.svg') }}" width="22" height="22" alt="">
+            <span>Conversaciones</span>
+          </button>
+          <button class="admin-nav-link" type="button" data-admin-view="vehicle-form" data-new-vehicle>
+            <img src="{{ url_for('static', filename='img/admin-v6/plus.svg') }}" width="22" height="22" alt="">
+            <span>Registrar vehículo</span>
+          </button>
+        </nav>
+        <button class="admin-logout-sidebar" type="button" data-admin-logout>
+          <img src="{{ url_for('static', filename='img/admin-v6/logout.svg') }}" width="24" height="24" alt="">
+          Cerrar sesión
+        </button>
+      </aside>
+
+      <div class="admin-content">
+        <div id="admin-status" class="admin-status" role="status" aria-live="polite" hidden></div>
+
+        <section class="admin-view" data-admin-panel="inventory" aria-labelledby="inventory-title">
+          <div class="admin-page-heading">
+            <div>
+              <p class="admin-eyebrow">Inventario</p>
+              <h1 id="inventory-title">Gestioná tus vehículos</h1>
+              <p class="admin-subheading">Organizá publicaciones, fotografías y disponibilidad.</p>
+            </div>
+            <button class="admin-button admin-button-primary" type="button" data-new-vehicle>
+              <img src="{{ url_for('static', filename='img/admin-v6/plus-20.svg') }}" width="20" height="20" alt="">
+              Registrar vehículo
+            </button>
+          </div>
+
+          <form id="admin-inventory-filters" class="admin-inventory-filters" role="search" aria-label="Buscar publicaciones">
+            <label class="admin-search-field">
+              <span class="visually-hidden">Buscar marca o modelo</span>
+              <img src="{{ url_for('static', filename='img/admin-v6/search.svg') }}" width="24" height="24" alt="">
+              <input type="search" name="q" maxlength="120" placeholder="Buscar marca o modelo">
+            </label>
+            <label class="visually-hidden" for="admin-filter-status">Disponibilidad</label>
+            <select id="admin-filter-status" name="disponibilidad" aria-label="Filtrar disponibilidad: todas, disponibles o vendidos">
+              <option value="" title="Todas las disponibilidades">Todas</option>
+              <option value="disponible">Disponible</option>
+              <option value="vendido">Vendido</option>
+            </select>
+            <button class="admin-button admin-button-secondary" type="submit">Buscar</button>
+          </form>
+
+          <p id="inventory-feedback" class="admin-inline-feedback" role="status" aria-live="polite">Cargando publicaciones…</p>
+          <div class="admin-table-card">
+            <div class="admin-table-head">
+              <h2>Publicaciones</h2>
+              <span id="inventory-result-label" class="admin-result-label"></span>
+            </div>
+            <div class="admin-table-scroll">
+              <table class="admin-inventory-table">
+                <thead>
+                  <tr><th scope="col">Vehículo</th><th scope="col">Precio</th><th scope="col">Disponibilidad</th><th scope="col">Acciones</th></tr>
+                </thead>
+                <tbody id="admin-inventory-list"></tbody>
+              </table>
+            </div>
+            <div id="admin-inventory-mobile" class="admin-mobile-inventory" aria-label="Publicaciones"></div>
+            <div class="admin-empty-state" id="admin-inventory-empty" hidden>
+              <img src="{{ url_for('static', filename='img/admin-v6/search.svg') }}" width="24" height="24" alt="">
+              <h3>No encontramos publicaciones</h3>
+              <p>Probá cambiar la búsqueda o limpiar los filtros.</p>
+              <button class="admin-button admin-button-secondary" type="button" id="admin-clear-filters">Limpiar filtros</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-view" data-admin-panel="vehicle-form" aria-labelledby="vehicle-form-title" hidden>
+          <div class="admin-page-heading admin-form-heading">
+            <div>
+              <button class="admin-back-link" type="button" data-admin-view="inventory">
+                <img src="{{ url_for('static', filename='img/admin-v6/back.svg') }}" width="24" height="24" alt="">
+                Volver al inventario
+              </button>
+              <p class="admin-eyebrow">Inventario / Publicación</p>
+              <h1 id="vehicle-form-title">Registrar vehículo</h1>
+              <p id="vehicle-form-subtitle" class="admin-subheading">Completá los datos para registrar un vehículo.</p>
+            </div>
+            <button class="admin-button admin-button-primary admin-desktop-save" type="submit" form="admin-vehicle-form">
+              <img src="{{ url_for('static', filename='img/admin-v6/check.svg') }}" width="20" height="20" alt="">
+              <span>Publicar vehículo</span>
+            </button>
+          </div>
+
+          <form id="admin-vehicle-form" class="admin-vehicle-form" novalidate>
+            <div id="vehicle-form-error" class="admin-form-message" role="alert" tabindex="-1" hidden></div>
+            <section class="admin-form-card" aria-labelledby="vehicle-basic-title">
+              <div class="admin-form-card-heading"><h2 id="vehicle-basic-title">Datos principales</h2><p>Identificá el vehículo y su precio de publicación.</p></div>
+              <div class="admin-form-grid">
+                <div class="admin-field"><label for="vehicle-brand">Marca <span aria-hidden="true">*</span></label><input id="vehicle-brand" name="marca" maxlength="60" required autocomplete="off"><small data-error-for="marca"></small></div>
+                <div class="admin-field"><label for="vehicle-model">Modelo <span aria-hidden="true">*</span></label><input id="vehicle-model" name="modelo" maxlength="60" required autocomplete="off"><small data-error-for="modelo"></small></div>
+                <div class="admin-field"><label for="vehicle-year">Año <span aria-hidden="true">*</span></label><input id="vehicle-year" name="anio" type="number" min="1900" max="{{ max_year }}" step="1" inputmode="numeric" required><small data-error-for="anio"></small></div>
+                <div class="admin-field"><label for="vehicle-type">Tipo de vehículo</label><input id="vehicle-type" name="tipo_vehiculo" maxlength="40" placeholder="Ej. SUV, sedán o pickup"><small data-error-for="tipo_vehiculo"></small></div>
+                <div class="admin-field"><label for="vehicle-price">Precio (USD) <span aria-hidden="true">*</span></label><div class="admin-input-prefix"><span aria-hidden="true">$</span><input id="vehicle-price" name="precio_venta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div><small data-error-for="precio_venta"></small></div>
+                <div class="admin-field"><label for="vehicle-location">Ubicación <span aria-hidden="true">*</span></label><input id="vehicle-location" name="ubicacion" maxlength="100" placeholder="Managua" required><small data-error-for="ubicacion"></small></div>
+              </div>
+            </section>
+
+            <section class="admin-form-card" aria-labelledby="vehicle-tech-title">
+              <div class="admin-form-card-heading"><h2 id="vehicle-tech-title">Características técnicas</h2><p>Dejá los campos vacíos cuando la información no esté disponible.</p></div>
+              <div class="admin-form-grid">
+                <div class="admin-field"><label for="vehicle-mileage">Kilometraje <span aria-hidden="true">*</span></label><div class="admin-input-suffix"><input id="vehicle-mileage" name="kilometraje" type="number" min="0" step="1" inputmode="numeric" required><span>km</span></div><small data-error-for="kilometraje"></small></div>
+                <div class="admin-field"><label for="vehicle-transmission">Transmisión</label><select id="vehicle-transmission" name="transmision"><option value="">No especificada</option><option>Automática</option><option>Manual</option><option>CVT</option></select><small data-error-for="transmision"></small></div>
+                <div class="admin-field"><label for="vehicle-fuel">Combustible</label><select id="vehicle-fuel" name="combustible"><option value="">No especificado</option><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select><small data-error-for="combustible"></small></div>
+                <div class="admin-field"><label for="vehicle-color">Color</label><input id="vehicle-color" name="color" maxlength="40"><small data-error-for="color"></small></div>
+                <div class="admin-field"><label for="vehicle-plate">Placa <span class="admin-label-note">Solo administración</span></label><input id="vehicle-plate" name="placa" maxlength="20" autocomplete="off"><small data-error-for="placa"></small></div>
+                <div class="admin-field"><label for="vehicle-availability">Disponibilidad</label><select id="vehicle-availability" name="disponibilidad"><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select><small data-error-for="disponibilidad"></small></div>
+              </div>
+              <fieldset class="admin-equipment">
+                <legend>Equipamiento</legend>
+                <div class="admin-equipment-grid">
+                  <div class="admin-field"><label for="vehicle-ac">Aire acondicionado</label><select id="vehicle-ac" name="aire_acondicionado"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
+                  <div class="admin-field"><label for="vehicle-windows">Ventanas eléctricas</label><select id="vehicle-windows" name="ventanas_electricas"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
+                  <div class="admin-field"><label for="vehicle-screen">Pantalla multimedia</label><select id="vehicle-screen" name="pantalla_multimedia"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
+                </div>
+              </fieldset>
+            </section>
+
+            <section class="admin-form-card" aria-labelledby="vehicle-description-title">
+              <div class="admin-form-card-heading"><h2 id="vehicle-description-title">Descripción del vehículo</h2><p>Describí el estado y los detalles relevantes, sin datos personales.</p></div>
+              <div class="admin-field"><label for="vehicle-description">Descripción <span aria-hidden="true">*</span></label><textarea id="vehicle-description" name="descripcion" minlength="10" maxlength="1000" rows="5" required placeholder="Descripción general del vehículo y sus características destacadas…"></textarea><div class="admin-description-meta"><small data-error-for="descripcion"></small><span id="vehicle-description-count">0 / 1000</span></div></div>
+            </section>
+          </form>
+
+          <section class="admin-form-card admin-photo-card" aria-labelledby="vehicle-photos-title">
+            <div class="admin-form-card-heading"><h2 id="vehicle-photos-title">Fotografías</h2><p>Primero guardá el vehículo. Después podrás añadir hasta cinco fotos.</p></div>
+            <div id="vehicle-photo-list" class="admin-photo-list"></div>
+            <div id="vehicle-photo-empty" class="admin-photo-empty" hidden><img src="{{ url_for('static', filename='img/admin-v6/image.svg') }}" width="24" height="24" alt=""><span>Todavía no hay fotografías.</span></div>
+            <div id="vehicle-photo-pending" class="admin-photo-pending" hidden>
+              <img id="vehicle-photo-preview" alt="Vista previa de la fotografía seleccionada">
+              <div><strong id="vehicle-photo-pending-name"></strong><p id="vehicle-photo-pending-detail"></p></div>
+              <button id="vehicle-photo-upload-confirm" class="admin-button admin-button-primary" type="button">Guardar fotografía</button>
+            </div>
+            <label id="vehicle-photo-upload" class="admin-photo-upload" tabindex="0" role="button" aria-label="Agregar fotografía al vehículo" hidden>
+              <input id="vehicle-photo-input" type="file" accept="image/jpeg,image/png,image/webp">
+              <img src="{{ url_for('static', filename='img/admin-v6/image.svg') }}" width="24" height="24" alt="">
+              <span>Agregar fotografías</span>
+              <small>Una fotografía por vez · JPEG, PNG o WebP · hasta 10 MB por original</small>
+            </label>
+            <p id="vehicle-photo-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
+          </section>
+
+          <div class="admin-mobile-form-actions">
+            <button class="admin-button admin-button-primary" type="submit" form="admin-vehicle-form">
+              <img src="{{ url_for('static', filename='img/admin-v6/check.svg') }}" width="20" height="20" alt="">
+              <span>Guardar vehículo</span>
+            </button>
+            <p>Revisá los campos antes de guardar.</p>
+          </div>
+        </section>
+
+        <section class="admin-view admin-conversations-view" data-admin-panel="conversations" aria-labelledby="conversations-title" hidden>
+          <div class="admin-page-heading">
+            <div>
+              <p class="admin-eyebrow">Consultas</p>
+              <h1 id="conversations-title">Conversaciones</h1>
+              <p class="admin-subheading">Respondé las consultas asociadas a cada vehículo.</p>
+            </div>
+          </div>
+          <div id="chat-disabled-note" class="admin-inline-notice" {% if chat_habilitado %}hidden{% endif %}>
+            La mensajería no está habilitada en este ambiente.
+          </div>
+          <div class="admin-chat-workspace" id="admin-chat-workspace" {% if not chat_habilitado %}hidden{% endif %}>
+            <section class="admin-chat-list-pane" aria-labelledby="admin-inbox-title">
+              <header class="admin-chat-list-heading">
+                <div><h2 id="admin-inbox-title">Bandeja</h2><p>Consultas recibidas sobre vehículos</p></div>
+                <label class="visually-hidden" for="admin-chat-status">Filtrar conversaciones</label>
+                <select id="admin-chat-status"><option value="abierta">Pendientes</option><option value="atendida">Atendidas</option><option value="">Todas</option></select>
+              </header>
+              <p id="admin-chat-list-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
+              <div id="admin-chat-list" class="admin-chat-list" role="listbox" aria-label="Conversaciones"></div>
+              <button id="admin-chat-load-more" class="admin-button admin-button-secondary admin-load-more" type="button" hidden>Cargar más conversaciones</button>
+            </section>
+            <section id="admin-chat-thread-pane" class="admin-chat-thread-pane" aria-label="Detalle de conversación">
+              <div id="admin-chat-empty" class="admin-chat-empty">
+                <span class="admin-chat-empty-icon" aria-hidden="true">···</span>
+                <h2>Seleccioná una conversación</h2>
+                <p>El hilo y las respuestas aparecerán aquí.</p>
+              </div>
+              <div id="admin-chat-thread" class="admin-chat-thread" hidden>
+                <header class="admin-thread-heading">
+                  <button id="admin-chat-back" class="admin-icon-button admin-chat-back" type="button" aria-label="Volver a conversaciones">
+                    <img src="{{ url_for('static', filename='img/admin-v6/back.svg') }}" width="24" height="24" alt="">
+                  </button>
+                  <div><h2 id="admin-thread-title"></h2><p>Consulta asociada al vehículo</p></div>
+                  <span id="admin-thread-state" class="admin-state-pill"></span>
+                  <button id="admin-thread-resolve" class="admin-button admin-button-secondary" type="button">Marcar atendida</button>
+                </header>
+                <div id="admin-thread-messages" class="admin-thread-messages" aria-live="polite" aria-relevant="additions text"></div>
+                <p id="admin-thread-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
+                <form id="admin-reply-form" class="admin-reply-form">
+                  <label class="visually-hidden" for="admin-reply-text">Escribí una respuesta</label>
+                  <textarea id="admin-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta…" required></textarea>
+                  <button id="admin-reply-submit" class="admin-button admin-button-secondary" type="submit">
+                    <img src="{{ url_for('static', filename='img/admin-v6/send.svg') }}" width="20" height="20" alt="">
+                    Enviar
+                  </button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="admin-photo-delete-dialog" class="admin-confirm-dialog" aria-labelledby="admin-photo-delete-title">
+    <form method="dialog">
+      <h2 id="admin-photo-delete-title">Eliminar fotografía</h2>
+      <p>Esta acción retirará la foto del vehículo. No se puede deshacer.</p>
+      <div class="admin-dialog-actions">
+        <button id="admin-photo-delete-cancel" class="admin-button admin-button-secondary" value="cancel">Cancelar</button>
+        <button id="admin-photo-delete-confirm" class="admin-button admin-button-danger" type="button">Eliminar fotografía</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

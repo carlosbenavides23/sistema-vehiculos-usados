@@ -263,6 +263,20 @@ def create_app(configuracion=None):
             chat_habilitado=chat_publico_habilitado(),
         )
 
+    @aplicacion.get("/administracion")
+    def pagina_administracion():
+        # La ruta solo entrega el shell. El cliente consulta el estado de sesión
+        # y obtiene datos exclusivamente desde los endpoints existentes.
+        respuesta = aplicacion.make_response(render_template(
+            "admin_v6.html",
+            csrf_token=token_csrf(),
+            solo_lectura=current_app.config["APP_READ_ONLY"],
+            chat_habilitado=chat_publico_habilitado(),
+            max_year=datetime.now().year + 1,
+        ))
+        respuesta.headers["Cache-Control"] = "no-store"
+        return respuesta
+
     @aplicacion.get("/api/admin/session")
     def sesion_admin():
         return jsonify({"ok": True, "autenticado": bool(session.get("admin_authenticated")), "solo_lectura": current_app.config["APP_READ_ONLY"]})
