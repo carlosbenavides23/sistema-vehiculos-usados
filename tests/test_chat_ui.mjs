@@ -105,6 +105,10 @@ test("el comprador tiene un diálogo modal con navegación y cierre accesibles",
   assert.match(script, /const destino = ultimoAbridorComprador[\s\S]*destino\?\.focus\(\)/);
 });
 
+test("el primer mensaje actualiza el estado del hilo con la conversación creada por el servidor", () => {
+  assert.match(script, /if \(respuesta\.conversacion\) \{\s*conversacionComprador = respuesta\.conversacion;\s*porId\("chat-comprador-vehiculo"\)\.textContent = nombreVehiculo\(respuesta\.conversacion\);\s*porId\("chat-comprador-estado"\)\.textContent = respuesta\.conversacion\.estado === "atendida" \? "Atendida" : "Pendiente de respuesta";/);
+});
+
 test("el borrador se conserva por conversación y el polling se detiene al cerrar", () => {
   assert.match(script, /let borradoresComprador = new Map\(\)/);
   assert.match(script, /guardarBorradorComprador\(\)/);

@@ -349,6 +349,9 @@
       persistirBorradoresComprador();
       if (respuesta.conversacion) {
         conversacionComprador = respuesta.conversacion;
+        porId("chat-comprador-vehiculo").textContent = nombreVehiculo(respuesta.conversacion);
+        porId("chat-comprador-estado").textContent = respuesta.conversacion.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
+        porId("chat-comprador-form").hidden = false;
       } else if (!conversacionComprador) {
         conversacionComprador = {
           id: respuesta.conversacion_id, vehiculo_id: idVehiculoFicha,

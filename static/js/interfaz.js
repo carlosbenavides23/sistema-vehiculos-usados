@@ -23,6 +23,7 @@
   let habilitado = false;
   let autenticado = false;
   let soloLectura = false;
+  let sesionConsultada = false;
   let idEnEdicion = null;
   let origenFormulario = null;
   let origenLogin = null;
@@ -60,8 +61,10 @@
 
   function actualizarControles() {
     const sinAcceso = ocupado || !habilitado || !autenticado;
-    porId("abrir-login").hidden = autenticado || soloLectura;
+    porId("abrir-login").hidden = true;
     porId("abrir-login").disabled = ocupado;
+    const accesoAdminV6 = porId("admin-panel-link");
+    if (accesoAdminV6) accesoAdminV6.hidden = !sesionConsultada || soloLectura;
     porId("cerrar-sesion").hidden = !autenticado;
     porId("cerrar-sesion").disabled = ocupado;
     porId("nuevo-vehiculo").hidden = !autenticado;
@@ -456,6 +459,12 @@
       const retorno = `${location.pathname}${parametrosRetorno.size ? `?${parametrosRetorno}` : ""}`;
       enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`;
       enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
+      const enlaceContacto = tarjeta.querySelector(".detail-contact-link");
+      if (enlaceContacto) {
+        const parametrosContacto = new URLSearchParams({ retorno, contactar: "1" });
+        enlaceContacto.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?${parametrosContacto}`;
+        enlaceContacto.setAttribute("aria-label", `Contactar al vendedor de ${nombre}`);
+      }
 
       const insignia = tarjeta.querySelector(".vehicle-badge");
       insignia.textContent = disponible ? "Disponible" : "Vendido";
@@ -640,6 +649,15 @@
     porId("ficha-anio").textContent = `Año ${vehiculo.anio}`;
     porId("ficha-precio").textContent = precioLegible(vehiculo.precio_centavos);
     porId("ficha-kilometraje").textContent = `${entero.format(vehiculo.kilometraje)} km recorridos`;
+    const estadoCompra = porId("ficha-estado-compra");
+    estadoCompra.textContent = disponible ? "Disponible" : "Vendido";
+    estadoCompra.classList.toggle("sold", !disponible);
+    [["transmision", vehiculo.transmision], ["combustible", vehiculo.combustible], ["tipo", vehiculo.tipo_vehiculo]].forEach(([clave, valor]) => {
+      const fila = document.querySelector(`[data-spec="${clave}"]`);
+      const contenido = porId(`ficha-${clave}`);
+      contenido.textContent = valor || "";
+      fila.hidden = !valor;
+    });
     porId("ficha-descripcion").textContent = vehiculo.descripcion || "Sin descripción publicada.";
     const lista = porId("ficha-caracteristicas");
     lista.replaceChildren();
@@ -659,7 +677,14 @@
     });
     caracteristicas.forEach(([etiqueta, valor]) => {
       const item = document.createElement("li");
-      item.textContent = `${etiqueta}: ${valor}`;
+      item.className = "feature-item";
+      const nombre = document.createElement("span");
+      nombre.className = "feature-label";
+      nombre.textContent = `${etiqueta}: `;
+      const dato = document.createElement("strong");
+      dato.className = "feature-value";
+      dato.textContent = valor;
+      item.append(nombre, dato);
       lista.append(item);
     });
     porId("ficha-caracteristicas-seccion").hidden = caracteristicas.length === 0;
@@ -669,6 +694,9 @@
     porId("ficha-cargando").hidden = true;
     porId("ficha-error").hidden = true;
     porId("ficha-contenido").hidden = false;
+    if (document.body.dataset.chatEnabled === "true" && new URLSearchParams(location.search).get("contactar") === "1") {
+      requestAnimationFrame(() => porId("mostrar-chat")?.click());
+    }
   }
 
   async function inicializarFicha() {
@@ -713,6 +741,7 @@
         const sesion = await solicitar("/api/admin/session");
         soloLectura = sesion.solo_lectura === true;
         autenticado = !soloLectura && sesion.autenticado === true;
+        sesionConsultada = true;
       } catch (error) {
         autenticado = false;
       }
@@ -960,7 +989,7 @@
     } finally {
       ocupado = false;
       actualizarControles();
-      porId("abrir-login").focus();
+      porId("admin-panel-link").focus();
     }
   }
 
