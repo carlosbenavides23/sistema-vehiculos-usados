@@ -137,7 +137,7 @@
       const nombre = `${vehiculo.marca} ${vehiculo.modelo}`;
       tarjeta.querySelector("h3").textContent = nombre;
       tarjeta.querySelector(".vehicle-year").textContent = vehiculo.anio;
-      tarjeta.querySelector(".vehicle-location").textContent = vehiculo.ubicacion;
+      tarjeta.querySelector(".vehicle-location-text").textContent = vehiculo.ubicacion;
       tarjeta.querySelector(".vehicle-description").textContent = vehiculo.descripcion;
       tarjeta.querySelector(".vehicle-mileage").textContent = `${entero.format(vehiculo.kilometraje)} km`;
       for (const [selector, valor] of [[".vehicle-transmission", vehiculo.transmision], [".vehicle-fuel", vehiculo.combustible]]) {
@@ -311,8 +311,8 @@
     porId("ficha-titulo").textContent = `${vehiculo.marca} ${vehiculo.modelo}`;
     porId("ficha-estado").textContent = disponible ? "Disponible" : "Vendido";
     porId("ficha-estado").classList.toggle("sold", !disponible);
-    porId("ficha-ubicacion").textContent = vehiculo.ubicacion || "Ubicación no especificada";
-    porId("ficha-anio").textContent = `Año ${vehiculo.anio}`;
+    porId("ficha-ubicacion-valor").textContent = vehiculo.ubicacion || "Ubicación no especificada";
+    porId("ficha-anio-valor").textContent = `Año ${vehiculo.anio}`;
     porId("ficha-precio").textContent = precioLegible(vehiculo.precio_centavos);
     porId("ficha-kilometraje").textContent = `${entero.format(vehiculo.kilometraje)} km recorridos`;
     const estadoCompra = porId("ficha-estado-compra");

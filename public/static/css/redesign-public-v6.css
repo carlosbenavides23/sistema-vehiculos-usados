@@ -43,9 +43,9 @@
   font-size: 13px;
 }
 
-#abrir-chat-comprador-global img,
-.search-control > img,
-.filtros-avanzados > summary img {
+#abrir-chat-comprador-global > .lucide-icon,
+.search-control > .lucide-icon,
+.filtros-avanzados > summary > .lucide-icon {
   display: block;
   flex: 0 0 auto;
   width: 20px;
@@ -61,6 +61,10 @@
 .admin-panel-link {
   color: var(--color-brand-action);
   text-decoration: none;
+}
+
+.admin-panel-link .admin-panel-link-icon {
+  display: none;
 }
 
 .admin-panel-link[hidden] {
@@ -204,8 +208,12 @@
 }
 
 .filter-actions .button-secondary::after {
-  content: "↺";
-  font-size: 18px;
+  content: none;
+}
+
+.filter-actions .button-secondary > .lucide-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .filter-advanced-active {
@@ -309,15 +317,20 @@
   min-width: 0;
   min-height: 22px;
   margin: 0;
-  padding-left: 27px;
+  gap: 7px;
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.35;
-  background: url("../img/ui/pin.svg") no-repeat left center / 20px 20px;
 }
 
-.vehicle-location::before {
-  content: none;
+.vehicle-location-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.vehicle-location-text {
+  min-width: 0;
 }
 
 .vehicle-specs {
@@ -333,7 +346,7 @@
   font-size: 13px;
 }
 
-.vehicle-attribute img {
+.vehicle-attribute > .lucide-icon {
   width: 20px;
   height: 20px;
   flex-basis: 20px;
@@ -513,14 +526,17 @@
 
 .detail-heading .vehicle-location {
   grid-column: 1;
-  padding-left: 29px;
-  background: url("../img/ui/pin.svg") no-repeat left center / 20px 20px;
 }
 
 .detail-heading .detail-year {
   grid-column: 1;
-  padding-left: 29px;
-  background: url("../img/ui/calendar.svg") no-repeat left center / 20px 20px;
+  gap: 7px;
+}
+
+.detail-year-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: inherit;
 }
 
 .detail-gallery {
@@ -1007,9 +1023,22 @@
     overflow: hidden;
     padding: 0;
     border: 0;
-    background: transparent url("../img/ui/menu.svg") center / 22px 22px no-repeat;
     box-shadow: none;
-    font-size: 0;
+    font-size: 13px;
+  }
+
+  .admin-panel-link .admin-panel-link-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-panel-link .admin-panel-link-icon {
+    display: block;
   }
 
   .inventory-section {
@@ -1075,7 +1104,7 @@
     font-size: 12px;
   }
 
-  .filtros-avanzados > summary img {
+  .filtros-avanzados > summary > .lucide-icon {
     width: 18px;
     height: 18px;
   }
@@ -1185,7 +1214,7 @@
     font-size: 11px;
   }
 
-  .vehicle-attribute img {
+  .vehicle-attribute > .lucide-icon {
     width: 18px;
     height: 18px;
     flex-basis: 18px;
