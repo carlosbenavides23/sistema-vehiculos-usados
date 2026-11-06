@@ -1,0 +1,17 @@
+{% macro lucide_icon(name, size=20, class_name='') -%}
+  {% set supported = [
+    'search', 'sliders-horizontal', 'map-pin', 'calendar-days', 'gauge',
+    'settings-2', 'fuel', 'message-circle', 'messages-square', 'menu',
+    'arrow-left', 'chevron-left', 'chevron-right', 'x', 'rotate-ccw',
+    'circle-alert', 'chevron-down', 'log-out', 'lock-keyhole', 'car-front',
+    'plus', 'check', 'image', 'send'
+  ] %}
+  {% set icon_size = size if size in [16, 20, 24] else 20 %}
+  {% if name in supported %}
+    <svg class="lucide-icon{% if class_name %} {{ class_name|e }}{% endif %}" width="{{ icon_size }}" height="{{ icon_size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-lucide-icon="{{ name|e }}">
+      <use href="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}#{{ name|e }}"></use>
+    </svg>
+  {% else %}
+    <span class="lucide-icon-missing" role="img" aria-label="Icono no disponible">?</span>
+  {% endif %}
+{%- endmacro %}

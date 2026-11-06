@@ -1,3 +1,4 @@
+{% from "macros/icons.html" import lucide_icon %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -6,14 +7,16 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Administración · Vehículos usados</title>
   <link rel="icon" href="{{ url_for('static', filename='img/vehiculo.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/iconos.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/redesign.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-v6.css') }}">
+  <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6-field-values.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
 </head>
-<body class="admin-v6" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}">
+<body class="admin-v6" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#admin-main">Saltar al panel</a>
   <header class="admin-topbar">
     <div class="admin-topbar-inner">
@@ -24,10 +27,10 @@
       <div class="admin-topbar-actions">
         <span class="admin-topbar-label">Panel administrativo</span>
         <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation" hidden>
-          <img src="{{ url_for('static', filename='img/admin-v6/menu.svg') }}" width="24" height="24" alt="">
+          {{ lucide_icon('menu', 24) }}
         </button>
         <button id="admin-logout" class="admin-button admin-button-quiet" type="button" hidden>
-          <img src="{{ url_for('static', filename='img/admin-v6/logout.svg') }}" width="24" height="24" alt="">
+          {{ lucide_icon('log-out', 20) }}
           Cerrar sesión
         </button>
       </div>
@@ -54,7 +57,7 @@
         <p id="admin-login-error" class="admin-form-message" role="alert" tabindex="-1" hidden></p>
         <p id="admin-login-status" class="admin-inline-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
         <button class="admin-button admin-button-primary admin-login-submit" type="submit">
-          <img src="{{ url_for('static', filename='img/admin-v6/lock.svg') }}" width="20" height="20" alt="">
+          {{ lucide_icon('lock-keyhole', 20) }}
           Iniciar sesión
         </button>
       </form>
@@ -66,20 +69,20 @@
         <p class="admin-nav-heading">Administración</p>
         <nav class="admin-nav-list">
           <button class="admin-nav-link is-active" type="button" data-admin-view="inventory" aria-current="page">
-            <img src="{{ url_for('static', filename='img/admin-v6/car.svg') }}" width="22" height="22" alt="">
+            {{ lucide_icon('car-front', 20) }}
             <span>Inventario</span>
           </button>
           <button class="admin-nav-link" type="button" data-admin-view="conversations" {% if not chat_habilitado %}hidden{% endif %}>
-            <img src="{{ url_for('static', filename='img/admin-v6/message.svg') }}" width="22" height="22" alt="">
+            {{ lucide_icon('messages-square', 20) }}
             <span>Conversaciones</span>
           </button>
           <button class="admin-nav-link" type="button" data-admin-view="vehicle-form" data-new-vehicle>
-            <img src="{{ url_for('static', filename='img/admin-v6/plus.svg') }}" width="22" height="22" alt="">
+            {{ lucide_icon('plus', 20) }}
             <span>Registrar vehículo</span>
           </button>
         </nav>
         <button class="admin-logout-sidebar" type="button" data-admin-logout>
-          <img src="{{ url_for('static', filename='img/admin-v6/logout.svg') }}" width="24" height="24" alt="">
+          {{ lucide_icon('log-out', 20) }}
           Cerrar sesión
         </button>
       </aside>
@@ -95,7 +98,7 @@
               <p class="admin-subheading">Organizá publicaciones, fotografías y disponibilidad.</p>
             </div>
             <button class="admin-button admin-button-primary" type="button" data-new-vehicle>
-              <img src="{{ url_for('static', filename='img/admin-v6/plus-20.svg') }}" width="20" height="20" alt="">
+              {{ lucide_icon('plus', 20) }}
               Registrar vehículo
             </button>
           </div>
@@ -103,15 +106,15 @@
           <form id="admin-inventory-filters" class="admin-inventory-filters" role="search" aria-label="Buscar publicaciones">
             <label class="admin-search-field">
               <span class="visually-hidden">Buscar marca o modelo</span>
-              <img src="{{ url_for('static', filename='img/admin-v6/search.svg') }}" width="24" height="24" alt="">
+              {{ lucide_icon('search', 20) }}
               <input type="search" name="q" maxlength="120" placeholder="Buscar marca o modelo">
             </label>
             <label class="visually-hidden" for="admin-filter-status">Disponibilidad</label>
-            <select id="admin-filter-status" name="disponibilidad" aria-label="Filtrar disponibilidad: todas, disponibles o vendidos">
+            <div class="admin-select-wrap"><select id="admin-filter-status" name="disponibilidad" aria-label="Filtrar disponibilidad: todas, disponibles o vendidos">
               <option value="" title="Todas las disponibilidades">Todas</option>
               <option value="disponible">Disponible</option>
               <option value="vendido">Vendido</option>
-            </select>
+            </select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div>
             <button class="admin-button admin-button-secondary" type="submit">Buscar</button>
           </form>
 
@@ -131,7 +134,7 @@
             </div>
             <div id="admin-inventory-mobile" class="admin-mobile-inventory" aria-label="Publicaciones"></div>
             <div class="admin-empty-state" id="admin-inventory-empty" hidden>
-              <img src="{{ url_for('static', filename='img/admin-v6/search.svg') }}" width="24" height="24" alt="">
+              {{ lucide_icon('search', 20) }}
               <h3>No encontramos publicaciones</h3>
               <p>Probá cambiar la búsqueda o limpiar los filtros.</p>
               <button class="admin-button admin-button-secondary" type="button" id="admin-clear-filters">Limpiar filtros</button>
@@ -143,7 +146,7 @@
           <div class="admin-page-heading admin-form-heading">
             <div>
               <button class="admin-back-link" type="button" data-admin-view="inventory">
-                <img src="{{ url_for('static', filename='img/admin-v6/back.svg') }}" width="24" height="24" alt="">
+                {{ lucide_icon('arrow-left', 20) }}
                 Volver al inventario
               </button>
               <p class="admin-eyebrow">Inventario / Publicación</p>
@@ -151,7 +154,7 @@
               <p id="vehicle-form-subtitle" class="admin-subheading">Completá los datos para registrar un vehículo.</p>
             </div>
             <button class="admin-button admin-button-primary admin-desktop-save" type="submit" form="admin-vehicle-form">
-              <img src="{{ url_for('static', filename='img/admin-v6/check.svg') }}" width="20" height="20" alt="">
+              {{ lucide_icon('check', 20) }}
               <span>Publicar vehículo</span>
             </button>
           </div>
@@ -174,18 +177,18 @@
               <div class="admin-form-card-heading"><h2 id="vehicle-tech-title">Características técnicas</h2><p>Dejá los campos vacíos cuando la información no esté disponible.</p></div>
               <div class="admin-form-grid">
                 <div class="admin-field"><label for="vehicle-mileage">Kilometraje <span aria-hidden="true">*</span></label><div class="admin-input-suffix"><input id="vehicle-mileage" name="kilometraje" type="number" min="0" step="1" inputmode="numeric" required><span>km</span></div><small data-error-for="kilometraje"></small></div>
-                <div class="admin-field"><label for="vehicle-transmission">Transmisión</label><select id="vehicle-transmission" name="transmision"><option value="">No especificada</option><option>Automática</option><option>Manual</option><option>CVT</option></select><small data-error-for="transmision"></small></div>
-                <div class="admin-field"><label for="vehicle-fuel">Combustible</label><select id="vehicle-fuel" name="combustible"><option value="">No especificado</option><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select><small data-error-for="combustible"></small></div>
+                <div class="admin-field"><label for="vehicle-transmission">Transmisión</label><div class="admin-select-wrap"><select id="vehicle-transmission" name="transmision"><option value="">No especificada</option><option>Automática</option><option>Manual</option><option>CVT</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="transmision"></small></div>
+                <div class="admin-field"><label for="vehicle-fuel">Combustible</label><div class="admin-select-wrap"><select id="vehicle-fuel" name="combustible"><option value="">No especificado</option><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="combustible"></small></div>
                 <div class="admin-field"><label for="vehicle-color">Color</label><input id="vehicle-color" name="color" maxlength="40"><small data-error-for="color"></small></div>
                 <div class="admin-field"><label for="vehicle-plate">Placa <span class="admin-label-note">Solo administración</span></label><input id="vehicle-plate" name="placa" maxlength="20" autocomplete="off"><small data-error-for="placa"></small></div>
-                <div class="admin-field"><label for="vehicle-availability">Disponibilidad</label><select id="vehicle-availability" name="disponibilidad"><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select><small data-error-for="disponibilidad"></small></div>
+                <div class="admin-field"><label for="vehicle-availability">Disponibilidad</label><div class="admin-select-wrap"><select id="vehicle-availability" name="disponibilidad"><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="disponibilidad"></small></div>
               </div>
               <fieldset class="admin-equipment">
                 <legend>Equipamiento</legend>
                 <div class="admin-equipment-grid">
-                  <div class="admin-field"><label for="vehicle-ac">Aire acondicionado</label><select id="vehicle-ac" name="aire_acondicionado"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
-                  <div class="admin-field"><label for="vehicle-windows">Ventanas eléctricas</label><select id="vehicle-windows" name="ventanas_electricas"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
-                  <div class="admin-field"><label for="vehicle-screen">Pantalla multimedia</label><select id="vehicle-screen" name="pantalla_multimedia"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select></div>
+                  <div class="admin-field"><label for="vehicle-ac">Aire acondicionado</label><div class="admin-select-wrap"><select id="vehicle-ac" name="aire_acondicionado"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
+                  <div class="admin-field"><label for="vehicle-windows">Ventanas eléctricas</label><div class="admin-select-wrap"><select id="vehicle-windows" name="ventanas_electricas"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
+                  <div class="admin-field"><label for="vehicle-screen">Pantalla multimedia</label><div class="admin-select-wrap"><select id="vehicle-screen" name="pantalla_multimedia"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
                 </div>
               </fieldset>
             </section>
@@ -199,7 +202,7 @@
           <section class="admin-form-card admin-photo-card" aria-labelledby="vehicle-photos-title">
             <div class="admin-form-card-heading"><h2 id="vehicle-photos-title">Fotografías</h2><p>Primero guardá el vehículo. Después podrás añadir hasta cinco fotos.</p></div>
             <div id="vehicle-photo-list" class="admin-photo-list"></div>
-            <div id="vehicle-photo-empty" class="admin-photo-empty" hidden><img src="{{ url_for('static', filename='img/admin-v6/image.svg') }}" width="24" height="24" alt=""><span>Todavía no hay fotografías.</span></div>
+            <div id="vehicle-photo-empty" class="admin-photo-empty" hidden>{{ lucide_icon('image', 20) }}<span>Todavía no hay fotografías.</span></div>
             <div id="vehicle-photo-pending" class="admin-photo-pending" hidden>
               <img id="vehicle-photo-preview" alt="Vista previa de la fotografía seleccionada">
               <div><strong id="vehicle-photo-pending-name"></strong><p id="vehicle-photo-pending-detail"></p></div>
@@ -207,7 +210,7 @@
             </div>
             <label id="vehicle-photo-upload" class="admin-photo-upload" tabindex="0" role="button" aria-label="Agregar fotografía al vehículo" hidden>
               <input id="vehicle-photo-input" type="file" accept="image/jpeg,image/png,image/webp">
-              <img src="{{ url_for('static', filename='img/admin-v6/image.svg') }}" width="24" height="24" alt="">
+              {{ lucide_icon('image', 20) }}
               <span>Agregar fotografías</span>
               <small>Una fotografía por vez · JPEG, PNG o WebP · hasta 10 MB por original</small>
             </label>
@@ -216,7 +219,7 @@
 
           <div class="admin-mobile-form-actions">
             <button class="admin-button admin-button-primary" type="submit" form="admin-vehicle-form">
-              <img src="{{ url_for('static', filename='img/admin-v6/check.svg') }}" width="20" height="20" alt="">
+              {{ lucide_icon('check', 20) }}
               <span>Guardar vehículo</span>
             </button>
             <p>Revisá los campos antes de guardar.</p>
@@ -239,7 +242,7 @@
               <header class="admin-chat-list-heading">
                 <div><h2 id="admin-inbox-title">Bandeja</h2><p>Consultas recibidas sobre vehículos</p></div>
                 <label class="visually-hidden" for="admin-chat-status">Filtrar conversaciones</label>
-                <select id="admin-chat-status"><option value="abierta">Pendientes</option><option value="atendida">Atendidas</option><option value="">Todas</option></select>
+                <div class="admin-select-wrap"><select id="admin-chat-status"><option value="abierta">Pendientes</option><option value="atendida">Atendidas</option><option value="">Todas</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div>
               </header>
               <p id="admin-chat-list-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
               <div id="admin-chat-list" class="admin-chat-list" role="listbox" aria-label="Conversaciones"></div>
@@ -247,14 +250,14 @@
             </section>
             <section id="admin-chat-thread-pane" class="admin-chat-thread-pane" aria-label="Detalle de conversación">
               <div id="admin-chat-empty" class="admin-chat-empty">
-                <span class="admin-chat-empty-icon" aria-hidden="true">···</span>
+                <span class="admin-chat-empty-icon" aria-hidden="true">{{ lucide_icon('message-circle', 24) }}</span>
                 <h2>Seleccioná una conversación</h2>
                 <p>El hilo y las respuestas aparecerán aquí.</p>
               </div>
               <div id="admin-chat-thread" class="admin-chat-thread" hidden>
                 <header class="admin-thread-heading">
                   <button id="admin-chat-back" class="admin-icon-button admin-chat-back" type="button" aria-label="Volver a conversaciones">
-                    <img src="{{ url_for('static', filename='img/admin-v6/back.svg') }}" width="24" height="24" alt="">
+                    {{ lucide_icon('arrow-left', 20) }}
                   </button>
                   <div><h2 id="admin-thread-title"></h2><p>Consulta asociada al vehículo</p></div>
                   <span id="admin-thread-state" class="admin-state-pill"></span>
@@ -266,7 +269,7 @@
                   <label class="visually-hidden" for="admin-reply-text">Escribí una respuesta</label>
                   <textarea id="admin-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta…" required></textarea>
                   <button id="admin-reply-submit" class="admin-button admin-button-secondary" type="submit">
-                    <img src="{{ url_for('static', filename='img/admin-v6/send.svg') }}" width="20" height="20" alt="">
+                    {{ lucide_icon('send', 20) }}
                     Enviar
                   </button>
                 </form>

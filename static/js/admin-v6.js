@@ -329,15 +329,12 @@
     return button;
   }
 
-  function iconAction(label, file, callback) {
+  function iconAction(label, iconName, callback) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "admin-icon-button";
     button.setAttribute("aria-label", label);
-    const icon = document.createElement("img");
-    icon.src = `/static/img/admin-v6/${file}.svg`;
-    icon.alt = "";
-    button.append(icon);
+    button.append(window.AppIcons.create(iconName, { size: 16 }));
     button.addEventListener("click", callback);
     return button;
   }

@@ -20,6 +20,9 @@ class PreparacionRecursosVercelTest(unittest.TestCase):
         aplicacion = create_app({"TESTING": True, "SECRET_KEY": "clave-solo-para-pruebas"})
         recursos = {
             "/static/css/estilos.css": "text/css",
+            "/static/css/iconos.css": "text/css",
+            "/static/js/iconos.js": None,
+            "/static/img/icons/lucide-sprite.svg": "image/svg+xml",
             "/static/js/fotografias.js": None,
             "/static/js/interfaz.js": None,
             "/static/img/vehiculo.svg": "image/svg+xml",

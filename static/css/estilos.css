@@ -416,11 +416,7 @@ h2 {
   margin: 0 0 7px;
 }
 
-.vehicle-location:before {
-  content: "↗";
-  color: var(--color-text-secondary);
-  margin-right: 5px;
-}
+.vehicle-location:before { content: none; }
 
 .vehicle-title-row {
   display: flex;
@@ -536,11 +532,16 @@ h2 {
   align-items: center;
   width: 38px;
   height: 38px;
+  padding: 7px;
   border-radius: 50%;
   color: var(--danger);
   background: #fbefeb;
-  font-size: 21px;
   margin-bottom: 8px;
+}
+
+.empty-icon-error {
+  color: var(--danger);
+  background: #fbefeb;
 }
 
 .text-button {
@@ -994,13 +995,11 @@ body.dialog-open {
   display: none;
 }
 
-.filtros-avanzados > summary::after {
-  content: "⌄";
-  font-size: 1.15em;
+.filtros-avanzados > summary > .filters-chevron {
   transition: transform .18s ease;
 }
 
-.filtros-avanzados[open] > summary::after {
+.filtros-avanzados[open] > summary > .filters-chevron {
   transform: rotate(180deg);
 }
 

@@ -52,7 +52,10 @@ test("el catálogo no carga formularios ni diálogos de administración heredado
   }
   assert.doesNotMatch(plantillaHtml, /vehicle-actions|Prototipo demostrativo|propuesta-[ab]\.css|datos-demo\.js/);
   assert.doesNotMatch(source, /abrirFormulario|abrirFotos|cambiarDisponibilidad|cerrarSesion|api\("\/api\/vehiculos"/);
-  assert.match(plantillaHtml, /href="\/administracion"[^>]*>Administrar<\/a>/);
+  const adminLink = plantillaHtml.match(/<a id="admin-panel-link"[\s\S]*?<\/a>/)?.[0] || "";
+  assert.match(adminLink, /href="\/administracion"/);
+  assert.match(adminLink, /aria-label="Administrar"/);
+  assert.match(adminLink, /admin-panel-link-label">Administrar<\/span>/);
   assert.doesNotMatch(plantillaHtml, /js\/fotografias\.js/);
 });
 
