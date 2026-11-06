@@ -9,9 +9,7 @@
   const intervalo = 4000;
   const idVehiculoFicha = cuerpo.dataset.vehiculoId || "";
   const fichaChat = porId("comprador-chat");
-  const botonAbrirAdmin = porId("abrir-mensajes");
   const botonMensajesComprador = porId("abrir-chat-comprador-global");
-  const dialogoAdmin = porId("mensajes-dialogo");
   const dialogoComprador = porId("chat-comprador-dialogo");
   const claveStorageBorradores = "vehiculos-chat-borradores-v1";
   let borradoresComprador = new Map();
@@ -20,34 +18,18 @@
     const guardados = JSON.parse(sessionStorage.getItem(claveStorageBorradores) || "[]");
     if (Array.isArray(guardados)) borradoresComprador = new Map(guardados.filter((fila) => Array.isArray(fila) && typeof fila[0] === "string" && fila[1] && typeof fila[1].texto === "string"));
   } catch { /* El chat sigue funcionando si el navegador bloquea el almacenamiento de sesión. */ }
-  const borradoresAdmin = new Map();
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   let csrfComprador = "";
-  let adminAutenticado = false;
   let compradorPreparado = false;
   let compradorAbierto = false;
   let generacionComprador = 0;
   let conversacionComprador = null;
-  let conversacionAdmin = null;
   let timerComprador = null;
-  let timerAdmin = null;
   let compradorEnVuelo = false;
-  let adminEnVuelo = false;
-  let listaAdminEnVuelo = false;
   let listaCompradorEnVuelo = false;
   let cursorComprador = null;
-  let cursorAdmin = null;
   let idsComprador = new Set();
-  let idsAdmin = new Set();
   let solicitudCompradorPendiente = null;
-  let solicitudAdminPendiente = null;
-  let conversacionesAdmin = [];
-  let filtroListaAdmin = null;
-  let cursorSiguienteAdmin = null;
-  let hayMasAdmin = false;
-  let paginasAdminCargadas = false;
-
-  function csrfAdmin() { return csrfMeta?.content || ""; }
 
   async function api(ruta, { metodo = "GET", cuerpoJson = null, csrf = "", idempotencyKey = "" } = {}) {
     const headers = { Accept: "application/json" };
@@ -246,7 +228,7 @@
     const generacionSolicitada = generacionComprador;
     estado(porId("chat-comprador-feedback"), "Preparando una sesión privada…");
     try {
-      const respuesta = await api("/api/chat/sesion", { metodo: "POST", csrf: csrfAdmin() });
+      const respuesta = await api("/api/chat/sesion", { metodo: "POST", csrf: csrfMeta?.content || "" });
       if (!compradorAbierto || !dialogoComprador.open || generacionSolicitada !== generacionComprador) return;
       csrfComprador = respuesta.csrf_token || "";
       if (!csrfComprador) throw new Error("No pudimos asegurar la sesión. Inténtalo de nuevo.");
@@ -388,250 +370,8 @@
     } finally { boton.disabled = false; }
   }
 
-  async function comprobarAdmin() {
-    try {
-      const respuesta = await api("/api/admin/session");
-      const siguiente = Boolean(respuesta.autenticado) && !respuesta.solo_lectura;
-      adminAutenticado = siguiente;
-      botonAbrirAdmin.hidden = !siguiente;
-      if (!siguiente && dialogoAdmin.open) cerrarAdmin();
-    } catch {
-      adminAutenticado = false;
-      botonAbrirAdmin.hidden = true;
-      if (dialogoAdmin.open) cerrarAdmin();
-    }
-  }
-
-  function listarConversacionesAdmin(conversaciones) {
-    const lista = porId("chat-admin-lista");
-    const elementoEnFoco = document.activeElement?.closest?.("button[data-conversation-id]");
-    const idEnFoco = elementoEnFoco?.dataset.conversationId;
-    const existentes = new Map(Array.from(lista.children, (li) => [li.firstElementChild?.dataset.conversationId, li]));
-    const ordenNuevo = [];
-    const idsActuales = new Set();
-    for (const conversacion of conversaciones) {
-      const id = String(conversacion.id);
-      idsActuales.add(id);
-      let li = existentes.get(id);
-      if (!li) {
-        li = document.createElement("li");
-        const boton = document.createElement("button");
-        boton.type = "button";
-        boton.className = "chat-conversation-button";
-        const titulo = document.createElement("strong");
-        const extracto = document.createElement("span");
-        boton.append(titulo, extracto);
-        boton.addEventListener("click", () => seleccionarConversacionAdmin(boton._conversation));
-        li.append(boton);
-      }
-      const boton = li.firstElementChild;
-      boton._conversation = conversacion;
-      boton.dataset.conversationId = conversacion.id;
-      boton.setAttribute("aria-current", conversacionAdmin?.id === conversacion.id ? "true" : "false");
-      const titulo = boton.querySelector("strong");
-      const extracto = boton.querySelector("span");
-      const textoTitulo = nombreVehiculo(conversacion);
-      const textoExtracto = `${conversacion.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversacion.ultimo_mensaje || "Sin mensajes"}`;
-      if (titulo.textContent !== textoTitulo) titulo.textContent = textoTitulo;
-      if (extracto.textContent !== textoExtracto) extracto.textContent = textoExtracto;
-      const seleccionActual = conversacionAdmin?.id === conversacion.id ? "true" : "false";
-      if (boton.getAttribute("aria-current") !== seleccionActual) boton.setAttribute("aria-current", seleccionActual);
-      ordenNuevo.push(li);
-      existentes.delete(id);
-      if (String(conversacionAdmin?.id) === id) conversacionAdmin = conversacion;
-    }
-    for (const li of existentes.values()) li.remove();
-    // Mantiene los nodos y el foco entre polls; solo mueve elementos si cambió
-    // realmente el orden (por ejemplo, al llegar un mensaje nuevo).
-    ordenNuevo.forEach((li, indice) => {
-      if (lista.children[indice] !== li) lista.insertBefore(li, lista.children[indice] || null);
-    });
-    const estadoLista = porId("chat-admin-estado");
-    const textoEstado = conversaciones.length
-      ? `${conversaciones.length} conversación${conversaciones.length === 1 ? "" : "es"}${hayMasAdmin ? " cargadas; hay más disponibles." : "."}`
-      : "No hay conversaciones en esta vista.";
-    if (estadoLista.textContent !== textoEstado) estadoLista.textContent = textoEstado;
-    if (idEnFoco) {
-      const botonEnFoco = lista.querySelector(`[data-conversation-id="${CSS.escape(idEnFoco)}"]`);
-      if (botonEnFoco && document.activeElement !== botonEnFoco) botonEnFoco.focus({ preventScroll: true });
-    }
-  }
-
-  async function cargarListaAdmin({ append = false } = {}) {
-    if (listaAdminEnVuelo || !adminAutenticado) return;
-    listaAdminEnVuelo = true;
-    try {
-      const filtro = porId("chat-admin-filtro").value;
-      if (filtro !== filtroListaAdmin) {
-        filtroListaAdmin = filtro;
-        conversacionesAdmin = [];
-        cursorSiguienteAdmin = null;
-        hayMasAdmin = false;
-        paginasAdminCargadas = false;
-      }
-      const parametros = new URLSearchParams();
-      if (filtro !== "todas") parametros.set("estado", filtro);
-      if (append && cursorSiguienteAdmin) parametros.set("cursor_id", cursorSiguienteAdmin);
-      const query = parametros.size ? `?${parametros}` : "";
-      const { conversaciones = [], hay_mas: hayMas = false, siguiente_cursor: siguienteCursorLista = null } = await api(`/api/admin/chat/conversaciones${query}`);
-      if (append) {
-        const yaCargadas = new Set(conversacionesAdmin.map((item) => String(item.id)));
-        conversacionesAdmin = [...conversacionesAdmin, ...conversaciones.filter((item) => !yaCargadas.has(String(item.id)))];
-        paginasAdminCargadas = true;
-        cursorSiguienteAdmin = siguienteCursorLista;
-        hayMasAdmin = hayMas;
-      } else {
-        const idsPaginaReciente = new Set(conversaciones.map((item) => String(item.id)));
-        const paginadasAnteriores = paginasAdminCargadas
-          ? conversacionesAdmin.filter((item) => !idsPaginaReciente.has(String(item.id)))
-          : [];
-        conversacionesAdmin = [...conversaciones, ...paginadasAnteriores];
-        if (!paginasAdminCargadas) cursorSiguienteAdmin = siguienteCursorLista;
-        hayMasAdmin = paginasAdminCargadas ? hayMasAdmin : hayMas;
-      }
-      porId("chat-admin-cargar-mas").hidden = !hayMasAdmin;
-      listarConversacionesAdmin(conversacionesAdmin);
-    } catch (error) {
-      estado(porId("chat-admin-estado"), error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
-      if (error.status === 401) comprobarAdmin();
-    } finally { listaAdminEnVuelo = false; }
-  }
-
-  function seleccionarConversacionAdmin(conversacion) {
-    if (conversacionAdmin) borradoresAdmin.set(String(conversacionAdmin.id), {
-      texto: porId("chat-admin-texto").value, solicitud: solicitudAdminPendiente,
-    });
-    conversacionAdmin = conversacion;
-    const borrador = borradoresAdmin.get(String(conversacion.id));
-    porId("chat-admin-texto").value = borrador?.texto || "";
-    solicitudAdminPendiente = borrador?.solicitud || null;
-    cursorAdmin = null;
-    idsAdmin = new Set();
-    porId("chat-admin-mensajes").replaceChildren();
-    porId("chat-admin-vehiculo").textContent = nombreVehiculo(conversacion);
-    porId("chat-admin-estado-conversacion").textContent = conversacion.estado === "atendida" ? "Atendida" : "Pendiente";
-    porId("chat-admin-atendida").hidden = conversacion.estado === "atendida";
-    porId("chat-admin-form").hidden = false;
-    cargarMensajesAdmin(true);
-    reiniciarPollingAdmin();
-    listaAdminMarcarSeleccionada(conversacion.id);
-    dialogoAdmin.dataset.vista = "hilo";
-    if (window.matchMedia("(max-width: 650px)").matches) porId("chat-admin-volver").focus();
-  }
-
-  function listaAdminMarcarSeleccionada(identificador) {
-    porId("chat-admin-lista").querySelectorAll("button[data-conversation-id]").forEach((boton) => {
-      boton.setAttribute("aria-current", boton.dataset.conversationId === String(identificador) ? "true" : "false");
-    });
-  }
-
-  async function cargarMensajesAdmin() {
-    if (!conversacionAdmin || adminEnVuelo || !adminAutenticado) return;
-    adminEnVuelo = true;
-    const conversacionSolicitada = String(conversacionAdmin.id);
-    try {
-      const despues = cursorAdmin === null ? 0 : encodeURIComponent(cursorAdmin);
-      const { mensajes = [] } = await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/mensajes?despues_de_id=${despues}`);
-      if (String(conversacionAdmin?.id) !== conversacionSolicitada) return;
-      agregarMensajes(porId("chat-admin-mensajes"), mensajes, idsAdmin);
-      cursorAdmin = siguienteCursor(mensajes, cursorAdmin);
-      if (mensajes.length) estado(porId("chat-admin-feedback"), "Conectado.");
-    } catch (error) {
-      estado(porId("chat-admin-feedback"), error.status === 401 ? "Tu sesión administrativa venció." : "No pudimos actualizar los mensajes. Reintentaremos automáticamente.", "error");
-      if (error.status === 401) comprobarAdmin();
-    } finally {
-      adminEnVuelo = false;
-      if (String(conversacionAdmin?.id) !== conversacionSolicitada && dialogoAdmin.open && adminAutenticado) {
-        queueMicrotask(() => cargarMensajesAdmin());
-      }
-    }
-  }
-
-  function detenerPollingAdmin() { clearTimeout(timerAdmin); timerAdmin = null; }
-  function reiniciarPollingAdmin() {
-    detenerPollingAdmin();
-    if (!document.hidden && dialogoAdmin.open && adminAutenticado) timerAdmin = setTimeout(cicloAdmin, intervalo);
-  }
-  async function cicloAdmin() {
-    timerAdmin = null;
-    if (document.hidden || !dialogoAdmin.open || !adminAutenticado || adminEnVuelo || listaAdminEnVuelo) return reiniciarPollingAdmin();
-    await cargarListaAdmin();
-    await cargarMensajesAdmin();
-    reiniciarPollingAdmin();
-  }
-
-  async function enviarAdmin(evento) {
-    evento.preventDefault();
-    const texto = porId("chat-admin-texto").value.trim();
-    const boton = porId("chat-admin-enviar");
-    if (!texto || boton.disabled || !conversacionAdmin) return;
-    if (!solicitudAdminPendiente || solicitudAdminPendiente.texto !== texto) solicitudAdminPendiente = { texto, clave: crypto.randomUUID() };
-    const destino = String(conversacionAdmin.id);
-    boton.disabled = true;
-    estado(porId("chat-admin-feedback"), "Enviando respuesta…");
-    try {
-      const respuesta = await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/mensajes`, {
-        metodo: "POST", cuerpoJson: { contenido: texto }, csrf: csrfAdmin(), idempotencyKey: solicitudAdminPendiente.clave,
-      });
-      borradoresAdmin.delete(destino);
-      if (String(conversacionAdmin?.id) !== destino) {
-        await cargarListaAdmin();
-        return;
-      }
-      const campoTexto = porId("chat-admin-texto");
-      if (campoTexto.value.trim() === texto) campoTexto.value = "";
-      solicitudAdminPendiente = null;
-      if (respuesta.mensaje) {
-        agregarMensajes(porId("chat-admin-mensajes"), [respuesta.mensaje], idsAdmin);
-        cursorAdmin = respuesta.mensaje.id;
-      }
-      estado(porId("chat-admin-feedback"), "Respuesta enviada.");
-      await cargarListaAdmin();
-      porId("chat-admin-texto").focus();
-    } catch (error) {
-      estado(porId("chat-admin-feedback"), error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
-      if (error.status === 401) comprobarAdmin();
-    } finally { boton.disabled = false; }
-  }
-
-  async function marcarAtendida() {
-    if (!conversacionAdmin || !adminAutenticado) return;
-    const boton = porId("chat-admin-atendida");
-    boton.disabled = true;
-    try {
-      await api(`/api/admin/chat/conversaciones/${encodeURIComponent(conversacionAdmin.id)}/atendida`, {
-        metodo: "PATCH", cuerpoJson: { atendida: true }, csrf: csrfAdmin(),
-      });
-      conversacionAdmin = { ...conversacionAdmin, estado: "atendida" };
-      porId("chat-admin-estado-conversacion").textContent = "Atendida";
-      boton.hidden = true;
-      estado(porId("chat-admin-feedback"), "Conversación marcada como atendida.");
-      await cargarListaAdmin();
-    } catch (error) {
-      estado(porId("chat-admin-feedback"), error.message, "error");
-    } finally { boton.disabled = false; }
-  }
-
-  async function abrirAdmin() {
-    await comprobarAdmin();
-    if (!adminAutenticado) return;
-    dialogoAdmin.dataset.vista = "lista";
-    dialogoAdmin.showModal();
-    sincronizarBloqueoScroll();
-    await cargarListaAdmin();
-    reiniciarPollingAdmin();
-    porId("chat-admin-filtro").focus();
-  }
-
-  function cerrarAdmin() {
-    detenerPollingAdmin();
-    if (dialogoAdmin.open) dialogoAdmin.close();
-    sincronizarBloqueoScroll();
-    porId("abrir-mensajes").focus();
-  }
-
   function sincronizarBloqueoScroll() {
-    document.body.classList.toggle("dialog-open", Boolean(dialogoComprador.open || dialogoAdmin.open));
+    document.body.classList.toggle("dialog-open", Boolean(dialogoComprador.open));
   }
 
   function abrirComprador(abridor, vista) {
@@ -707,38 +447,8 @@
     });
   }
 
-  botonAbrirAdmin.addEventListener("click", abrirAdmin);
-  porId("cerrar-mensajes").addEventListener("click", cerrarAdmin);
-  porId("chat-admin-volver").addEventListener("click", () => {
-    dialogoAdmin.dataset.vista = "lista";
-    porId("chat-admin-lista").querySelector('[aria-current="true"]')?.focus();
-  });
-  porId("cerrar-mensajes-pie").addEventListener("click", cerrarAdmin);
-  porId("chat-admin-form").addEventListener("submit", enviarAdmin);
-  porId("chat-admin-atendida").addEventListener("click", marcarAtendida);
-  porId("chat-admin-filtro").addEventListener("change", cargarListaAdmin);
-  porId("chat-admin-cargar-mas").addEventListener("click", () => cargarListaAdmin({ append: true }));
-  porId("actualizar-conversaciones").addEventListener("click", async () => {
-    await cargarListaAdmin();
-    await cargarMensajesAdmin();
-  });
-  dialogoAdmin.addEventListener("cancel", (evento) => { evento.preventDefault(); cerrarAdmin(); });
-
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      detenerPollingComprador();
-      detenerPollingAdmin();
-    } else {
-      reiniciarPollingComprador();
-      reiniciarPollingAdmin();
-    }
+    if (document.hidden) detenerPollingComprador();
+    else reiniciarPollingComprador();
   });
-
-  const observadorSesion = new MutationObserver(() => comprobarAdmin());
-  ["abrir-login", "cerrar-sesion"].forEach((id) => {
-    const boton = porId(id);
-    if (boton) observadorSesion.observe(boton, { attributes: true, attributeFilter: ["hidden"] });
-  });
-
-  comprobarAdmin();
 })();
