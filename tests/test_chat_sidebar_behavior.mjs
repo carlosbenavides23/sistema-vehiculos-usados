@@ -68,7 +68,7 @@ class Element {
   remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((child) => child !== this); this.isConnected = false; }
 }
 
-async function iniciar({ ficha = false, admin = false, demoraLista = false, demoraEnvio = false } = {}) {
+async function iniciar({ ficha = false, demoraLista = false, demoraEnvio = false } = {}) {
   const ids = new Set([...source.matchAll(/porId\("([^"]+)"\)/g)].map((match) => match[1]));
   const elementos = new Map([...ids].map((id) => [id, new Element(id)]));
   const cuerpo = new Element("body");
@@ -91,14 +91,12 @@ async function iniciar({ ficha = false, admin = false, demoraLista = false, demo
     addEventListener(type, listener) { this.listeners.set(type, [...(this.listeners.get(type) || []), listener]); },
   };
   for (const element of elementos.values()) { element.ownerDocument = documento; element.tagName = element.id.includes("form") ? "form" : "button"; }
-  for (const id of ["abrir-chat-comprador-global", "mostrar-chat", "abrir-mensajes", "cerrar-chat-comprador", "chat-comprador-volver", "chat-comprador-texto", "chat-comprador-enviar", "chat-admin-filtro"]) {
+  for (const id of ["abrir-chat-comprador-global", "mostrar-chat", "cerrar-chat-comprador", "chat-comprador-volver", "chat-comprador-texto", "chat-comprador-enviar"]) {
     if (elementos.has(id)) elementos.get(id).tagName = "button";
   }
-  elementos.get("chat-admin-filtro").value = "todas";
   elementos.get("chat-comprador-hilo").hidden = true;
   elementos.get("chat-comprador-lista-vista").hidden = true;
   elementos.get("chat-comprador-form").hidden = true;
-  elementos.get("chat-admin-cargar-mas").hidden = true;
   if (ficha) {
     elementos.get("mostrar-chat").hidden = false;
     elementos.get("ficha-titulo").textContent = "Toyota Corolla";
@@ -116,10 +114,8 @@ async function iniciar({ ficha = false, admin = false, demoraLista = false, demo
       await new Promise((resolve) => { liberarEnvio = resolve; });
     }
     let data = {};
-    if (path === "/api/admin/session") data = { ok: true, autenticado: admin, solo_lectura: false };
-    else if (path === "/api/chat/conversaciones") data = { ok: true, conversaciones, csrf_token: "buyer-csrf" };
+    if (path === "/api/chat/conversaciones") data = { ok: true, conversaciones, csrf_token: "buyer-csrf" };
     else if (path === "/api/chat/sesion") data = { ok: true, csrf_token: "buyer-csrf" };
-    else if (path.startsWith("/api/admin/chat/conversaciones")) data = { ok: true, conversaciones, hay_mas: false };
     else if (path.includes("/mensajes") && options.method === "POST") data = { ok: true, conversacion: conversaciones[0], mensaje: { id: 30, contenido: "Prueba", remitente: "comprador" } };
     else if (path.includes("/mensajes")) data = { ok: true, mensajes: [] };
     return { ok: true, status: 200, async json() { return data; } };
@@ -133,7 +129,6 @@ async function iniciar({ ficha = false, admin = false, demoraLista = false, demo
     fetch,
     sessionStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) { storage.set(key, value); } },
     crypto: { randomUUID },
-    MutationObserver: class { observe() {} },
     setTimeout(callback) { const timer = ++nextTimer; timers.set(timer, callback); return timer; },
     clearTimeout(timer) { timers.delete(timer); },
     queueMicrotask,
@@ -205,21 +200,13 @@ test("desde catálogo abre, vuelve y cierra X/Escape liberando scroll, polling y
   assert.equal(documento.activeElement, boton);
 });
 
-test("Contactar al vendedor sigue abriendo el hilo desde ficha y la bandeja administrativa conserva su modal", async () => {
+test("Contactar al vendedor sigue abriendo el hilo desde la ficha y crea la sesión al iniciar contacto", async () => {
   const ficha = await iniciar({ ficha: true });
   await ficha.elementos.get("mostrar-chat").click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(ficha.elementos.get("chat-comprador-dialogo").open, true);
   assert.equal(ficha.elementos.get("chat-comprador-hilo").hidden, false);
   assert.ok(ficha.requests.some(({ path }) => path === "/api/chat/sesion"));
-
-  const app = await iniciar({ admin: true });
-  await app.elementos.get("abrir-mensajes").click();
-  assert.equal(app.elementos.get("mensajes-dialogo").open, true);
-  assert.equal(app.cuerpo.classList.contains("dialog-open"), true);
-  await app.elementos.get("cerrar-mensajes").click();
-  assert.equal(app.elementos.get("mensajes-dialogo").open, false);
-  assert.equal(app.cuerpo.classList.contains("dialog-open"), false);
 });
 
 test("una respuesta de conversaciones que llega después de cerrar no altera el estado ni vuelve a abrir el diálogo", async () => {

@@ -67,14 +67,6 @@
   display: none !important;
 }
 
-.intro {
-  display: none;
-}
-
-.summary {
-  display: none;
-}
-
 .inventory-section {
   padding: 0 0 48px;
 }
@@ -455,10 +447,6 @@
 
 .detail-contact-link:hover {
   background: #f2f6f3;
-}
-
-.vehicle-actions {
-  grid-column: 1 / -1;
 }
 
 /* Ficha V6 con galería de fotos reales y compra en columna independiente. */
@@ -982,15 +970,11 @@
     gap: 3px;
   }
 
-  .explore-link,
-  #abrir-mensajes,
-  #cerrar-sesion,
-  #abrir-login .header-button-label {
+  .explore-link{
     display: none !important;
   }
 
-  #abrir-chat-comprador-global,
-  #abrir-login {
+  #abrir-chat-comprador-global{
     display: inline-flex;
     flex: 0 0 44px;
     width: 44px;
@@ -1011,15 +995,6 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-  }
-
-  #abrir-login .admin-nav-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    font-size: 20px;
   }
 
   .admin-panel-link:not([hidden]) {
@@ -1228,11 +1203,6 @@
 
   .detail-contact-link {
     min-height: 42px;
-  }
-
-  .vehicle-actions {
-    display: flex;
-    flex-wrap: wrap;
   }
 
   .vehicle-detail {

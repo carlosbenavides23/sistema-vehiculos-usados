@@ -46,38 +46,28 @@ test("la ficha no muestra centavos .00 en precios enteros y conserva centavos re
   assert.equal(precioLegible(1_250_025), "$12,500.25");
 });
 
-test("las tarjetas conservan las acciones administrativas sin mostrarlas al público", () => {
-  const plantilla = plantillaHtml.match(/<template id="plantilla-vehiculo">([\s\S]*?)<\/template>/)?.[1];
-  assert.match(plantilla, /class="vehicle-actions" hidden/);
-  for (const control of ["edit-button", "photos-button", "availability-button"]) {
-    assert.ok(plantilla.includes(control), `Debe conservarse la acción ${control}.`);
+test("el catálogo no carga formularios ni diálogos de administración heredados", () => {
+  for (const id of ["formulario-dialogo", "login-dialogo", "mensajes-dialogo", "fotografias-dialogo", "abrir-login", "cerrar-sesion", "abrir-mensajes"]) {
+    assert.doesNotMatch(plantillaHtml, new RegExp(`\\bid="${id}"`), `El catálogo no debe contener ${id}.`);
   }
-  assert.match(source, /acciones\.hidden = !autenticado/);
-  assert.match(estilos, /\.vehicle-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);
+  assert.doesNotMatch(plantillaHtml, /vehicle-actions|Prototipo demostrativo|propuesta-[ab]\.css|datos-demo\.js/);
+  assert.doesNotMatch(source, /abrirFormulario|abrirFotos|cambiarDisponibilidad|cerrarSesion|api\("\/api\/vehiculos"/);
+  assert.match(plantillaHtml, /href="\/administracion"[^>]*>Administrar<\/a>/);
+  assert.doesNotMatch(plantillaHtml, /js\/fotografias\.js/);
 });
 
-test("la plantilla mantiene los controles de filtros y formulario accesibles", () => {
-  const detalles = plantillaHtml.match(/<details\b(?=[^>]*\bid="filtros-avanzados")[^>]*>([\s\S]*?)<\/details>/)?.[1];
-  assert.ok(detalles, "Los filtros avanzados deben estar dentro del details real de la plantilla.");
-  const summary = detalles.match(/<summary\b([^>]*)>/)?.[1];
-  assert.ok(summary, "El control debe usar un summary nativo.");
-  const controles = summary.match(/\baria-controls="([^"]+)"/)?.[1];
-  assert.ok(controles, "El summary debe relacionarse con su contenedor usando aria-controls.");
-  assert.match(detalles, new RegExp(`<div\\b[^>]*\\bid="${controles}"`), "aria-controls debe apuntar al contenedor existente.");
-  for (const nombre of ["precio_min", "precio_max", "anio_min", "anio_max", "tipo_vehiculo", "orden"]) {
-    assert.match(detalles, new RegExp(`\\bname="${nombre}"`), `${nombre} debe permanecer dentro de filtros avanzados.`);
-  }
-
-  assert.match(plantillaHtml, /id="filtros-avanzados-activos"[^>]*role="status"|role="status"[^>]*id="filtros-avanzados-activos"/);
-  const fieldsets = [...plantillaHtml.matchAll(/<fieldset\b([^>]*)>/g)]
-    .filter(([, atributos]) => /\bclass="[^"]*\bformulario-seccion\b[^"]*"/.test(atributos));
-  assert.equal(fieldsets.length, 4, "El formulario administrativo debe tener cuatro grupos semánticos.");
-
-  const textarea = plantillaHtml.match(/<textarea\b(?=[^>]*\bid="descripcion")[^>]*>/)?.[0];
-  assert.ok(textarea, "Debe existir el textarea real de descripción.");
-  assert.match(textarea, /\bmaxlength="1000"/);
-  const referencias = textarea.match(/\baria-describedby="([^"]+)"/)?.[1].split(/\s+/) || [];
-  assert.ok(referencias.includes("contador-descripcion"), "El contador debe estar asociado con aria-describedby.");
+test("el panel V6 conserva autenticación, vehículo, fotografías y bandeja", async () => {
+  const adminTemplate = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
+  const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
+  assert.match(adminTemplate, /id="admin-login-form"/);
+  assert.match(adminTemplate, /data-admin-view="inventory"/);
+  assert.match(adminTemplate, /data-admin-view="vehicle-form"/);
+  assert.match(adminTemplate, /id="admin-chat-list"/);
+  assert.match(adminTemplate, /id="admin-reply-form"/);
+  assert.match(adminTemplate, /js\/fotografias\.js/);
+  assert.match(adminTemplate, /js\/admin-v6\.js/);
+  assert.match(adminScript, /\/vehiculos\/\$\{encodeURIComponent\(savedVehicle\.id\)\}\/fotografias/);
+  assert.match(adminScript, /\/admin\/chat\/conversaciones/);
 });
 
 class ElementoFalso {
@@ -123,17 +113,10 @@ class FormDataFalso {
 
 function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
   const nombres = [
-    "formulario-vehiculo", "formulario-dialogo", "login-dialogo", "login-form",
-    "fotografias-dialogo", "filtros-catalogo", "mensaje", "abrir-login",
-    "filtros-avanzados", "filtros-avanzados-activos", "descripcion", "contador-descripcion",
-    "cerrar-sesion", "nuevo-vehiculo", "nuevo-desde-vacio", "reintentar",
-    "guardar-vehiculo", "cerrar-formulario", "inventario", "cargando",
-    "estado-bloqueado", "estado-vacio", "estado-sin-resultados", "lista-vehiculos",
-    "resumen-listado", "total-vehiculos", "total-disponibles", "total-vendidos",
-    "cerrar-login", "confirmar-foto", "fotografia-archivo", "fotografia-sustituta",
-    "actualizar-fotografias", "eliminar-foto", "cancelar-borrado-foto",
-    "cerrar-fotografias", "terminar-fotografias", "cancelar-foto-preparada",
-    "limpiar-desde-vacio", "cancelar-formulario", "cancelar-login",
+    "filtros-catalogo", "mensaje", "admin-panel-link", "filtros-avanzados", "filtros-avanzados-activos",
+    "reintentar", "inventario", "cargando", "estado-bloqueado", "estado-vacio",
+    "estado-sin-resultados", "titulo-bloqueado", "detalle-bloqueado", "lista-vehiculos",
+    "resumen-listado", "limpiar-desde-vacio",
   ];
   const elementos = new Map(nombres.map((nombre) => [nombre, new ElementoFalso(nombre)]));
   const catalogo = elementos.get("filtros-catalogo");
@@ -148,12 +131,6 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
     { name: "orden", value: "", disabled: false },
   ];
   catalogo.querySelectorAll = () => catalogo.elements;
-  elementos.get("descripcion").attributes.maxlength = "1000";
-  const formulario = elementos.get("formulario-vehiculo");
-  formulario.elements = { namedItem: () => null };
-  const formularioLogin = elementos.get("login-form");
-  formularioLogin.elements = { password: { value: "" } };
-
   const rutas = [];
   const urlActual = new URL(`https://catalogo.example/${busquedaInicial}`);
   const location = {
@@ -165,9 +142,7 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
     body: { dataset: { vehiculoId: "" }, classList: { add() {}, remove() {} } },
     title: "Vehículos usados",
     getElementById: (id) => elementos.get(id) || new ElementoFalso(id),
-    querySelector: (selector) => selector === 'meta[name="csrf-token"]'
-      ? { content: "token-local" }
-      : new ElementoFalso(selector),
+    querySelector: (selector) => new ElementoFalso(selector),
     querySelectorAll: () => [],
     createDocumentFragment: () => new ElementoFalso("fragmento"),
   };
@@ -191,8 +166,8 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
     clearTimeout,
     fetch: async (ruta) => {
       rutas.push(String(ruta));
-      const resultado = ruta === "/api/admin/session"
-        ? { ok: true, solo_lectura: soloLectura, autenticado: false }
+      const resultado = String(ruta) === "/api/admin/session"
+        ? { ok: true, solo_lectura: soloLectura }
         : { ok: true, vehiculos: [] };
       return {
         ok: true,
@@ -207,11 +182,9 @@ function prepararAplicacion(busquedaInicial = "", soloLectura = false) {
   return {
     rutas,
     catalogo,
-    abrirLogin: elementos.get("abrir-login"),
+    adminPanel: elementos.get("admin-panel-link"),
     detallesFiltros: elementos.get("filtros-avanzados"),
     indicadorFiltrosAvanzados: elementos.get("filtros-avanzados-activos"),
-    descripcion: elementos.get("descripcion"),
-    contadorDescripcion: elementos.get("contador-descripcion"),
     async esperarCarga() { await new Promise((resolver) => setTimeout(resolver, 0)); },
   };
 }
@@ -262,18 +235,15 @@ test("contraer filtros avanzados conserva valores y el submit incluye todos los 
   assert.equal(app.indicadorFiltrosAvanzados.hidden, false);
 });
 
-test("el contador de descripción se actualiza conforme se escribe", () => {
-  const app = prepararAplicacion();
-  app.descripcion.value = "Vehículo en buen estado";
-  app.descripcion.listeners.get("input")[0]();
-
-  assert.equal(app.contadorDescripcion.textContent, "23 de 1000 caracteres");
-});
-
-test("el catálogo en solo lectura mantiene oculto el acceso administrativo", async () => {
-  const app = prepararAplicacion("", true);
-  await app.esperarCarga();
-
-  assert.equal(app.abrirLogin.hidden, true);
-  assert.equal(app.rutas.includes("/api/admin/login"), false);
+test("el catálogo enlaza al panel solo cuando el ambiente no es de solo lectura", async () => {
+  const enlace = plantillaHtml.match(/<a\b(?=[^>]*\bhref="\/administracion")[^>]*>([\s\S]*?)<\/a>/);
+  assert.ok(enlace, "Debe existir un enlace al único panel administrativo.");
+  assert.match(enlace[1], /Administrar/);
+  assert.match(source, /solicitar\("\/api\/admin\/session"\)/);
+  const preview = prepararAplicacion("", true);
+  await preview.esperarCarga();
+  assert.equal(preview.adminPanel.hidden, true);
+  const production = prepararAplicacion();
+  await production.esperarCarga();
+  assert.equal(production.adminPanel.hidden, false);
 });
