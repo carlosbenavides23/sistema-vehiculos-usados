@@ -58,6 +58,7 @@
   let pendingReply = null;
   let inventoryGeneration = 0;
   const messageIds = new Set();
+  const fieldErrorNames = new Set();
   const drafts = new Map();
 
   function setStatus(message, type = "success") {
@@ -440,6 +441,7 @@
   }
 
   function clearFormErrors() {
+    fieldErrorNames.clear();
     formError.textContent = "";
     formError.hidden = true;
     all("[data-error-for]").forEach((node) => {
@@ -454,7 +456,7 @@
   }
 
   function clearFieldError(field) {
-    if (!field?.name) return;
+    if (!field?.name || !fieldErrorNames.has(field.name)) return;
     const note = one(`[data-error-for="${CSS.escape(field.name)}"]`, form);
     if (!note) return;
     note.textContent = "";
@@ -464,12 +466,16 @@
       else field.removeAttribute("aria-describedby");
     }
     field.removeAttribute("aria-invalid");
+    fieldErrorNames.delete(field.name);
   }
 
   function recoverFormError(event) {
+    if (!fieldErrorNames.has(event.target?.name)) return;
     clearFieldError(event.target);
-    formError.textContent = "";
-    formError.hidden = true;
+    if (fieldErrorNames.size === 0) {
+      formError.textContent = "";
+      formError.hidden = true;
+    }
   }
   form?.addEventListener("input", recoverFormError);
   form?.addEventListener("change", recoverFormError);
@@ -488,6 +494,7 @@
           field.setAttribute("aria-describedby", descriptions.join(" "));
           field.setAttribute("aria-invalid", "true");
           note.textContent = text;
+          fieldErrorNames.add(name);
           first ||= field;
         }
       });
