@@ -19,7 +19,10 @@
   const loginForm = one("#admin-login-form");
   const loginPassword = one("#admin-password");
   const loginError = one("#admin-login-error");
+  const loginStatus = one("#admin-login-status");
   const logout = one("#admin-logout");
+  const mobileMenuButton = one("#admin-mobile-menu");
+  const adminNavigation = one("#admin-navigation");
   const statusBox = one("#admin-status");
   const inventoryList = one("#admin-inventory-list");
   const inventoryCards = one("#admin-inventory-mobile");
@@ -70,6 +73,22 @@
     if (message) loginError.focus();
   }
 
+  function closeMobileNavigation({ restoreFocus = false } = {}) {
+    if (!mobileMenuButton || !adminNavigation) return;
+    const estabaAbierta = adminNavigation.classList.contains("is-open");
+    adminNavigation.classList.remove("is-open");
+    mobileMenuButton.setAttribute("aria-expanded", "false");
+    mobileMenuButton.setAttribute("aria-label", "Mostrar navegación");
+    if (restoreFocus && estabaAbierta && !mobileMenuButton.hidden) mobileMenuButton.focus();
+  }
+
+  function syncMobileNavigation() {
+    if (!mobileMenuButton || !adminNavigation) return;
+    const esMovil = window.matchMedia("(max-width: 820px)").matches;
+    mobileMenuButton.hidden = !authenticated || !esMovil;
+    if (!authenticated || !esMovil) closeMobileNavigation();
+  }
+
   async function request(path, options = {}) {
     const method = options.method || "GET";
     const headers = new Headers(options.headers || {});
@@ -112,6 +131,7 @@
     auth.hidden = authenticated || readOnly;
     workspace.hidden = !authenticated;
     logout.hidden = !authenticated;
+    syncMobileNavigation();
     if (authenticated) {
       loadInventory();
       if (chatEnabled && currentView() === "conversations") loadInbox();
@@ -149,6 +169,8 @@
     const button = one('button[type="submit"]', loginForm);
     setLoginError("");
     button.disabled = true;
+    loginForm.setAttribute("aria-busy", "true");
+    loginStatus.textContent = "Verificando acceso…";
     try {
       const result = await request("/admin/login", { method: "POST", body: { password: loginPassword.value } });
       if (result.csrf_token) {
@@ -168,7 +190,11 @@
       }
       setLoginError(error.status === 429 ? `${error.message}${error.retryAfter ? ` Esperá ${error.retryAfter} segundos.` : ""}` : error.message);
       if (error.status === 401) loginPassword.select();
-    } finally { button.disabled = false; }
+    } finally {
+      button.disabled = false;
+      loginForm.removeAttribute("aria-busy");
+      loginStatus.textContent = "";
+    }
   });
 
   async function logoutAdmin() {
@@ -203,8 +229,7 @@
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    one("#admin-navigation")?.classList.remove("is-open");
-    one("#admin-mobile-menu")?.setAttribute("aria-expanded", "false");
+    closeMobileNavigation();
     if (validView === "inventory") loadInventory();
     if (validView === "conversations") { loadInbox(); restartPolling(); }
     else stopPolling();
@@ -213,32 +238,39 @@
 
   all("[data-admin-view]").forEach((button) => button.addEventListener("click", () => {
     if (!authenticated) return;
+    const cerrarEnMovil = !mobileMenuButton.hidden;
     if (button.hasAttribute("data-new-vehicle")) resetVehicleForm();
     showView(button.dataset.adminView);
+    if (cerrarEnMovil && button.dataset.adminView !== "vehicle-form") {
+      const titulo = one(button.dataset.adminView === "conversations" ? "#conversations-title" : "#inventory-title");
+      titulo?.focus({ preventScroll: true });
+    }
   }));
 
-  one("#admin-mobile-menu")?.addEventListener("click", (event) => {
-    const menu = one("#admin-navigation");
-    const open = !menu.classList.contains("is-open");
-    menu.classList.toggle("is-open", open);
-    event.currentTarget.setAttribute("aria-expanded", String(open));
-    if (open) one(".admin-nav-link:not([hidden])", menu)?.focus();
+  mobileMenuButton?.addEventListener("click", () => {
+    if (!authenticated || mobileMenuButton.hidden) return;
+    const open = mobileMenuButton.getAttribute("aria-expanded") !== "true";
+    if (!open) {
+      closeMobileNavigation({ restoreFocus: true });
+      return;
+    }
+    adminNavigation.classList.add("is-open");
+    mobileMenuButton.setAttribute("aria-expanded", "true");
+    mobileMenuButton.setAttribute("aria-label", "Ocultar navegación");
+    one(".admin-nav-link:not([hidden])", adminNavigation)?.focus();
   });
   document.addEventListener("click", (event) => {
-    const menu = one("#admin-navigation");
-    const trigger = one("#admin-mobile-menu");
-    if (menu?.classList.contains("is-open") && !menu.contains(event.target) && !trigger?.contains(event.target)) {
-      menu.classList.remove("is-open");
-      trigger.setAttribute("aria-expanded", "false");
+    if (adminNavigation?.classList.contains("is-open") && !adminNavigation.contains(event.target) && !mobileMenuButton?.contains(event.target)) {
+      closeMobileNavigation();
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && one("#admin-navigation")?.classList.contains("is-open")) {
-      one("#admin-navigation").classList.remove("is-open");
-      one("#admin-mobile-menu")?.setAttribute("aria-expanded", "false");
-      one("#admin-mobile-menu")?.focus();
+    if (event.key === "Escape" && mobileMenuButton?.getAttribute("aria-expanded") === "true") {
+      event.preventDefault();
+      closeMobileNavigation({ restoreFocus: true });
     }
   });
+  window.addEventListener("resize", syncMobileNavigation);
 
   function safePhotoUrl(value) {
     if (typeof value !== "string" || !value) return "/static/img/vehiculo.svg";
@@ -386,6 +418,7 @@
       if (generation !== inventoryGeneration) return;
       vehicles = [];
       renderInventory([]);
+      emptyInventory.hidden = true;
       inventoryFeedback.textContent = error.status === 401 ? "Tu sesión administrativa venció. Ingresá nuevamente." : error.message;
       if (error.status === 401) setAuthenticated(false);
     }
@@ -409,9 +442,37 @@
   function clearFormErrors() {
     formError.textContent = "";
     formError.hidden = true;
-    all("[data-error-for]").forEach((node) => { node.textContent = ""; });
+    all("[data-error-for]").forEach((node) => {
+      node.textContent = "";
+      const field = form.elements.namedItem(node.dataset.errorFor);
+      if (!field || !node.id) return;
+      const remaining = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((id) => id && id !== node.id);
+      if (remaining.length) field.setAttribute("aria-describedby", remaining.join(" "));
+      else field.removeAttribute("aria-describedby");
+    });
     all("[aria-invalid='true']", form).forEach((field) => { field.removeAttribute("aria-invalid"); });
   }
+
+  function clearFieldError(field) {
+    if (!field?.name) return;
+    const note = one(`[data-error-for="${CSS.escape(field.name)}"]`, form);
+    if (!note) return;
+    note.textContent = "";
+    if (note.id) {
+      const remaining = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((id) => id && id !== note.id);
+      if (remaining.length) field.setAttribute("aria-describedby", remaining.join(" "));
+      else field.removeAttribute("aria-describedby");
+    }
+    field.removeAttribute("aria-invalid");
+  }
+
+  function recoverFormError(event) {
+    clearFieldError(event.target);
+    formError.textContent = "";
+    formError.hidden = true;
+  }
+  form?.addEventListener("input", recoverFormError);
+  form?.addEventListener("change", recoverFormError);
 
   function showFormError(message, fields = {}) {
     clearFormErrors();
@@ -421,6 +482,10 @@
         const field = form.elements.namedItem(name);
         const note = one(`[data-error-for="${CSS.escape(name)}"]`, form);
         if (field && note) {
+          note.id ||= `vehicle-error-${name}`;
+          const descriptions = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+          if (!descriptions.includes(note.id)) descriptions.push(note.id);
+          field.setAttribute("aria-describedby", descriptions.join(" "));
           field.setAttribute("aria-invalid", "true");
           note.textContent = text;
           first ||= field;
@@ -553,6 +618,8 @@
     }
     const buttons = all('button[type="submit"]', one("#admin-vehicle-form").parentElement.parentElement);
     buttons.forEach((button) => { button.disabled = true; });
+    form.setAttribute("aria-busy", "true");
+    setStatus("Guardando vehículo…", "loading");
     try {
       const isNew = editingId === null;
       const result = await request(isNew ? "/vehiculos" : `/vehiculos/${encodeURIComponent(editingId)}`, {
@@ -579,8 +646,12 @@
       if (isNew) one("#vehicle-photos-title").focus?.();
     } catch (error) {
       if (editingId === null && pendingCreate && (!error.status || error.status >= 500)) pendingCreate.uncertain = true;
+      setStatus("");
       showFormError(error.message, error.fields);
-    } finally { buttons.forEach((button) => { button.disabled = false; }); }
+    } finally {
+      form.removeAttribute("aria-busy");
+      buttons.forEach((button) => { button.disabled = false; });
+    }
   });
 
   function openPhotos(id) {

@@ -23,7 +23,7 @@
       </a>
       <div class="admin-topbar-actions">
         <span class="admin-topbar-label">Panel administrativo</span>
-        <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation">
+        <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation" hidden>
           <img src="{{ url_for('static', filename='img/admin-v6/menu.svg') }}" width="24" height="24" alt="">
         </button>
         <button id="admin-logout" class="admin-button admin-button-quiet" type="button" hidden>
@@ -52,6 +52,7 @@
           <input id="admin-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
         </div>
         <p id="admin-login-error" class="admin-form-message" role="alert" tabindex="-1" hidden></p>
+        <p id="admin-login-status" class="admin-inline-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
         <button class="admin-button admin-button-primary admin-login-submit" type="submit">
           <img src="{{ url_for('static', filename='img/admin-v6/lock.svg') }}" width="20" height="20" alt="">
           Iniciar sesión
@@ -90,7 +91,7 @@
           <div class="admin-page-heading">
             <div>
               <p class="admin-eyebrow">Inventario</p>
-              <h1 id="inventory-title">Gestioná tus vehículos</h1>
+              <h1 id="inventory-title" tabindex="-1">Gestioná tus vehículos</h1>
               <p class="admin-subheading">Organizá publicaciones, fotografías y disponibilidad.</p>
             </div>
             <button class="admin-button admin-button-primary" type="button" data-new-vehicle>
@@ -146,7 +147,7 @@
                 Volver al inventario
               </button>
               <p class="admin-eyebrow">Inventario / Publicación</p>
-              <h1 id="vehicle-form-title">Registrar vehículo</h1>
+              <h1 id="vehicle-form-title" tabindex="-1">Registrar vehículo</h1>
               <p id="vehicle-form-subtitle" class="admin-subheading">Completá los datos para registrar un vehículo.</p>
             </div>
             <button class="admin-button admin-button-primary admin-desktop-save" type="submit" form="admin-vehicle-form">
@@ -226,7 +227,7 @@
           <div class="admin-page-heading">
             <div>
               <p class="admin-eyebrow">Consultas</p>
-              <h1 id="conversations-title">Conversaciones</h1>
+              <h1 id="conversations-title" tabindex="-1">Conversaciones</h1>
               <p class="admin-subheading">Respondé las consultas asociadas a cada vehículo.</p>
             </div>
           </div>

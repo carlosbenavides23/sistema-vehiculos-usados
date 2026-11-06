@@ -90,6 +90,41 @@ test("el selector de estado de la bandeja conserva espacio para sus opciones y l
   assert.match(adminStyles, /\.admin-chat-list-heading select\s*\{\s*width:\s*120px;\s*max-width:\s*120px;\s*flex-basis:\s*120px;/);
 });
 
+test("la navegación móvil administrativa solo se muestra con sesión y sigue el estado accesible", () => {
+  assert.match(template, /id="admin-mobile-menu"[^>]*aria-label="Mostrar navegación"[^>]*aria-expanded="false"[^>]*hidden/);
+  assert.match(adminScript, /mobileMenuButton\.hidden = !authenticated \|\| !esMovil/);
+  assert.match(adminScript, /mobileMenuButton\.setAttribute\("aria-expanded", "false"\)/);
+  assert.match(adminScript, /mobileMenuButton\.setAttribute\("aria-expanded", "true"\)/);
+  assert.match(adminScript, /closeMobileNavigation\(\{ restoreFocus: true \}\)/);
+  assert.match(adminScript, /window\.addEventListener\("resize", syncMobileNavigation\)/);
+  assert.match(adminStyles, /\.admin-menu-button:not\(\[hidden\]\)\s*\{\s*display:\s*inline-grid/);
+  assert.match(adminStyles, /@media \(max-width: 360px\)[\s\S]*?\.admin-nav-list\s*\{\s*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test("los errores de formulario se asocian a sus controles y los estados se anuncian", () => {
+  assert.match(template, /id="admin-login-status"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(adminScript, /loginForm\.setAttribute\("aria-busy", "true"\)/);
+  assert.match(adminScript, /loginStatus\.textContent = "Verificando acceso/);
+  assert.match(adminScript, /field\.setAttribute\("aria-invalid", "true"\)/);
+  assert.match(adminScript, /field\.setAttribute\("aria-describedby", descriptions\.join\(" "\)\)/);
+  assert.match(adminScript, /field\.removeAttribute\("aria-invalid"\)/);
+  assert.match(adminScript, /catch \(error\)[\s\S]*setStatus\(""\);\s*showFormError\(error\.message, error\.fields\)/);
+  assert.match(adminScript, /form\?\.addEventListener\("input", recoverFormError\)/);
+  assert.match(adminScript, /form\?\.addEventListener\("change", recoverFormError\)/);
+  assert.match(adminStyles, /\.admin-v6 :focus-visible\s*\{\s*outline:\s*3px solid var\(--color-focus\)/);
+  assert.match(adminStyles, /\.admin-photo-item button\s*\{[^}]*min-width:\s*44px;\s*min-height:\s*44px;/);
+});
+
+test("un error de carga del inventario no se presenta como estado vacío", () => {
+  const start = adminScript.indexOf("async function loadInventory");
+  const end = adminScript.indexOf('\n  one("#admin-inventory-filters")?.addEventListener', start);
+  const handler = adminScript.slice(start, end);
+  const renderer = adminScript.slice(adminScript.indexOf("function renderInventory"), start);
+  assert.match(renderer, /emptyInventory\.hidden = !empty/);
+  assert.match(handler, /catch \(error\)[\s\S]*renderInventory\(\[\]\);\s*emptyInventory\.hidden = true/);
+  assert.match(handler, /inventoryFeedback\.textContent = error\.status === 401/);
+});
+
 test("la página nueva no amplía el contrato de APIs ni expone datos en la ruta HTML", () => {
   assert.match(backend, /@aplicacion\.get\("\/administracion"\)/);
   const pageRoute = backend.slice(backend.indexOf('@aplicacion.get("/administracion")'), backend.indexOf('@aplicacion.get("/api/admin/session")'));
