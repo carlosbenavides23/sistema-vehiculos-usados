@@ -35,7 +35,7 @@
 .admin-page-heading h1 { margin: 6px 0 7px; color: #1b3036; font-size: 29px; line-height: 1.16; letter-spacing: -.035em; font-weight: 720; }
 .admin-eyebrow { margin: 0; color: #35574f; font-size: 11px; line-height: 1.4; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .admin-subheading { margin: 0; color: var(--color-text-muted); font-size: 14px; line-height: 1.45; }
-.admin-button { min-height: 46px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid transparent; border-radius: 9px; text-decoration: none; font-size: 13px; line-height: 1.2; font-weight: 650; transition: background-color .16s ease, border-color .16s ease, color .16s ease; }
+.admin-button { min-height: 46px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid transparent; border-radius: 9px; text-decoration: none; font-size: 13px; line-height: 1.2; font-weight: 650; }
 .admin-button > .lucide-icon { display: block; flex: 0 0 auto; }
 .admin-button-primary { color: #fff; background: #35574f; border-color: #35574f; }
 .admin-button-primary:hover:not(:disabled) { background: #29453f; border-color: #29453f; }
@@ -297,7 +297,4 @@
   .admin-nav-link { padding-inline: 4px; }
   .admin-table-head h2 { flex: 0 0 auto; white-space: nowrap; }
   .admin-result-label { min-width: 0; text-align: right; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .admin-v6 *, .admin-v6 *::before, .admin-v6 *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

@@ -21,6 +21,7 @@ class PreparacionRecursosVercelTest(unittest.TestCase):
         recursos = {
             "/static/css/estilos.css": "text/css",
             "/static/css/iconos.css": "text/css",
+            "/static/css/motion.css": "text/css",
             "/static/js/iconos.js": None,
             "/static/img/icons/lucide-sprite.svg": "image/svg+xml",
             "/static/js/fotografias.js": None,
@@ -44,6 +45,7 @@ class PreparacionRecursosVercelTest(unittest.TestCase):
     def test_build_copia_los_recursos_a_las_rutas_publicas_que_usa_el_html(self):
         recursos = (
             Path("css/estilos.css"),
+            Path("css/motion.css"),
             Path("js/fotografias.js"),
             Path("js/interfaz.js"),
             Path("img/vehiculo.svg"),

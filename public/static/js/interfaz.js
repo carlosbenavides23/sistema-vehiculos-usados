@@ -12,6 +12,21 @@
   let vehiculos = [];
   let ocupado = false;
   let parametrosCatalogoActivos = new URLSearchParams();
+  const generacionesFoto = new WeakMap();
+  const animacionesFoto = new WeakMap();
+
+  function duracionMovimiento(nombre, predeterminado) {
+    const valor = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+    const numero = Number.parseFloat(valor);
+    if (!Number.isFinite(numero)) return predeterminado;
+    if (valor.endsWith("ms")) return numero;
+    if (valor.endsWith("s")) return numero * 1000;
+    return predeterminado;
+  }
+
+  function curvaMovimiento(nombre, predeterminada) {
+    return getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || predeterminada;
+  }
 
   function actualizarControles() {
     porId("reintentar").disabled = ocupado;
@@ -90,6 +105,85 @@
     } catch (error) { return null; }
   }
 
+  function mostrarFotoPreparada(imagen, valorUrl, textoAlternativo, alFallar, alCompletar = () => {}) {
+    const url = urlFotoSegura(valorUrl);
+    const generacion = (generacionesFoto.get(imagen) || 0) + 1;
+    generacionesFoto.set(imagen, generacion);
+    animacionesFoto.get(imagen)?.cancel();
+    animacionesFoto.delete(imagen);
+
+    const vigente = () => generacionesFoto.get(imagen) === generacion;
+    const fallar = () => {
+      if (!vigente()) return;
+      imagen.onload = null;
+      imagen.onerror = null;
+      animacionesFoto.get(imagen)?.cancel();
+      animacionesFoto.delete(imagen);
+      alFallar();
+    };
+    if (!url) {
+      fallar();
+      return;
+    }
+
+    let resuelto = false;
+    const listo = () => {
+      if (resuelto || !vigente()) return;
+      resuelto = true;
+      const duracion = duracionMovimiento("--motion-duration-gallery", 180);
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || typeof imagen.animate !== "function" || duracion < 2) {
+        imagen.onload = null;
+        imagen.onerror = null;
+        imagen.alt = textoAlternativo;
+        imagen.src = url;
+        alCompletar();
+        return;
+      }
+
+      const animacionSalida = imagen.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: Math.max(1, Math.round(duracion * 0.44)), easing: curvaMovimiento("--motion-ease-exit", "ease-in"), fill: "forwards" },
+      );
+      animacionesFoto.set(imagen, animacionSalida);
+      animacionSalida.finished.then(() => {
+        if (!vigente()) return;
+        imagen.alt = textoAlternativo;
+        imagen.onload = () => {
+          if (!vigente()) return;
+          imagen.onload = null;
+          const animacionEntrada = imagen.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            { duration: Math.max(1, duracion - Math.round(duracion * 0.44)), easing: curvaMovimiento("--motion-ease-enter", "ease-out"), fill: "forwards" },
+          );
+          animacionesFoto.set(imagen, animacionEntrada);
+          animacionSalida.cancel();
+          animacionEntrada.finished.then(() => {
+            if (!vigente()) return;
+            animacionEntrada.cancel();
+            animacionesFoto.delete(imagen);
+            imagen.onload = null;
+            imagen.onerror = null;
+            alCompletar();
+          }).catch(() => {});
+        };
+        imagen.onerror = fallar;
+        imagen.src = url;
+        if (imagen.complete && imagen.naturalWidth) requestAnimationFrame(imagen.onload);
+      }).catch(() => {});
+    };
+
+    imagen.onload = null;
+    imagen.onerror = fallar;
+    const precarga = new Image();
+    precarga.onload = listo;
+    precarga.onerror = fallar;
+    precarga.src = url;
+    if (precarga.complete) {
+      if (precarga.naturalWidth) listo();
+      else fallar();
+    }
+  }
+
   function galeriaTarjeta(tarjeta, vehiculo) {
     const fotos = (vehiculo.fotografias || []).filter((foto) => urlFotoSegura(foto.url));
     if (!fotos.length) return;
@@ -101,15 +195,17 @@
     let posicion = 0;
     function mostrar() {
       arte.classList.add("has-photos");
-      imagen.alt = `Fotografía ${posicion + 1} de ${fotos.length}: ${vehiculo.marca} ${vehiculo.modelo}`;
-      imagen.onerror = () => {
-        imagen.onerror = null;
-        arte.classList.remove("has-photos");
-        imagen.src = respaldo;
-        imagen.alt = "Fotografía no disponible temporalmente; ilustración del vehículo";
-        contador.textContent = `${posicion + 1} / ${fotos.length} · No disponible`;
-      };
-      imagen.src = urlFotoSegura(fotos[posicion].url);
+      mostrarFotoPreparada(
+        imagen,
+        fotos[posicion].url,
+        `Fotografía ${posicion + 1} de ${fotos.length}: ${vehiculo.marca} ${vehiculo.modelo}`,
+        () => {
+          arte.classList.remove("has-photos");
+          imagen.src = respaldo;
+          imagen.alt = "Fotografía no disponible temporalmente; ilustración del vehículo";
+          contador.textContent = `${posicion + 1} / ${fotos.length} · No disponible`;
+        },
+      );
       contador.textContent = `${posicion + 1} / ${fotos.length}`;
     }
     navegacion.hidden = fotos.length <= 1;
@@ -262,6 +358,9 @@
       .sort((a, b) => (a.orden || 0) - (b.orden || 0));
     const respaldo = "/static/img/vehiculo.svg";
     if (!fotos.length) {
+      generacionesFoto.set(imagen, (generacionesFoto.get(imagen) || 0) + 1);
+      animacionesFoto.get(imagen)?.cancel();
+      animacionesFoto.delete(imagen);
       imagen.src = respaldo;
       imagen.alt = `Ilustración de ${vehiculo.marca} ${vehiculo.modelo}; no hay fotografías publicadas.`;
       navegacion.hidden = true;
@@ -282,16 +381,22 @@
       return boton;
     });
     miniaturas.hidden = fotos.length < 2;
+    const galeria = imagen.closest(".detail-gallery");
     function mostrar() {
       botones.forEach((boton, indice) => boton.setAttribute("aria-pressed", String(indice === posicion)));
-      imagen.onerror = () => {
-        imagen.onerror = null;
+      galeria.setAttribute("aria-busy", "true");
+      mostrarFotoPreparada(
+        imagen,
+        fotos[posicion].url,
+        `Fotografía ${posicion + 1} de ${fotos.length}: ${vehiculo.marca} ${vehiculo.modelo}`,
+        () => {
         imagen.src = respaldo;
         imagen.alt = `Fotografía no disponible. Ilustración de ${vehiculo.marca} ${vehiculo.modelo}.`;
         contador.textContent = `${posicion + 1} / ${fotos.length} · No disponible`;
-      };
-      imagen.alt = `Fotografía ${posicion + 1} de ${fotos.length}: ${vehiculo.marca} ${vehiculo.modelo}`;
-      imagen.src = urlFotoSegura(fotos[posicion].url);
+        galeria.setAttribute("aria-busy", "false");
+      },
+        () => galeria.setAttribute("aria-busy", "false"),
+      );
       contador.textContent = `${posicion + 1} / ${fotos.length}`;
     }
     navegacion.hidden = fotos.length < 2;
