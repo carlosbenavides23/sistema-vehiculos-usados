@@ -83,6 +83,7 @@ class ValidacionVehiculosTest(unittest.TestCase):
         self.assertEqual(resultado["placa"], "M 123-456")
         self.assertIs(resultado["aire_acondicionado"], True)
         self.assertIs(resultado["ventanas_electricas"], False)
+        self.assertIsNone(resultado["pantalla_multimedia"])
 
     def test_transmision_y_combustible_validan_texto_historico_sin_normalizarlo(self):
         valores = (
@@ -99,7 +100,6 @@ class ValidacionVehiculosTest(unittest.TestCase):
                 resultado, errores = validar_vehiculo(formulario(**{campo: valor}))
                 self.assertEqual(errores, {})
                 self.assertEqual(resultado[campo], valor)
-                self.assertIsNone(resultado["pantalla_multimedia"])
 
         for campo, valor in (("transmision", " automatica "), ("combustible", " Gasolina ")):
             with self.subTest(campo=campo, valor=valor):
