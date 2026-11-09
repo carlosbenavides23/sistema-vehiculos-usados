@@ -21,10 +21,21 @@ def repositorio_falso():
     solicitudes = {}
 
     def lista():
-        return [dict(fila) for fila in filas]
+        return [dict(fila) for fila in filas if not fila.get("retirado")]
 
     def obtener(identificador):
-        return next((dict(fila) for fila in filas if fila["id"] == identificador), None)
+        return next((dict(fila) for fila in filas if fila["id"] == identificador and not fila.get("retirado")), None)
+
+    def retirar(identificador, version):
+        fila = next((fila for fila in filas if fila["id"] == identificador), None)
+        if fila is None:
+            return "no_encontrado"
+        if fila.get("retirado"):
+            return "retirado"
+        if fila["updated_at"] != version:
+            return "conflicto"
+        fila["retirado"] = True
+        return "retirado"
 
     def crear(datos):
         if len(filas) >= 500:
@@ -80,6 +91,7 @@ def repositorio_falso():
         "editar_vehiculo": editar,
         "cambiar_disponibilidad": disponibilidad,
         "cambiar_disponibilidad_condicional": disponibilidad_condicional,
+        "retirar_vehiculo": retirar,
     }
 
 
@@ -299,6 +311,26 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(obsoleto.status_code, 409)
         self.assertEqual(self.cliente.get(f"/api/vehiculos/{creado['id']}").json["vehiculo"]["disponibilidad"], "disponible")
         self.assertEqual(self.cliente.patch(ruta, json={"disponibilidad": "vendido", "version_esperada": "inválida"}, headers=headers).status_code, 400)
+
+    def test_retirar_exige_autorizacion_y_excluye_consultas(self):
+        self.iniciar_admin()
+        creado = self.crear_vehiculo()
+        ruta = f"/api/vehiculos/{creado['id']}/retirar"
+        cuerpo = {"version_esperada": creado["updated_at"]}
+        self.assertEqual(self.cliente.post(ruta, json=cuerpo).status_code, 403)
+        headers = {"X-CSRF-Token": self.token()}
+        with patch.dict(self.repo, {"retirar_vehiculo": lambda *_: "fotografia_pendiente"}):
+            pendiente = self.cliente.post(ruta, json=cuerpo, headers=headers)
+            self.assertEqual(pendiente.status_code, 409)
+            self.assertIn("fotografía", pendiente.json["mensaje"])
+        self.assertEqual(self.cliente.get(f"/api/vehiculos/{creado['id']}").status_code, 200)
+        self.assertEqual(self.cliente.post(ruta, json={"version_esperada": "2020-01-01T00:00:00+00:00"}, headers=headers).status_code, 409)
+        self.assertEqual(self.cliente.post(ruta, json=cuerpo, headers=headers).status_code, 200)
+        self.assertEqual(self.cliente.post(ruta, json=cuerpo, headers=headers).status_code, 200)
+        self.assertEqual(self.cliente.get(f"/api/vehiculos/{creado['id']}").status_code, 404)
+        self.assertEqual(self.cliente.get("/api/vehiculos").json["vehiculos"], [])
+        self.cliente.post("/api/admin/logout", json={}, headers=headers)
+        self.assertEqual(self.cliente.post(ruta, json=cuerpo, headers={"X-CSRF-Token": self.token()}).status_code, 401)
 
     def test_escrituras_requieren_sesion_y_csrf(self):
         sin_sesion = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers={"X-CSRF-Token": self.token()})

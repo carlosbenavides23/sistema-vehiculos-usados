@@ -276,7 +276,7 @@ def enviar_mensaje_comprador(visitante_id, vehiculo_id, clave_idempotencia, huel
             if existente is not None:
                 return existente
             _validar_limite(cursor, visitante_id)
-            cursor.execute("SELECT id FROM public.vehiculos WHERE id = %s", (vehiculo_id,))
+            cursor.execute("SELECT id FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL FOR UPDATE", (vehiculo_id,))
             if cursor.fetchone() is None:
                 return None
             cursor.execute(

@@ -40,7 +40,7 @@ def _bloquear(cursor, vehiculo_id, clave=None):
         # El mismo UUID en dos vehículos no puede reservar dos operaciones.
         bloqueo = uuid.UUID(clave).int & ((1 << 63) - 1)
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", (bloqueo,))
-    cursor.execute("SELECT id FROM public.vehiculos WHERE id = %s FOR UPDATE", (vehiculo_id,))
+    cursor.execute("SELECT id FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL FOR UPDATE", (vehiculo_id,))
     if cursor.fetchone() is None:
         raise LookupError("No se encontró el vehículo.")
 

@@ -140,6 +140,44 @@ class PostgresIntegracionTest(unittest.TestCase):
         self.assertIsNotNone(revertido)
         self.assertIsNone(persistencia.cambiar_disponibilidad_condicional(1, "vendido", actual["updated_at"]))
 
+    def test_retiro_conserva_foto_y_bloquea_operaciones_pendientes(self):
+        self.crear_foto(1)
+        vehiculo = persistencia.obtener_vehiculo(1)
+        reserva = fotos.preparar_subida(1, str(uuid.uuid4()), "b" * 64)
+        self.assertEqual(persistencia.retirar_vehiculo(1, vehiculo["updated_at"]), "fotografia_pendiente")
+        fotos.cancelar_subida(reserva["storage_path"])
+        self.assertEqual(persistencia.retirar_vehiculo(1, vehiculo["updated_at"]), "retirado")
+        self.assertEqual(persistencia.retirar_vehiculo(1, vehiculo["updated_at"]), "retirado")
+        self.assertIsNone(persistencia.obtener_vehiculo(1))
+        self.assertNotIn(1, [fila["id"] for fila in persistencia.listar_vehiculos()])
+        self.assertEqual(len(fotos.listar_fotografias(1)), 1)
+        with self.assertRaises(LookupError):
+            fotos.preparar_subida(1, str(uuid.uuid4()), "c" * 64)
+        self.assertIsNone(persistencia.cambiar_disponibilidad(1, "disponible"))
+
+    def test_retiro_y_reserva_fotografica_concurrentes(self):
+        version = persistencia.obtener_vehiculo(1)["updated_at"]
+        barrera = threading.Barrier(2)
+        def reservar():
+            barrera.wait()
+            try:
+                return fotos.preparar_subida(1, str(uuid.uuid4()), "d" * 64)
+            except LookupError:
+                return None
+        def retirar():
+            barrera.wait()
+            return persistencia.retirar_vehiculo(1, version)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futuro_foto = pool.submit(reservar)
+            futuro_retiro = pool.submit(retirar)
+            reserva, resultado = futuro_foto.result(), futuro_retiro.result()
+        if resultado == "retirado":
+            self.assertIsNone(reserva)
+        else:
+            self.assertEqual(resultado, "fotografia_pendiente")
+            self.assertIsNotNone(reserva)
+            self.assertIsNotNone(persistencia.obtener_vehiculo(1))
+
     def test_migraciones_rls_privilegios_y_seis_demos(self):
         with psycopg.connect(self.dsn) as conexion:
             filas = conexion.execute("SELECT relname, relrowsecurity FROM pg_class "

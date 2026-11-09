@@ -47,6 +47,8 @@
   let pendingCreate = null;
   let pendingPhoto = null;
   let deleteTarget = null;
+  let retireTarget = null;
+  let retireBusy = false;
   let currentConversation = null;
   let inboxCursor = null;
   let hasMoreInbox = false;
@@ -386,6 +388,7 @@
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
     actions.lastElementChild.classList.add("availability-toggle");
     actions.lastElementChild.disabled = availabilityBusy;
+    actions.append(actionButton("Retirar", () => openRetireDialog(vehicle), "secondary"));
     actionsCell.append(actions);
     row.append(infoCell, priceCell, stateCell, actionsCell);
     return row;
@@ -417,6 +420,7 @@
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
     actions.lastElementChild.classList.add("availability-toggle");
     actions.lastElementChild.disabled = availabilityBusy;
+    actions.append(actionButton("Retirar publicación", () => openRetireDialog(vehicle), "secondary"));
     article.append(top, actions);
     return article;
   }
@@ -433,6 +437,48 @@
     inventoryFeedback.textContent = empty ? "" : "";
     one("#inventory-result-label").textContent = `${list.length} ${list.length === 1 ? "publicación" : "publicaciones"} encontradas`;
   }
+
+  function openRetireDialog(vehicle) {
+    if (!authenticated || retireBusy) return;
+    retireTarget = vehicle;
+    one("#admin-retire-title").textContent = `Retirar ${vehicleTitle(vehicle)}`;
+    one("#admin-retire-feedback").textContent = "";
+    one("#admin-retire-dialog").showModal();
+    one("#admin-retire-cancel").focus();
+  }
+
+  one("#admin-retire-dialog").addEventListener("cancel", (event) => { if (retireBusy) event.preventDefault(); });
+  one("#admin-retire-dialog").addEventListener("close", () => { retireTarget = null; });
+  one("#admin-retire-confirm").addEventListener("click", async () => {
+    if (!authenticated || !retireTarget || retireBusy) return;
+    const vehicle = retireTarget;
+    if (!vehicle.updated_at) {
+      one("#admin-retire-feedback").textContent = "No se puede comprobar la versión. Actualizá el inventario.";
+      return;
+    }
+    retireBusy = true;
+    one("#admin-retire-confirm").disabled = true;
+    one("#admin-retire-cancel").disabled = true;
+    one("#admin-retire-feedback").textContent = "Retirando publicación…";
+    try {
+      await request(`/vehiculos/${encodeURIComponent(vehicle.id)}/retirar`, { method: "POST", body: { version_esperada: vehicle.updated_at } });
+      if (availabilityUndo && String(availabilityUndo.id) === String(vehicle.id)) {
+        availabilityUndo = null;
+        one("#availability-notice").hidden = true;
+      }
+      one("#admin-retire-dialog").close();
+      setStatus(`Publicación retirada: ${vehicleTitle(vehicle)}.`);
+      await loadInventory();
+      one("#inventory-title")?.focus();
+    } catch (error) {
+      one("#admin-retire-feedback").textContent = error.message;
+      if (error.status === 401) setAuthenticated(false);
+    } finally {
+      retireBusy = false;
+      one("#admin-retire-confirm").disabled = false;
+      one("#admin-retire-cancel").disabled = false;
+    }
+  });
 
   async function loadInventory() {
     if (!authenticated || currentView() !== "inventory") return;

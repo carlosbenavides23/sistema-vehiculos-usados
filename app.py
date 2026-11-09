@@ -447,7 +447,7 @@ def create_app(configuracion=None):
                 identificador, clave, huella, contenido,
             )
         except LookupError:
-            return jsonify(respuesta_error("No se pudo iniciar la conversación para este vehículo.")), 404
+            return jsonify(respuesta_error("El vehículo no está disponible. Podés seguir consultando el historial.")), 404
         except ValueError:
             return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
         except Exception as error:
@@ -457,7 +457,7 @@ def create_app(configuracion=None):
                 return respuesta, 429
             return error_persistencia(error)
         if resultado is None:
-            return jsonify(respuesta_error("No se pudo iniciar la conversación para este vehículo.")), 404
+            return jsonify(respuesta_error("El vehículo no está disponible. Podés seguir consultando el historial.")), 404
         return jsonify({
             "ok": True, "conversacion": resultado["conversacion"],
             "mensaje": resultado["mensaje"], "duplicado": resultado["duplicado"],
@@ -695,6 +695,39 @@ def create_app(configuracion=None):
         if guardado is None:
             return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
         return jsonify({"ok": True, "vehiculo": salida})
+
+    @aplicacion.post("/api/vehiculos/<int:identificador>/retirar")
+    def retirar_publicacion(identificador):
+        rechazo = exigir_admin_y_csrf()
+        if rechazo:
+            return rechazo
+        if not 1 <= identificador <= 9007199254740991:
+            return jsonify(respuesta_error("Identificador de vehículo no válido.")), 400
+        cuerpo, fallo = leer_json({"version_esperada"})
+        if fallo:
+            return fallo
+        version = cuerpo["version_esperada"]
+        try:
+            if not isinstance(version, str) or len(version) > 40:
+                raise ValueError()
+            fecha = datetime.fromisoformat(version)
+            if fecha.tzinfo is None or fecha.utcoffset() is None:
+                raise ValueError()
+        except ValueError:
+            return jsonify(respuesta_error("La versión del vehículo no es válida.")), 400
+        try:
+            resultado = repositorio("retirar_vehiculo", identificador, version)
+        except Exception as error:
+            return error_persistencia(error)
+        if resultado == "no_encontrado":
+            return jsonify(respuesta_error("No se encontró el vehículo.")), 404
+        if resultado == "conflicto":
+            return jsonify(respuesta_error("El vehículo cambió. Actualizá el inventario antes de retirarlo.")), 409
+        if resultado == "fotografia_pendiente":
+            return jsonify(respuesta_error("Hay una fotografía en proceso. Esperá a que termine antes de retirar la publicación.")), 409
+        if resultado != "retirado":
+            return jsonify(respuesta_error("No se pudo retirar la publicación.")), 503
+        return jsonify({"ok": True, "mensaje": "Publicación retirada."})
 
     def limpiar_despues_del_commit():
         try:

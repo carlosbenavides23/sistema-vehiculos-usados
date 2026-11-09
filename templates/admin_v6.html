@@ -283,6 +283,17 @@
     </section>
   </main>
 
+  <dialog id="admin-retire-dialog" class="admin-confirm-dialog" aria-labelledby="admin-retire-title" aria-describedby="admin-retire-description">
+    <form method="dialog">
+      <h2 id="admin-retire-title">Retirar publicación</h2>
+      <p id="admin-retire-description">Dejará de aparecer en el catálogo y su ficha no estará disponible. Se conservarán las fotografías y las conversaciones, sin recibir nuevos mensajes del comprador.</p>
+      <p id="admin-retire-feedback" role="status" aria-live="polite"></p>
+      <div class="admin-dialog-actions">
+        <button id="admin-retire-cancel" class="admin-button admin-button-secondary" value="cancel">Cancelar</button>
+        <button id="admin-retire-confirm" class="admin-button admin-button-danger" type="button">Retirar publicación</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="admin-photo-delete-dialog" class="admin-confirm-dialog" aria-labelledby="admin-photo-delete-title">
     <form method="dialog">
       <h2 id="admin-photo-delete-title">Eliminar fotografía</h2>
