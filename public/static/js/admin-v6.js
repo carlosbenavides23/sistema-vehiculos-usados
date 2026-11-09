@@ -60,6 +60,24 @@
   const messageIds = new Set();
   const fieldErrorNames = new Set();
   const drafts = new Map();
+  let savedFormSnapshot = null;
+  let photoPreparing = false;
+  let photoDraftGeneration = 0;
+
+  function hasPendingVehicleChanges() {
+    return authenticated && currentView() === "vehicle-form" &&
+      (photoPreparing || Boolean(pendingPhoto) || (savedFormSnapshot !== null && JSON.stringify(formData()) !== savedFormSnapshot));
+  }
+
+  function confirmVehicleDeparture() {
+    return !hasPendingVehicleChanges() || window.confirm("Hay cambios o una fotografía sin guardar. ¿Querés descartarlos y salir?");
+  }
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasPendingVehicleChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
 
   function setStatus(message, type = "success") {
     if (!statusBox) return;
@@ -139,6 +157,8 @@
     } else {
       stopPolling();
       currentConversation = null;
+      drafts.clear();
+      pendingReply = null;
     }
   }
 
@@ -200,6 +220,7 @@
 
   async function logoutAdmin() {
     if (!authenticated) return;
+    if (!confirmVehicleDeparture()) return;
     stopPolling();
     try {
       const result = await request("/admin/logout", { method: "POST", body: {} });
@@ -212,6 +233,7 @@
       if (error.status !== 401) return;
     }
     setAuthenticated(false);
+    clearPhotoDraft();
     showView("inventory");
     setLoginError("");
     loginPassword.value = "";
@@ -239,6 +261,8 @@
 
   all("[data-admin-view]").forEach((button) => button.addEventListener("click", () => {
     if (!authenticated) return;
+    if ((button.dataset.adminView !== "vehicle-form" || button.hasAttribute("data-new-vehicle")) && !confirmVehicleDeparture()) return;
+    if (currentView() === "vehicle-form" && button.dataset.adminView !== "vehicle-form") clearPhotoDraft();
     const cerrarEnMovil = !mobileMenuButton.hidden;
     if (button.hasAttribute("data-new-vehicle")) resetVehicleForm();
     showView(button.dataset.adminView);
@@ -511,6 +535,8 @@
   description.addEventListener("input", updateDescriptionCount);
 
   function clearPhotoDraft() {
+    photoDraftGeneration += 1;
+    photoPreparing = false;
     const preview = one("#vehicle-photo-preview");
     if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
     preview.dataset.objectUrl = "";
@@ -545,6 +571,7 @@
     clearPhotoDraft();
     updateDescriptionCount();
     setStatus("");
+    savedFormSnapshot = JSON.stringify(formData());
   }
 
   function populateForm(vehicle) {
@@ -575,6 +602,7 @@
     one("#vehicle-photo-feedback").textContent = "Las fotografías se gestionan por separado de los datos del vehículo.";
     renderPhotos(vehicle);
     updateDescriptionCount();
+    savedFormSnapshot = JSON.stringify(formData());
   }
 
   async function editVehicle(id) {
@@ -634,6 +662,7 @@
         vehicleFieldValues.setPreservingCurrentValue(form.elements.namedItem(name), savedVehicle[name]);
       });
       editingId = savedVehicle.id;
+      savedFormSnapshot = fingerprint;
       pendingCreate = null;
       one("#vehicle-form-title").textContent = "Editar vehículo";
       one("#vehicle-form-subtitle").textContent = `${vehicleTitle(savedVehicle)} · N.º ${savedVehicle.id}`;
@@ -722,10 +751,13 @@
     const replacingId = photoInput.dataset.replacingId || null;
     photoInput.value = "";
     if (!file || !savedVehicle || !window.Fotografias) return;
+    const generation = ++photoDraftGeneration;
+    photoPreparing = true;
     photoInput.disabled = true;
     one("#vehicle-photo-feedback").textContent = "Preparando fotografía…";
     try {
       const prepared = await window.Fotografias.preparar(file);
+      if (generation !== photoDraftGeneration) return;
       pendingPhoto = { file: prepared.archivo, key: crypto.randomUUID(), replacingId };
       const preview = one("#vehicle-photo-preview");
       preview.src = URL.createObjectURL(prepared.archivo);
@@ -735,8 +767,11 @@
       one("#vehicle-photo-pending").hidden = false;
       one("#vehicle-photo-feedback").textContent = "La vista previa no se ha subido todavía.";
     } catch (error) {
+      if (generation !== photoDraftGeneration) return;
       photoInput.disabled = false;
       one("#vehicle-photo-feedback").textContent = error.message;
+    } finally {
+      if (generation === photoDraftGeneration) photoPreparing = false;
     }
   });
 
@@ -886,11 +921,12 @@
   }
 
   async function selectConversation(conversation) {
+    if (currentConversation) drafts.set(String(currentConversation.id), one("#admin-reply-text").value);
     currentConversation = conversation;
     const generation = ++threadGeneration;
     messageCursor = 0;
     messageIds.clear();
-    drafts.set(String(conversation.id), "");
+    one("#admin-reply-text").value = drafts.get(String(conversation.id)) || "";
     threadMessages.replaceChildren();
     setThreadView(true);
     one("#admin-thread-title").textContent = `${conversation.marca || "Vehículo"} ${conversation.modelo || ""}`.trim();
@@ -905,7 +941,6 @@
       if (generation !== threadGeneration || String(currentConversation?.id) !== String(conversation.id)) return;
       (result.mensajes || []).forEach(appendMessage);
       one("#admin-thread-feedback").textContent = result.mensajes?.length ? "" : "Esta conversación aún no tiene mensajes.";
-      one("#admin-reply-text").value = drafts.get(String(conversation.id)) || "";
       if (window.matchMedia("(max-width: 640px)").matches) one("#admin-chat-back").focus();
       restartPolling();
     } catch (error) {
@@ -977,9 +1012,9 @@
         method: "POST", body: { contenido: content }, idempotencyKey: pendingReply.key,
       });
       if (result.mensaje && String(currentConversation?.id) === conversationId) appendMessage(result.mensaje, true);
+      if (drafts.get(conversationId)?.trim() === content) drafts.delete(conversationId);
       if (String(currentConversation?.id) === conversationId && one("#admin-reply-text").value.trim() === content) {
         one("#admin-reply-text").value = "";
-        drafts.set(conversationId, "");
       }
       pendingReply = null;
       one("#admin-thread-feedback").textContent = "Respuesta enviada.";
