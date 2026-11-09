@@ -19,6 +19,7 @@ class FakeDatabase:
         self.siguiente_id = max((fila.get("id", 0) for fila in self.filas), default=0) + 1
         self.lock = threading.Lock()
         self.queries = []
+        self.version_condicional = 0
 
     def conectar(self):
         return FakeConnection(self)
@@ -69,14 +70,17 @@ class FakeCursor:
             self.resultados = [{"total": len(self.db.filas)}]
             return self
 
-        if consulta.startswith("SELECT ") and "FROM public.vehiculos WHERE id = %s" in consulta:
+        if consulta == f"SELECT {persistencia.SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL":
             identificador = parametros[0]
-            fila = next((fila for fila in self.db.filas if fila["id"] == identificador), None)
-            self.resultados = [deepcopy(fila)] if fila is not None else []
+            fila = next((fila for fila in self.db.filas if fila["id"] == identificador and fila.get("retirado_en") is None), None)
+            self.resultados = [{k: deepcopy(fila[k]) for k in persistencia.CAMPOS_SALIDA if k in fila}] if fila is not None else []
             return self
 
-        if consulta.startswith("SELECT ") and "FROM public.vehiculos ORDER BY id" in consulta:
-            self.resultados = [deepcopy(fila) for fila in sorted(self.db.filas, key=lambda fila: fila["id"])]
+        consulta_listado = f"SELECT {persistencia.SELECCION} FROM public.vehiculos"
+        if consulta in (f"{consulta_listado} ORDER BY id", f"{consulta_listado} WHERE retirado_en IS NULL ORDER BY id"):
+            activas = "WHERE retirado_en IS NULL" in consulta
+            filas = [fila for fila in self.db.filas if not activas or fila.get("retirado_en") is None]
+            self.resultados = [{k: deepcopy(fila[k]) for k in persistencia.CAMPOS_SALIDA if k in fila} for fila in sorted(filas, key=lambda fila: fila["id"])]
             return self
 
         if consulta.startswith("INSERT INTO public.vehiculos ("):
@@ -97,19 +101,33 @@ class FakeCursor:
                 self.resultados = [deepcopy(fila)]
             return self
 
+        condicional = ("UPDATE public.vehiculos SET disponibilidad = %s, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') "
+                       f"WHERE id = %s AND retirado_en IS NULL AND updated_at = %s::timestamptz RETURNING {persistencia.SELECCION}")
+        if consulta == condicional:
+            valor, identificador, version = parametros
+            fila = next((fila for fila in self.db.filas if fila["id"] == identificador and fila.get("retirado_en") is None and fila["updated_at"] == version), None)
+            if fila is not None:
+                self.db.version_condicional += 1
+                fila.update(disponibilidad=valor, updated_at=f"fake-version-{self.db.version_condicional}")
+                self.resultados = [{k: deepcopy(fila[k]) for k in persistencia.CAMPOS_SALIDA if k in fila}]
+            return self
+
         if consulta.startswith("UPDATE public.vehiculos SET "):
-            coincidir = re.search(r"UPDATE public\.vehiculos SET (.*?), updated_at = now\(\) WHERE id = %s RETURNING", consulta)
+            coincidir = re.fullmatch(r"UPDATE public\.vehiculos SET (.*?), updated_at = now\(\) WHERE id = %s AND retirado_en IS NULL RETURNING " + re.escape(persistencia.SELECCION), consulta)
             if not coincidir:
                 raise AssertionError(f"UPDATE inesperado: {consulta}")
             asignaciones = [asignacion.strip() for asignacion in coincidir.group(1).split(",")]
+            permitidas = [[f"{campo} = %s" for campo in persistencia.CAMPOS_DATOS], ["disponibilidad = %s"]]
+            if asignaciones not in permitidas or len(parametros) != len(asignaciones) + 1:
+                raise AssertionError(f"Asignaciones no modeladas por el fake: {consulta}")
             columnas = [asignacion.split(" = ", 1)[0] for asignacion in asignaciones]
             valores = parametros[:-1]
             identificador = parametros[-1]
             fila = next((fila for fila in self.db.filas if fila["id"] == identificador), None)
-            if fila is not None:
+            if fila is not None and fila.get("retirado_en") is None:
                 fila.update(dict(zip(columnas, valores)))
                 fila["updated_at"] = "fake-updated-at"
-                self.resultados = [deepcopy(fila)]
+                self.resultados = [{k: deepcopy(fila[k]) for k in persistencia.CAMPOS_SALIDA if k in fila}]
             return self
 
         raise AssertionError(f"Consulta no modelada por el fake: {consulta}")
@@ -171,6 +189,36 @@ class PersistenciaFakeTest(unittest.TestCase):
         self.assertNotIn("id,", inserts[0].split(" VALUES", 1)[0])
         self.assertIn("RETURNING id", inserts[0])
         self.assertEqual(guardado["id"], 1)
+
+    def test_filas_retiradas_no_se_listan_ni_pueden_modificarse(self):
+        activa = persistencia.crear_vehiculo(vehiculo(1))
+        retirada = persistencia.crear_vehiculo(vehiculo(2))
+        self.db.filas[1]["retirado_en"] = "2026-11-09T12:00:00+00:00"
+        antes = deepcopy(self.db.filas[1])
+        self.assertEqual([fila["id"] for fila in persistencia.listar_vehiculos()], [activa["id"]])
+        self.assertIsNone(persistencia.obtener_vehiculo(retirada["id"]))
+        self.assertIsNone(persistencia.editar_vehiculo(retirada["id"], vehiculo(3)))
+        self.assertIsNone(persistencia.cambiar_disponibilidad(retirada["id"], "vendido"))
+        self.assertIsNone(persistencia.cambiar_disponibilidad_condicional(retirada["id"], "vendido", retirada["updated_at"]))
+        self.assertEqual(self.db.filas[1], antes)
+        with self.db.conectar() as conexion, conexion.cursor() as cursor:
+            cursor.execute(f"SELECT {persistencia.SELECCION} FROM public.vehiculos ORDER BY id")
+            self.assertEqual([fila["id"] for fila in cursor.fetchall()], [activa["id"], retirada["id"]])
+
+    def test_disponibilidad_condicional_exige_version_vigente(self):
+        creado = persistencia.crear_vehiculo(vehiculo(1))
+        actualizado = persistencia.cambiar_disponibilidad_condicional(creado["id"], "vendido", creado["updated_at"])
+        self.assertEqual(actualizado["disponibilidad"], "vendido")
+        self.assertNotEqual(actualizado["updated_at"], creado["updated_at"])
+        self.assertIsNone(persistencia.cambiar_disponibilidad_condicional(creado["id"], "disponible", creado["updated_at"]))
+        self.assertEqual(persistencia.obtener_vehiculo(creado["id"])["disponibilidad"], "vendido")
+
+    def test_fake_rechaza_consultas_no_modeladas(self):
+        with self.db.conectar() as conexion, conexion.cursor() as cursor:
+            with self.assertRaisesRegex(AssertionError, "Consulta no modelada"):
+                cursor.execute(f"SELECT {persistencia.SELECCION} FROM public.vehiculos WHERE retirado_en IS NOT NULL ORDER BY id")
+            with self.assertRaisesRegex(AssertionError, "Asignaciones no modeladas"):
+                cursor.execute(f"UPDATE public.vehiculos SET placa = %s, updated_at = now() WHERE id = %s AND retirado_en IS NULL RETURNING {persistencia.SELECCION}", ("x", 1))
 
     def test_cargar_demo_en_tabla_vacia_y_repetir_sin_duplicados(self):
         demo = [vehiculo(i) for i in range(1, 7)]
