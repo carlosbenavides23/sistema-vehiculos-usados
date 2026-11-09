@@ -17,6 +17,7 @@ const apiContracts = new Set([
   "PATCH /api/admin/chat/conversaciones/<uuid:conversacion_id>/atendida",
   "GET /api/vehiculos", "GET /api/vehiculos/<int:identificador>", "POST /api/vehiculos",
   "PUT /api/vehiculos/<int:identificador>", "PATCH /api/vehiculos/<int:identificador>/disponibilidad",
+  "POST /api/vehiculos/<int:identificador>/retirar",
   "POST /api/vehiculos/<int:identificador>/fotografias",
   "PUT /api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>",
   "DELETE /api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>",
@@ -125,7 +126,7 @@ test("un error de carga del inventario no se presenta como estado vacío", () =>
   assert.match(handler, /inventoryFeedback\.textContent = error\.status === 401/);
 });
 
-test("la página nueva no amplía el contrato de APIs ni expone datos en la ruta HTML", () => {
+test("la página administrativa conserva los contratos explícitos y no expone datos en la ruta HTML", () => {
   assert.match(backend, /@aplicacion\.get\("\/administracion"\)/);
   const pageRoute = backend.slice(backend.indexOf('@aplicacion.get("/administracion")'), backend.indexOf('@aplicacion.get("/api/admin/session")'));
   assert.match(pageRoute, /render_template\(/);

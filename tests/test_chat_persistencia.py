@@ -12,7 +12,8 @@ from unittest import skipUnless
 import psycopg
 
 import persistencia_chat as chat
-from test_postgres_integracion import base_aislada
+import persistencia
+from test_postgres_integracion import base_aislada, datos
 
 
 class ChatPersistenciaValidacionTest(unittest.TestCase):
@@ -61,6 +62,37 @@ class ChatPersistenciaPostgresTest(unittest.TestCase):
         return chat.enviar_mensaje_comprador(
             visitante_id, 1, clave, self.huella(contenido), contenido,
         )
+
+    def test_retiro_conserva_conversacion_y_bloquea_nuevo_mensaje(self):
+        vehiculo = persistencia.crear_vehiculo(datos(777))
+        _, ids = self.identidad()
+        texto = "Consulta ficticia"
+        primero = chat.enviar_mensaje_comprador(ids["visitante_id"], vehiculo["id"], uuid.uuid4(), self.huella(texto), texto)
+        self.assertEqual(persistencia.retirar_vehiculo(vehiculo["id"], vehiculo["updated_at"]), "retirado")
+        self.assertIsNone(chat.enviar_mensaje_comprador(ids["visitante_id"], vehiculo["id"], uuid.uuid4(), self.huella(texto), texto))
+        historial = chat.listar_mensajes(primero["conversacion"]["id"], visitante_id=ids["visitante_id"])
+        self.assertEqual(len(historial), 1)
+        self.assertEqual(historial[0]["contenido"], texto)
+
+    def test_retiro_concurrente_con_mensaje_no_permite_envio_posterior(self):
+        vehiculo = persistencia.crear_vehiculo(datos(778))
+        _, ids = self.identidad()
+        texto = "Consulta concurrente"
+        barrera = threading.Barrier(2)
+        def enviar():
+            barrera.wait()
+            return chat.enviar_mensaje_comprador(ids["visitante_id"], vehiculo["id"], uuid.uuid4(), self.huella(texto), texto)
+        def retirar():
+            barrera.wait()
+            return persistencia.retirar_vehiculo(vehiculo["id"], vehiculo["updated_at"])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            mensaje = pool.submit(enviar)
+            retiro = pool.submit(retirar)
+            anterior, resultado = mensaje.result(), retiro.result()
+        self.assertEqual(resultado, "retirado")
+        self.assertIsNone(chat.enviar_mensaje_comprador(ids["visitante_id"], vehiculo["id"], uuid.uuid4(), self.huella(texto), texto))
+        if anterior is not None:
+            self.assertEqual(len(chat.listar_mensajes(anterior["conversacion"]["id"], visitante_id=ids["visitante_id"])), 1)
 
     def test_sesion_hash_recuperacion_expiracion_y_revocacion(self):
         token_hash, ids = self.identidad()

@@ -65,13 +65,13 @@ def _normalizar_fila(fila):
 def listar_vehiculos():
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
-            cursor.execute(f"SELECT {SELECCION} FROM public.vehiculos ORDER BY id")
+            cursor.execute(f"SELECT {SELECCION} FROM public.vehiculos WHERE retirado_en IS NULL ORDER BY id")
             return [_normalizar_fila(fila) for fila in cursor.fetchall()]
 
 
 def buscar_vehiculos(filtros):
     """Consulta el catálogo con filtros normalizados y valores parametrizados."""
-    condiciones = []
+    condiciones = ["retirado_en IS NULL"]
     valores = []
 
     consulta = filtros.get("q")
@@ -126,7 +126,7 @@ def obtener_vehiculo(identificador):
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
-                f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s",
+                f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL",
                 (identificador,),
             )
             return _normalizar_fila(cursor.fetchone())
@@ -156,10 +156,13 @@ def crear_vehiculo(datos, clave_solicitud=None):
                     if anterior["huella"] != huella:
                         raise ValueError("La clave de solicitud ya se usó con otros datos.")
                     cursor.execute(
-                        f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s",
+                        f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL",
                         (anterior["vehiculo_id"],),
                     )
-                    return _normalizar_fila(cursor.fetchone())
+                    guardado = _normalizar_fila(cursor.fetchone())
+                    if guardado is None:
+                        raise ValueError("La publicación de esa solicitud fue retirada.")
+                    return guardado
             cursor.execute("SELECT COUNT(*) AS total FROM public.vehiculos")
             if cursor.fetchone()["total"] >= MAX_VEHICULOS:
                 return None
@@ -189,7 +192,7 @@ def editar_vehiculo(identificador, datos):
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET {asignaciones}, updated_at = now() "
-                f"WHERE id = %s RETURNING {SELECCION}",
+                f"WHERE id = %s AND retirado_en IS NULL RETURNING {SELECCION}",
                 (*valores, identificador),
             )
             return _normalizar_fila(cursor.fetchone())
@@ -200,7 +203,7 @@ def cambiar_disponibilidad(identificador, disponibilidad):
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET disponibilidad = %s, updated_at = now() "
-                f"WHERE id = %s RETURNING {SELECCION}",
+                f"WHERE id = %s AND retirado_en IS NULL RETURNING {SELECCION}",
                 (disponibilidad, identificador),
             )
             return _normalizar_fila(cursor.fetchone())
@@ -212,10 +215,30 @@ def cambiar_disponibilidad_condicional(identificador, disponibilidad, version_es
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET disponibilidad = %s, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') "
-                f"WHERE id = %s AND updated_at = %s::timestamptz RETURNING {SELECCION}",
+                f"WHERE id = %s AND retirado_en IS NULL AND updated_at = %s::timestamptz RETURNING {SELECCION}",
                 (disponibilidad, identificador, version_esperada),
             )
             return _normalizar_fila(cursor.fetchone())
+
+
+def retirar_vehiculo(identificador, version_esperada):
+    """Retira una versión concreta conservando fotos, objetos e historial."""
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT retirado_en, updated_at FROM public.vehiculos WHERE id = %s FOR UPDATE", (identificador,))
+            fila = cursor.fetchone()
+            if fila is None:
+                return "no_encontrado"
+            if fila["retirado_en"] is not None:
+                return "retirado"
+            cursor.execute("SELECT updated_at = %s::timestamptz AS coincide FROM public.vehiculos WHERE id = %s", (version_esperada, identificador))
+            if not cursor.fetchone()["coincide"]:
+                return "conflicto"
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM public.fotografia_operaciones WHERE vehiculo_id = %s AND estado = 'pendiente' AND created_at > now() - interval '1 hour') AS pendiente", (identificador,))
+            if cursor.fetchone()["pendiente"]:
+                return "fotografia_pendiente"
+            cursor.execute("UPDATE public.vehiculos SET retirado_en = clock_timestamp(), updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') WHERE id = %s", (identificador,))
+            return "retirado"
 
 
 def _firma(datos):
