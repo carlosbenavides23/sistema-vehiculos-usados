@@ -30,6 +30,7 @@
   let cursorComprador = null;
   let idsComprador = new Set();
   let solicitudCompradorPendiente = null;
+  let generacionFicha = 0;
 
   async function api(ruta, { metodo = "GET", cuerpoJson = null, csrf = "", idempotencyKey = "" } = {}) {
     const headers = { Accept: "application/json" };
@@ -107,6 +108,15 @@
     return `${conversacion.marca || "Vehículo"} ${conversacion.modelo || ""}`.trim();
   }
 
+  function actualizarAccesoFicha(id) {
+    generacionFicha += 1;
+    const boton = porId("chat-comprador-ver-ficha");
+    const valido = /^[1-9]\d*$/.test(String(id || ""));
+    boton.dataset.vehiculoId = valido ? String(id) : "";
+    boton.hidden = !valido;
+    porId("chat-comprador-ficha-no-disponible").hidden = valido;
+  }
+
   function claveBorradorComprador() { return conversacionComprador ? String(conversacionComprador.id) : `nueva:${idVehiculoFicha}`; }
   function persistirBorradoresComprador() {
     try { sessionStorage.setItem(claveStorageBorradores, JSON.stringify([...borradoresComprador])); } catch { /* borrador disponible durante esta página */ }
@@ -139,6 +149,7 @@
     idsComprador = new Set();
     porId("chat-comprador-mensajes").replaceChildren();
     porId("chat-comprador-vehiculo").textContent = nombreVehiculo(conversacion);
+    actualizarAccesoFicha(conversacion.vehiculo_id);
     porId("chat-comprador-estado").textContent = conversacion.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
     porId("chat-comprador-form").hidden = false;
     porId("chat-comprador-lista").querySelectorAll("button").forEach((boton) => {
@@ -157,6 +168,7 @@
     idsComprador = new Set();
     porId("chat-comprador-mensajes").replaceChildren();
     porId("chat-comprador-vehiculo").textContent = porId("ficha-titulo").textContent || "Nueva conversación";
+    actualizarAccesoFicha(idVehiculoFicha);
     porId("chat-comprador-estado").textContent = "Nueva consulta";
     porId("chat-comprador-form").hidden = false;
     estado(porId("chat-comprador-feedback"), "Escribe tu consulta para iniciar la conversación.");
@@ -332,6 +344,7 @@
       if (respuesta.conversacion) {
         conversacionComprador = respuesta.conversacion;
         porId("chat-comprador-vehiculo").textContent = nombreVehiculo(respuesta.conversacion);
+        actualizarAccesoFicha(respuesta.conversacion.vehiculo_id);
         porId("chat-comprador-estado").textContent = respuesta.conversacion.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
         porId("chat-comprador-form").hidden = false;
       } else if (!conversacionComprador) {
@@ -420,6 +433,29 @@
   }
 
   botonMensajesComprador?.addEventListener("click", abrirBandejaCompradorGlobal);
+  porId("chat-comprador-ver-ficha").addEventListener("click", async (evento) => {
+    const boton = evento.currentTarget;
+    const id = boton.dataset.vehiculoId;
+    if (!/^[1-9]\d*$/.test(id || "")) return;
+    const generacion = generacionComprador;
+    const fichaSolicitada = generacionFicha;
+    guardarBorradorComprador();
+    boton.disabled = true;
+    try {
+      const resultado = await api(`/api/vehiculos/${id}`);
+      if (!compradorAbierto || !dialogoComprador.open || generacion !== generacionComprador || fichaSolicitada !== generacionFicha || boton.dataset.vehiculoId !== id || porId("chat-comprador-hilo").hidden) return;
+      if (!resultado.vehiculo || String(resultado.vehiculo.id) !== id) throw new Error("No se encontró el vehículo.");
+      if (String(idVehiculoFicha) === id) cerrarComprador();
+      else {
+        const retorno = location.pathname === "/" ? `${location.pathname}${location.search}` : "/";
+        location.assign(`/vehiculo/${id}?retorno=${encodeURIComponent(retorno)}`);
+      }
+    } catch (error) {
+      if (compradorAbierto && dialogoComprador.open && generacion === generacionComprador && fichaSolicitada === generacionFicha && boton.dataset.vehiculoId === id && !porId("chat-comprador-hilo").hidden) {
+        estado(porId("chat-comprador-feedback"), error.status === 404 ? "Este vehículo ya no está disponible. Puedes seguir consultando tus mensajes." : "No pudimos comprobar la ficha. Inténtalo de nuevo; tu mensaje se conserva.", "error");
+      }
+    } finally { boton.disabled = false; }
+  });
   porId("chat-comprador-texto").addEventListener("input", guardarBorradorComprador);
 
   porId("cerrar-chat-comprador").addEventListener("click", cerrarComprador);

@@ -78,6 +78,7 @@ async function iniciar({
   conversacionesIniciales = null,
   conversacionCreada = null,
   storageInicial = null,
+  vehiculoStatus = 200,
 } = {}) {
   const ids = new Set([...source.matchAll(/porId\("([^"]+)"\)/g)].map((match) => match[1]));
   const elementos = new Map([...ids].map((id) => [id, new Element(id)]));
@@ -126,7 +127,10 @@ async function iniciar({
     }
     let data = {};
     let status = 200;
-    if (path === "/api/chat/conversaciones") {
+    if (path === "/api/vehiculos/2") {
+      status = vehiculoStatus;
+      data = status === 200 ? { ok: true, vehiculo: { id: 2 } } : { ok: false, mensaje: "No existe" };
+    } else if (path === "/api/chat/conversaciones") {
       if (errorLista) { status = errorLista.status; data = { ok: false, mensaje: errorLista.mensaje }; }
       else data = { ok: true, conversaciones, csrf_token: "buyer-csrf" };
     } else if (path === "/api/chat/sesion") data = { ok: true, csrf_token: "buyer-csrf" };
@@ -147,10 +151,12 @@ async function iniciar({
   const timers = new Map();
   const storage = storageInicial || new Map();
   let nextTimer = 0;
+  const location = { pathname: ficha ? "/vehiculo/2" : "/", search: ficha ? "" : "?q=Toyota", destino: "", assign(url) { this.destino = url; } };
   const context = {
     document: documento,
     window: { matchMedia: () => ({ matches: false }) },
     fetch,
+    location,
     sessionStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) { storage.set(key, value); } },
     crypto: { randomUUID },
     setTimeout(callback) { const timer = ++nextTimer; timers.set(timer, callback); return timer; },
@@ -174,8 +180,58 @@ async function iniciar({
   context.globalThis = context;
   vm.runInNewContext(source, context, { filename: "chat.js" });
   await new Promise((resolve) => setImmediate(resolve));
-  return { elementos, documento, cuerpo, requests, timers, storage, terminarCargaLista: () => liberarLista?.(), terminarEnvio: () => liberarEnvio?.() };
+  return { elementos, documento, cuerpo, requests, timers, storage, location, terminarCargaLista: () => liberarLista?.(), terminarEnvio: () => liberarEnvio?.() };
 }
+
+test("el hilo recuperado abre su ficha por ID y conserva el borrador y la búsqueda", async () => {
+  const app = await iniciar();
+  const e = app.elementos;
+  await e.get("abrir-chat-comprador-global").click();
+  await e.get("chat-comprador-lista").querySelector("button").click();
+  e.get("chat-comprador-texto").value = "Consulta pendiente";
+  await e.get("chat-comprador-texto").fire("input");
+  const enlace = e.get("chat-comprador-ver-ficha");
+  assert.equal(enlace.hidden, false);
+  await enlace.fire("click", { currentTarget: enlace });
+  assert.equal(app.location.destino, "/vehiculo/2?retorno=%2F%3Fq%3DToyota");
+  assert.equal(JSON.parse(app.storage.get("vehiculos-chat-borradores-v1"))[0][1].texto, "Consulta pendiente");
+});
+
+test("el vehículo ausente conserva el hilo y el texto, sin navegar", async () => {
+  const app = await iniciar({ vehiculoStatus: 404 });
+  const e = app.elementos;
+  await e.get("abrir-chat-comprador-global").click();
+  await e.get("chat-comprador-lista").querySelector("button").click();
+  e.get("chat-comprador-texto").value = "Borrador";
+  const enlace = e.get("chat-comprador-ver-ficha");
+  await enlace.fire("click", { currentTarget: enlace });
+  assert.equal(app.location.destino, "");
+  assert.equal(e.get("chat-comprador-dialogo").open, true);
+  assert.equal(e.get("chat-comprador-texto").value, "Borrador");
+  assert.match(e.get("chat-comprador-feedback").textContent, /ya no está disponible/);
+});
+
+test("una conversación sin identificador no ofrece un destino inválido", async () => {
+  const app = await iniciar({ conversacionesIniciales: [{ id: "22", vehiculo_id: null, marca: "Toyota", modelo: "Corolla" }] });
+  const e = app.elementos;
+  await e.get("abrir-chat-comprador-global").click();
+  await e.get("chat-comprador-lista").querySelector("button").click();
+  assert.equal(e.get("chat-comprador-ver-ficha").hidden, true);
+  assert.equal(e.get("chat-comprador-ficha-no-disponible").hidden, false);
+});
+
+test("una conversación nueva permite cerrar el panel para volver a la ficha", async () => {
+  const app = await iniciar({ ficha: true, conversacionesIniciales: [] });
+  const e = app.elementos;
+  await e.get("mostrar-chat").click();
+  e.get("chat-comprador-texto").value = "Consulta nueva";
+  const enlace = e.get("chat-comprador-ver-ficha");
+  assert.equal(enlace.hidden, false);
+  await enlace.fire("click", { currentTarget: enlace });
+  assert.equal(e.get("chat-comprador-dialogo").open, false);
+  assert.equal(app.cuerpo.classList.contains("dialog-open"), false);
+  assert.equal(JSON.parse(app.storage.get("vehiculos-chat-borradores-v1"))[0][1].texto, "Consulta nueva");
+});
 
 test("desde catálogo abre, vuelve y cierra X/Escape liberando scroll, polling y foco sin duplicar eventos", async () => {
   const app = await iniciar();

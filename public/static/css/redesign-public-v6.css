@@ -848,6 +848,11 @@
   font-size: 12px;
 }
 
+.buyer-chat-drawer #chat-comprador-ver-ficha:not([hidden]) {
+  display: flex;
+  margin-top: 10px;
+}
+
 .buyer-chat-drawer .chat-messages {
   gap: 18px;
   padding: 20px 0;
