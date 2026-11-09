@@ -82,7 +82,8 @@
 .admin-vehicle-meta { margin-top: 6px; display: block; color: var(--color-text-muted); font-size: 11px; line-height: 1.4; }
 .admin-price { white-space: nowrap; color: #1b3036; font-size: 14px; font-weight: 700; }
 .admin-state-pill { width: fit-content; min-height: 26px; padding: 5px 9px; display: inline-flex; align-items: center; border-radius: 6px; color: #35574f; background: #eaf1ed; font-size: 11px; line-height: 1.3; font-weight: 600; white-space: nowrap; }
-.admin-state-pill.is-sold, .admin-state-pill[data-state="atendida"] { color: var(--color-text-muted); background: #f0f3f1; }
+.admin-state-pill.is-sold { color: #862f26; background: #faeae6; }
+.admin-state-pill[data-state="atendida"] { color: var(--color-text-muted); background: #f0f3f1; }
 .admin-table-actions { display: flex; align-items: center; gap: 7px; }
 .admin-table-actions .admin-button { min-width: 66px; min-height: 38px; padding: 0 10px; font-size: 12px; }
 .admin-table-actions .admin-icon-button { width: 38px; height: 38px; border-color: #dbe5df; }

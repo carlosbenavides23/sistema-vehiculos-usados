@@ -414,8 +414,8 @@
 .vehicle-price-block .vehicle-badge.sold,
 .detail-heading .vehicle-badge.sold,
 .detail-purchase > .vehicle-badge.sold {
-  background: #eef0ef;
-  color: var(--color-text-muted);
+  background: #faeae6;
+  color: #862f26;
 }
 
 .detail-link {

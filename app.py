@@ -231,7 +231,7 @@ def create_app(configuracion=None):
         except (ValueError, AttributeError):
             return None, (jsonify(respuesta_error("La solicitud necesita una clave de envío UUID válida.")), 400)
 
-    def leer_json(campos):
+    def leer_json(campos, opcionales=()):
         try:
             cuerpo = request.get_json()
         except (BadRequest, UnsupportedMediaType):
@@ -239,7 +239,7 @@ def create_app(configuracion=None):
                 "No se pudo leer la solicitud.",
                 {"solicitud": "Envía un objeto JSON válido con Content-Type application/json."},
             )), 400)
-        if not isinstance(cuerpo, dict) or set(cuerpo) != set(campos):
+        if not isinstance(cuerpo, dict) or not set(campos) <= set(cuerpo) or set(cuerpo) - set(campos) - set(opcionales):
             return None, (jsonify(respuesta_error(
                 "La solicitud no tiene el formato esperado.",
                 {"solicitud": "Revisa los campos de la solicitud."},
@@ -663,7 +663,7 @@ def create_app(configuracion=None):
         rechazo = exigir_admin_y_csrf()
         if rechazo:
             return rechazo
-        cuerpo, fallo = leer_json({"disponibilidad"})
+        cuerpo, fallo = leer_json({"disponibilidad"}, {"version_esperada"})
         if fallo:
             return fallo
         disponibilidad = cuerpo["disponibilidad"]
@@ -672,11 +672,26 @@ def create_app(configuracion=None):
                 "Revisa la disponibilidad.",
                 {"disponibilidad": "Selecciona disponible o vendido."},
             )), 422
+        version = cuerpo.get("version_esperada")
+        if "version_esperada" in cuerpo:
+            try:
+                if not isinstance(version, str) or len(version) > 40:
+                    raise ValueError()
+                fecha = datetime.fromisoformat(version)
+                if fecha.tzinfo is None or fecha.utcoffset() is None:
+                    raise ValueError()
+            except ValueError:
+                return jsonify(respuesta_error("La versión del vehículo no es válida.")), 400
         try:
-            guardado = repositorio("cambiar_disponibilidad", identificador, disponibilidad)
+            if "version_esperada" in cuerpo:
+                guardado = repositorio("cambiar_disponibilidad_condicional", identificador, disponibilidad, version)
+            else:
+                guardado = repositorio("cambiar_disponibilidad", identificador, disponibilidad)
             salida = respuesta_vehiculo(guardado) if guardado is not None else None
         except Exception as error:
             return error_persistencia(error)
+        if guardado is None and "version_esperada" in cuerpo:
+            return jsonify(respuesta_error("El vehículo cambió o ya no está disponible. Actualiza el inventario.")), 409
         if guardado is None:
             return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
         return jsonify({"ok": True, "vehiculo": salida})

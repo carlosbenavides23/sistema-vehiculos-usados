@@ -2,6 +2,7 @@
 
 import os
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -52,6 +53,14 @@ def repositorio_falso():
         fila["disponibilidad"] = valor
         return dict(fila)
 
+    def disponibilidad_condicional(identificador, valor, version):
+        fila = next((fila for fila in filas if fila["id"] == identificador), None)
+        if fila is None or fila["updated_at"] != version:
+            return None
+        fila["disponibilidad"] = valor
+        fila["updated_at"] = (datetime.fromisoformat(version) + timedelta(microseconds=1)).isoformat()
+        return dict(fila)
+
     def crear_idempotente(datos, clave):
         if clave in solicitudes:
             anteriores, identificador = solicitudes[clave]
@@ -70,6 +79,7 @@ def repositorio_falso():
         "crear_vehiculo_idempotente": crear_idempotente,
         "editar_vehiculo": editar,
         "cambiar_disponibilidad": disponibilidad,
+        "cambiar_disponibilidad_condicional": disponibilidad_condicional,
     }
 
 
@@ -274,6 +284,21 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(actualizado.json["vehiculo"]["precio_centavos"], 1_950_000)
         self.assertEqual(actualizado.json["vehiculo"]["transmision"], "automatica")
         self.assertEqual(actualizado.json["vehiculo"]["combustible"], "gasolina")
+
+    def test_disponibilidad_condicional_impide_deshacer_version_obsoleta(self):
+        self.iniciar_admin()
+        headers = {"X-CSRF-Token": self.token(), "Idempotency-Key": str(uuid4())}
+        creado = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers=headers).json["vehiculo"]
+        ruta = f"/api/vehiculos/{creado['id']}/disponibilidad"
+        vendido = self.cliente.patch(ruta, json={"disponibilidad": "vendido", "version_esperada": creado["updated_at"]}, headers=headers)
+        self.assertEqual(vendido.status_code, 200)
+        version_vendida = vendido.json["vehiculo"]["updated_at"]
+        revertido = self.cliente.patch(ruta, json={"disponibilidad": "disponible", "version_esperada": version_vendida}, headers=headers)
+        self.assertEqual(revertido.status_code, 200)
+        obsoleto = self.cliente.patch(ruta, json={"disponibilidad": "vendido", "version_esperada": version_vendida}, headers=headers)
+        self.assertEqual(obsoleto.status_code, 409)
+        self.assertEqual(self.cliente.get(f"/api/vehiculos/{creado['id']}").json["vehiculo"]["disponibilidad"], "disponible")
+        self.assertEqual(self.cliente.patch(ruta, json={"disponibilidad": "vendido", "version_esperada": "inválida"}, headers=headers).status_code, 400)
 
     def test_escrituras_requieren_sesion_y_csrf(self):
         sin_sesion = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers={"X-CSRF-Token": self.token()})
