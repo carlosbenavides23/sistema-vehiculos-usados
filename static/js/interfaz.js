@@ -109,16 +109,21 @@
     const url = urlFotoSegura(valorUrl);
     const generacion = (generacionesFoto.get(imagen) || 0) + 1;
     generacionesFoto.set(imagen, generacion);
-    animacionesFoto.get(imagen)?.cancel();
+    const animacionAnterior = animacionesFoto.get(imagen);
     animacionesFoto.delete(imagen);
+    animacionAnterior?.cancel();
 
     const vigente = () => generacionesFoto.get(imagen) === generacion;
+    let finalizado = false;
+    let preparado = false;
     const fallar = () => {
-      if (!vigente()) return;
+      if (!vigente() || finalizado) return;
+      finalizado = true;
       imagen.onload = null;
       imagen.onerror = null;
-      animacionesFoto.get(imagen)?.cancel();
+      const animacion = animacionesFoto.get(imagen);
       animacionesFoto.delete(imagen);
+      animacion?.cancel();
       alFallar();
     };
     if (!url) {
@@ -126,63 +131,52 @@
       return;
     }
 
-    let resuelto = false;
-    const listo = () => {
-      if (resuelto || !vigente()) return;
-      resuelto = true;
-      const duracion = duracionMovimiento("--motion-duration-gallery", 180);
-      if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || typeof imagen.animate !== "function" || duracion < 2) {
-        imagen.onload = null;
-        imagen.onerror = null;
-        imagen.alt = textoAlternativo;
-        imagen.src = url;
-        alCompletar();
-        return;
-      }
+    const terminarCarga = () => {
+      if (!vigente() || finalizado || !preparado) return;
+      if (!imagen.complete || !imagen.naturalWidth || imagen.currentSrc !== url) return;
+      finalizado = true;
+      imagen.onload = null;
+      imagen.onerror = null;
+      alCompletar();
 
-      const animacionSalida = imagen.animate(
-        [{ opacity: 1 }, { opacity: 0 }],
-        { duration: Math.max(1, Math.round(duracion * 0.44)), easing: curvaMovimiento("--motion-ease-exit", "ease-in"), fill: "forwards" },
-      );
-      animacionesFoto.set(imagen, animacionSalida);
-      animacionSalida.finished.then(() => {
-        if (!vigente()) return;
-        imagen.alt = textoAlternativo;
-        let entradaIniciada = false;
-        const iniciarEntrada = () => {
-          if (!vigente() || entradaIniciada) return;
-          entradaIniciada = true;
-          imagen.onload = null;
-          const animacionEntrada = imagen.animate(
-            [{ opacity: 0 }, { opacity: 1 }],
-            { duration: Math.max(1, duracion - Math.round(duracion * 0.44)), easing: curvaMovimiento("--motion-ease-enter", "ease-out"), fill: "forwards" },
-          );
-          animacionesFoto.set(imagen, animacionEntrada);
-          animacionSalida.cancel();
-          animacionEntrada.finished.then(() => {
-            if (!vigente()) return;
-            animacionEntrada.cancel();
-            animacionesFoto.delete(imagen);
-            imagen.onload = null;
-            imagen.onerror = null;
-            alCompletar();
-          }).catch(() => {});
+      // El fundido es solo una mejora visual: la foto y el estado accesible ya
+      // se actualizaron, así que un WAAPI ausente o cancelado no puede bloquearlos.
+      try {
+        const duracion = duracionMovimiento("--motion-duration-gallery", 180);
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+          || !imagen.isConnected || typeof imagen.animate !== "function" || duracion < 2) return;
+        const animacion = imagen.animate(
+          [{ opacity: 0.84 }, { opacity: 1 }],
+          { duration: duracion, easing: curvaMovimiento("--motion-ease-enter", "ease-out") },
+        );
+        animacionesFoto.set(imagen, animacion);
+        const limpiarAnimacion = () => {
+          if (animacionesFoto.get(imagen) === animacion) animacionesFoto.delete(imagen);
         };
-        imagen.onload = iniciarEntrada;
-        imagen.onerror = fallar;
-        imagen.src = url;
-        if (imagen.complete && imagen.naturalWidth) requestAnimationFrame(iniciarEntrada);
-      }).catch(() => {});
+        animacion.finished.then(limpiarAnimacion, limpiarAnimacion).catch(() => {});
+      } catch (error) {
+        // Un error de animación no cambia el resultado de la carga de la foto.
+      }
+    };
+
+    const mostrar = () => {
+      if (!vigente() || finalizado || preparado) return;
+      preparado = true;
+      imagen.alt = textoAlternativo;
+      imagen.onload = terminarCarga;
+      imagen.onerror = fallar;
+      imagen.src = url;
+      if (imagen.complete && imagen.currentSrc === url) requestAnimationFrame(terminarCarga);
     };
 
     imagen.onload = null;
     imagen.onerror = fallar;
     const precarga = new Image();
-    precarga.onload = listo;
+    precarga.onload = mostrar;
     precarga.onerror = fallar;
     precarga.src = url;
     if (precarga.complete) {
-      if (precarga.naturalWidth) listo();
+      if (precarga.naturalWidth) mostrar();
       else fallar();
     }
   }
@@ -229,9 +223,11 @@
     const lista = porId("lista-vehiculos");
     lista.replaceChildren();
     const fragmento = document.createDocumentFragment();
+    const galeriasPendientes = [];
     vehiculos.forEach((vehiculo) => {
       const tarjeta = porId("plantilla-vehiculo").content.cloneNode(true);
-      tarjeta.querySelector("article").dataset.vehiculoId = vehiculo.id;
+      const articulo = tarjeta.querySelector("article");
+      articulo.dataset.vehiculoId = vehiculo.id;
       const disponible = vehiculo.disponibilidad === "disponible";
       const nombre = `${vehiculo.marca} ${vehiculo.modelo}`;
       tarjeta.querySelector("h3").textContent = nombre;
@@ -259,10 +255,11 @@
       const insignia = tarjeta.querySelector(".vehicle-badge");
       insignia.textContent = disponible ? "Disponible" : "Vendido";
       insignia.classList.toggle("sold", !disponible);
-      galeriaTarjeta(tarjeta, vehiculo);
+      galeriasPendientes.push([articulo, vehiculo]);
       fragmento.append(tarjeta);
     });
     lista.append(fragmento);
+    galeriasPendientes.forEach(([tarjeta, vehiculo]) => galeriaTarjeta(tarjeta, vehiculo));
 
     const total = vehiculos.length;
     const filtrosActivos = parametrosCatalogoActivos.size > 0;
