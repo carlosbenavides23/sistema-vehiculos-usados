@@ -51,15 +51,18 @@ test("solo marca como entrantes los mensajes nuevos de polling y envíos", () =>
   assert.match(adminScript, /appendMessage\(result\.mensaje, true\)/);
 });
 
-test("prepara la foto antes del fundido y descarta cambios atrasados de galería", () => {
+test("prepara la foto antes del fundido de entrada y no espera la animación para mostrarla", () => {
   assert.match(publicScript, /function mostrarFotoPreparada\(/);
   assert.match(publicScript, /const precarga = new Image\(\)/);
   assert.match(publicScript, /generacionesFoto\.set\(imagen, generacion\)/);
-  assert.match(publicScript, /if \(!vigente\(\)\) return/);
+  assert.match(publicScript, /if \(!vigente\(\) \|\| finalizado\) return/);
   assert.ok(publicScript.includes('window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches'));
   assert.match(publicScript, /imagen\.animate\(/);
   assert.match(publicScript, /imagen\.onerror = fallar/);
-  assert.match(publicScript, /let entradaIniciada = false/);
-  assert.match(publicScript, /if \(!vigente\(\) \|\| entradaIniciada\) return/);
-  assert.match(publicScript, /requestAnimationFrame\(iniciarEntrada\)/);
+  assert.match(publicScript, /imagen\.currentSrc !== url/);
+  assert.match(publicScript, /!imagen\.isConnected/);
+  assert.match(publicScript, /animacion\.finished\.then\(limpiarAnimacion, limpiarAnimacion\)/);
+  const completar = publicScript.indexOf("      alCompletar();", publicScript.indexOf("function mostrarFotoPreparada("));
+  const animar = publicScript.indexOf("const animacion = imagen.animate(", publicScript.indexOf("function mostrarFotoPreparada("));
+  assert.ok(completar >= 0 && animar > completar, "La carga finaliza antes de comenzar el fundido opcional.");
 });

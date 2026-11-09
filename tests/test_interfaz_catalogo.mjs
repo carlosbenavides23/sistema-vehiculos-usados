@@ -36,6 +36,17 @@ test("la ficha individual conserva descripción y detalles del vehículo", () =>
   assert.match(plantillaHtml, /id="ficha-caracteristicas"/);
 });
 
+test("inicializa las galerías del catálogo cuando las tarjetas ya están conectadas al DOM", () => {
+  const inicio = source.indexOf("  function renderizar() {");
+  const fin = source.indexOf("\n  function copiarFiltrosDesdeUrl", inicio);
+  const renderizar = source.slice(inicio, fin);
+  assert.ok(inicio >= 0 && fin > inicio);
+  const insercion = renderizar.indexOf("lista.append(fragmento)");
+  const inicializacion = renderizar.indexOf("galeriasPendientes.forEach(");
+  assert.ok(insercion >= 0 && inicializacion > insercion, "Las animaciones no deben empezar dentro del fragmento desconectado.");
+  assert.match(renderizar, /galeriasPendientes\.push\(\[articulo, vehiculo\]\)/);
+});
+
 test("la ficha no muestra centavos .00 en precios enteros y conserva centavos reales", () => {
   const declaracion = source.match(/function precioLegible\(centavos\)\s*\{[\s\S]*?\n  \}/)?.[0];
   assert.ok(declaracion, "Debe existir el formateador del precio de la ficha.");

@@ -16,6 +16,58 @@ RAIZ = Path(__file__).resolve().parents[1]
 
 
 class PreparacionRecursosVercelTest(unittest.TestCase):
+    def test_api_conserva_urls_de_fotografias_con_y_sin_filtros(self):
+        vehiculos = [
+            {
+                "id": 8101, "marca": "Toyota", "modelo": "Corolla", "anio": 2022,
+                "kilometraje": 30000, "precio_centavos": 1900000, "ubicacion": "Managua",
+                "descripcion": "Vehículo ficticio para comprobar la respuesta pública.",
+                "disponibilidad": "disponible", "transmision": "Automática",
+                "combustible": "Gasolina", "tipo_vehiculo": "Sedán", "color": "Azul",
+            },
+            {
+                "id": 8102, "marca": "Nissan", "modelo": "Sentra", "anio": 2021,
+                "kilometraje": 42000, "precio_centavos": 1650000, "ubicacion": "León",
+                "descripcion": "Vehículo ficticio para comprobar la respuesta pública.",
+                "disponibilidad": "disponible", "transmision": "Manual",
+                "combustible": "Gasolina", "tipo_vehiculo": "Sedán", "color": "Rojo",
+            },
+        ]
+        fotos = {
+            8101: [{"id": 1, "storage_path": "pruebas/toyota-a.jpg", "orden": 1}],
+            8102: [{"id": 2, "storage_path": "pruebas/nissan-b.jpg", "orden": 1}],
+        }
+
+        class StorageDoble:
+            def url_publica(self, ruta):
+                return f"https://imagenes.example.invalid/{ruta}"
+
+        aplicacion = create_app({
+            "TESTING": True,
+            "SECRET_KEY": "clave-solo-para-pruebas",
+            "APP_READ_ONLY": True,
+            "REPOSITORY": {"listar_vehiculos": lambda: vehiculos},
+            "PHOTO_REPOSITORY": {
+                "listar_por_vehiculos": lambda identificadores: {identificador: fotos[identificador] for identificador in identificadores},
+                "listar_fotografias": lambda identificador: fotos[identificador],
+            },
+            "STORAGE": StorageDoble(),
+        })
+
+        with aplicacion.test_client() as cliente:
+            for ruta, ids_esperados in (("/api/vehiculos", {8101, 8102}), ("/api/vehiculos?q=Toyota", {8101})):
+                with self.subTest(ruta=ruta):
+                    respuesta = cliente.get(ruta)
+                    self.assertEqual(respuesta.status_code, 200)
+                    registros = respuesta.json["vehiculos"]
+                    self.assertEqual({registro["id"] for registro in registros}, ids_esperados)
+                    for registro in registros:
+                        self.assertEqual(len(registro["fotografias"]), 1)
+                        self.assertEqual(
+                            registro["fotografias"][0]["url"],
+                            f"https://imagenes.example.invalid/{fotos[registro['id']][0]['storage_path']}",
+                        )
+
     def test_rutas_de_flask_responden_con_mime_de_recurso_y_no_html(self):
         aplicacion = create_app({"TESTING": True, "SECRET_KEY": "clave-solo-para-pruebas"})
         recursos = {
