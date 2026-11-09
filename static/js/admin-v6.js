@@ -57,6 +57,9 @@
   let pollBusy = false;
   let pendingReply = null;
   let inventoryGeneration = 0;
+  let availabilityBusy = false;
+  let availabilityUndo = null;
+  let availabilitySession = 0;
   const messageIds = new Set();
   const fieldErrorNames = new Set();
   const drafts = new Map();
@@ -155,10 +158,13 @@
       loadInventory();
       if (chatEnabled && currentView() === "conversations") loadInbox();
     } else {
+      availabilitySession += 1;
       stopPolling();
       currentConversation = null;
       drafts.clear();
       pendingReply = null;
+      availabilityUndo = null;
+      one("#availability-notice").hidden = true;
     }
   }
 
@@ -378,6 +384,8 @@
     actions.append(actionButton("Editar", () => editVehicle(vehicle.id)));
     actions.append(actionButton("Fotos", () => openPhotos(vehicle.id)));
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
+    actions.lastElementChild.classList.add("availability-toggle");
+    actions.lastElementChild.disabled = availabilityBusy;
     actionsCell.append(actions);
     row.append(infoCell, priceCell, stateCell, actionsCell);
     return row;
@@ -408,6 +416,7 @@
     actions.append(actionButton("Fotografías", () => openPhotos(vehicle.id)));
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
     actions.lastElementChild.classList.add("availability-toggle");
+    actions.lastElementChild.disabled = availabilityBusy;
     article.append(top, actions);
     return article;
   }
@@ -449,17 +458,60 @@
   one("#admin-inventory-filters")?.addEventListener("submit", (event) => { event.preventDefault(); loadInventory(); });
   one("#admin-clear-filters")?.addEventListener("click", () => { one("#admin-inventory-filters").reset(); loadInventory(); });
 
-  async function toggleAvailability(vehicle) {
-    const next = vehicle.disponibilidad === "vendido" ? "disponible" : "vendido";
+  function showAvailabilityNotice(message, canUndo = false, type = "success") {
+    const notice = one("#availability-notice");
+    notice.hidden = false;
+    notice.dataset.type = type;
+    one("#availability-message").textContent = message;
+    one("#availability-undo").hidden = !canUndo;
+  }
+
+  function setAvailabilityBusy(busy) {
+    availabilityBusy = busy;
+    all(".availability-toggle").forEach((button) => { button.disabled = busy; });
+    one("#availability-undo").disabled = busy;
+  }
+
+  async function changeAvailability(vehicle, next, undoing = false) {
+    if (availabilityBusy) return;
+    availabilityUndo = null;
+    if (!vehicle.updated_at) {
+      showAvailabilityNotice("No se puede comprobar la versión. Actualizá el inventario antes de cambiar la disponibilidad.", false, "error");
+      await loadInventory();
+      return;
+    }
+    setAvailabilityBusy(true);
+    const session = availabilitySession;
+    showAvailabilityNotice(undoing ? "Revirtiendo disponibilidad…" : "Actualizando disponibilidad…");
     try {
-      await request(`/vehiculos/${encodeURIComponent(vehicle.id)}/disponibilidad`, { method: "PATCH", body: { disponibilidad: next } });
-      setStatus(`Disponibilidad actualizada: ${next === "vendido" ? "vendido" : "disponible"}.`);
+      const result = await request(`/vehiculos/${encodeURIComponent(vehicle.id)}/disponibilidad`, { method: "PATCH", body: { disponibilidad: next, version_esperada: vehicle.updated_at } });
+      if (!authenticated || session !== availabilitySession) return;
+      if (!undoing && result.vehiculo?.updated_at) {
+        availabilityUndo = { id: vehicle.id, disponibilidad: vehicle.disponibilidad, updated_at: result.vehiculo.updated_at, title: vehicleTitle(vehicle) };
+      }
+      const title = vehicle.title || vehicleTitle(vehicle) || `Vehículo ${vehicle.id}`;
+      showAvailabilityNotice(`${undoing ? "Cambio deshecho" : "Disponibilidad actualizada"}: ${title}, ${next}.`, Boolean(availabilityUndo));
       await loadInventory();
     } catch (error) {
-      setStatus(error.status === 401 ? "Tu sesión administrativa venció." : error.message, "error");
+      if (!authenticated || session !== availabilitySession) return;
+      showAvailabilityNotice(error.status === 401 ? "Tu sesión administrativa venció." : `${error.message} Revisá el inventario antes de volver a intentar.`, false, "error");
       if (error.status === 401) setAuthenticated(false);
+      else await loadInventory();
+    } finally {
+      setAvailabilityBusy(false);
     }
   }
+
+  function toggleAvailability(vehicle) {
+    const next = vehicle.disponibilidad === "vendido" ? "disponible" : "vendido";
+    return changeAvailability(vehicle, next);
+  }
+
+  one("#availability-undo").addEventListener("click", () => {
+    if (!availabilityUndo || availabilityBusy) return;
+    const previous = availabilityUndo;
+    changeAvailability(previous, previous.disponibilidad, true);
+  });
 
   function clearFormErrors() {
     fieldErrorNames.clear();
@@ -658,6 +710,10 @@
         method: isNew ? "POST" : "PUT", body: { vehiculo: dataToSave }, idempotencyKey: isNew ? pendingCreate.key : undefined,
       });
       savedVehicle = result.vehiculo;
+      if (availabilityUndo && String(availabilityUndo.id) === String(savedVehicle.id)) {
+        availabilityUndo = null;
+        showAvailabilityNotice("El vehículo se editó; ya no se puede deshacer el cambio anterior.");
+      }
       historicalVehicleSelects.forEach((name) => {
         vehicleFieldValues.setPreservingCurrentValue(form.elements.namedItem(name), savedVehicle[name]);
       });

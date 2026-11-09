@@ -127,6 +127,19 @@ class PostgresIntegracionTest(unittest.TestCase):
         reserva = fotos.preparar_subida(vehiculo_id, clave, "a" * 64, fotografia_id)
         return fotos.guardar_fotografia(vehiculo_id, metadatos(reserva), clave, fotografia_id)
 
+    def test_disponibilidad_condicional_es_atomica_y_no_revierte_version_obsoleta(self):
+        vehiculo = persistencia.obtener_vehiculo(1)
+        version = vehiculo["updated_at"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            resultados = list(pool.map(lambda valor: persistencia.cambiar_disponibilidad_condicional(1, valor, version), ["vendido", "disponible"]))
+        exitos = [fila for fila in resultados if fila is not None]
+        self.assertEqual(len(exitos), 1)
+        actual = exitos[0]
+        anterior = vehiculo["disponibilidad"]
+        revertido = persistencia.cambiar_disponibilidad_condicional(1, anterior, actual["updated_at"])
+        self.assertIsNotNone(revertido)
+        self.assertIsNone(persistencia.cambiar_disponibilidad_condicional(1, "vendido", actual["updated_at"]))
+
     def test_migraciones_rls_privilegios_y_seis_demos(self):
         with psycopg.connect(self.dsn) as conexion:
             filas = conexion.execute("SELECT relname, relrowsecurity FROM pg_class "

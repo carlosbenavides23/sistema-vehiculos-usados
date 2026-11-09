@@ -206,6 +206,18 @@ def cambiar_disponibilidad(identificador, disponibilidad):
             return _normalizar_fila(cursor.fetchone())
 
 
+def cambiar_disponibilidad_condicional(identificador, disponibilidad, version_esperada):
+    """Solo modifica la fila si conserva la versión leída por el administrador."""
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE public.vehiculos SET disponibilidad = %s, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') "
+                f"WHERE id = %s AND updated_at = %s::timestamptz RETURNING {SELECCION}",
+                (disponibilidad, identificador, version_esperada),
+            )
+            return _normalizar_fila(cursor.fetchone())
+
+
 def _firma(datos):
     return tuple(datos.get(campo) for campo in CAMPOS_DATOS)
 
