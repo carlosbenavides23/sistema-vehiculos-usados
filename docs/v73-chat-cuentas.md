@@ -36,8 +36,10 @@ por minuto y reintentos idempotentes.
 
 ## API V7.3.2
 
-Las rutas nuevas permanecen disponibles solo con USER_AUTH_ENABLED y se bloquean
-en Vercel Production hasta la activación posterior de V7. Todas requieren
+Las rutas nuevas usan la política central de V7. Requieren
+`USER_AUTH_ENABLED=true`, dependencias válidas y, en Production,
+`V7_PRODUCTION_ENABLED=true`. Preview puede habilitar lecturas, pero fuerza
+solo lectura y bloquea registro, login y escrituras privadas. Todas requieren
 identidad verificada mediante cuentas.identidad(); las escrituras requieren el
 CSRF de la sesión Flask, Idempotency-Key UUID y solo aceptan el cuerpo
 {contenido}. No aceptan IDs de cuenta del cliente.
@@ -59,9 +61,7 @@ disponible a sus participantes, pero no admite mensajes nuevos.
 Los historiales previos de una publicación retirada continúan siendo accesibles
 a sus participantes, pero la publicación retirada no admite nuevos mensajes;
 una publicación retirada o heredada sin propietario no admite una conversación
-nueva. La API HTTP todavía no llama a este módulo;
-V7.3.2 debe integrar las funciones sin aceptar IDs de identidad como
-credenciales ni reutilizar los endpoints anónimos.
+nueva.
 
 ## Verificación
 
