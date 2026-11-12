@@ -5,7 +5,9 @@ import unittest
 
 from vehiculos import (
     MAX_ENTERO_SEGURO,
+    filtrar_vehiculos,
     validar_estado_legacy,
+    validar_filtros_busqueda,
     validar_vehiculo,
 )
 
@@ -18,7 +20,9 @@ def formulario(**cambios):
         "disponibilidad": "disponible", "color": "", "placa": "",
         "tipo_vehiculo": "", "transmision": "", "combustible": "",
         "aire_acondicionado": "", "ventanas_electricas": "",
-        "pantalla_multimedia": "",
+        "pantalla_multimedia": "", "version": "", "motor": "",
+        "numero_puertas": "", "capacidad_pasajeros": "",
+        "camara_reversa": "", "bluetooth": "",
     }
     datos.update(cambios)
     return datos
@@ -75,7 +79,7 @@ class ValidacionVehiculosTest(unittest.TestCase):
     def test_campos_opcionales_por_defecto_null_y_se_normalizan(self):
         resultado, errores = validar_vehiculo(formulario())
         self.assertEqual(errores, {})
-        for campo in ("color", "placa", "tipo_vehiculo", "transmision", "combustible", "aire_acondicionado", "ventanas_electricas", "pantalla_multimedia"):
+        for campo in ("color", "placa", "tipo_vehiculo", "transmision", "combustible", "aire_acondicionado", "ventanas_electricas", "pantalla_multimedia", "version", "motor", "numero_puertas", "capacidad_pasajeros", "camara_reversa", "bluetooth"):
             self.assertIsNone(resultado[campo])
         resultado, errores = validar_vehiculo(formulario(color=" gris ", placa="M 123-456", aire_acondicionado=True, ventanas_electricas=False))
         self.assertEqual(errores, {})
@@ -84,6 +88,94 @@ class ValidacionVehiculosTest(unittest.TestCase):
         self.assertIs(resultado["aire_acondicionado"], True)
         self.assertIs(resultado["ventanas_electricas"], False)
         self.assertIsNone(resultado["pantalla_multimedia"])
+
+    def test_ficha_tecnica_opcional_valida_limites_y_booleanos_triestado(self):
+        resultado, errores = validar_vehiculo(formulario(
+            version=" Touring ", motor=" 2.0 L, 4 cilindros ",
+            numero_puertas="5", capacidad_pasajeros="6",
+            camara_reversa="true", bluetooth=False,
+        ))
+        self.assertEqual(errores, {})
+        self.assertEqual(resultado["version"], "Touring")
+        self.assertEqual(resultado["motor"], "2.0 L, 4 cilindros")
+        self.assertEqual(resultado["numero_puertas"], 5)
+        self.assertEqual(resultado["capacidad_pasajeros"], 6)
+        self.assertIs(resultado["camara_reversa"], True)
+        self.assertIs(resultado["bluetooth"], False)
+        for campo, valor in (("numero_puertas", "0"), ("numero_puertas", "11"), ("numero_puertas", True), ("capacidad_pasajeros", "101"), ("capacidad_pasajeros", 1.5)):
+            with self.subTest(campo=campo, valor=valor):
+                self.assertIn(campo, validar_vehiculo(formulario(**{campo: valor}))[1])
+        self.assertIn("version", validar_vehiculo(formulario(version="x" * 41))[1])
+        self.assertIn("motor", validar_vehiculo(formulario(motor="x" * 61))[1])
+
+    def test_categorias_canonicas_aliases_y_rechazo_de_nuevas_cadenas_libres(self):
+        for etiqueta, codigo in (("Sedán", "sedan"), ("SUV", "suv"), ("Pick-up", "pickup"), ("Van / Microbús", "van_microbus"), ("Camión", "camion")):
+            with self.subTest(etiqueta=etiqueta):
+                resultado, errores = validar_vehiculo(formulario(tipo_vehiculo=etiqueta))
+                self.assertEqual(errores, {})
+                self.assertEqual(resultado["tipo_vehiculo"], codigo)
+        self.assertIn("tipo_vehiculo", validar_vehiculo(formulario(tipo_vehiculo="Familiar especial"))[1])
+
+    def test_tipo_historico_desconocido_se_preserva_solo_si_no_cambia(self):
+        historico = "Station Wagon especial"
+        resultado, errores = validar_vehiculo(
+            formulario(modelo="Modelo editado", tipo_vehiculo=historico),
+            valores_anteriores={"tipo_vehiculo": historico},
+        )
+        self.assertEqual(errores, {})
+        self.assertEqual(resultado["tipo_vehiculo"], historico)
+        sin_tipo_legacy = formulario(modelo="Modelo editado")
+        sin_tipo_legacy.pop("tipo_vehiculo")
+        resultado, errores = validar_vehiculo(
+            sin_tipo_legacy,
+            valores_anteriores={"tipo_vehiculo": historico},
+        )
+        self.assertEqual(errores, {})
+        self.assertEqual(resultado["tipo_vehiculo"], historico)
+        self.assertIn("tipo_vehiculo", validar_vehiculo(formulario(tipo_vehiculo="Otro tipo"), valores_anteriores={"tipo_vehiculo": historico})[1])
+
+    def test_filtro_tipo_canonico_alias_y_historico_desconocido(self):
+        inventario = [
+            {"id": 1, "marca": "Toyota", "modelo": "Sedán", "anio": 2020, "tipo_vehiculo": "Sedán"},
+            {"id": 2, "marca": "Ford", "modelo": "Pickup", "anio": 2021, "tipo_vehiculo": "Pickup"},
+            {"id": 3, "marca": "Subaru", "modelo": "Wagon", "anio": 2019, "tipo_vehiculo": "Station Wagon"},
+            {"id": 4, "marca": "Jeep", "modelo": "Especial", "anio": 2022, "tipo_vehiculo": "SUV especial"},
+            {"id": 5, "marca": "Honda", "modelo": "Civic", "anio": 2023, "tipo_vehiculo": "sedan"},
+            {"id": 6, "marca": "Subaru", "modelo": "Wagon", "anio": 2018, "tipo_vehiculo": "station wagon"},
+            {"id": 7, "marca": "Prueba", "modelo": "Unicode", "anio": 2018, "tipo_vehiculo": "Straße"},
+        ]
+
+        def buscar(**parametros):
+            filtros, errores = validar_filtros_busqueda(parametros)
+            self.assertEqual(errores, {})
+            return filtrar_vehiculos(inventario, filtros)
+
+        self.assertEqual({fila["id"] for fila in buscar(tipo_vehiculo="sedan")}, {1, 5})
+        self.assertEqual([fila["id"] for fila in buscar(tipo_vehiculo="pick-up")], [2])
+        self.assertEqual({fila["id"] for fila in buscar(tipo_vehiculo="Station Wagon")}, {3, 6})
+        self.assertEqual(buscar(tipo_vehiculo="Station Wagon especial"), [])
+        self.assertEqual(buscar(tipo_vehiculo="SUV"), [])
+        self.assertEqual(buscar(tipo_vehiculo="STRASSE"), [])
+        self.assertEqual([fila["id"] for fila in buscar(tipo_vehiculo="sedán", anio_min="2021")], [5])
+
+    def test_campos_nuevos_ausentes_preservan_y_null_explicito_limpia(self):
+        anteriores = {
+            "tipo_vehiculo": "suv", "version": "Limited", "motor": "2.0 L",
+            "numero_puertas": 5, "capacidad_pasajeros": 5,
+            "camara_reversa": False, "bluetooth": True,
+        }
+        formulario_antiguo = formulario()
+        for campo in anteriores:
+            formulario_antiguo.pop(campo, None)
+        actualizado, errores = validar_vehiculo(formulario_antiguo, valores_anteriores=anteriores)
+        self.assertEqual(errores, {})
+        for campo, valor in anteriores.items():
+            self.assertEqual(actualizado[campo], valor)
+        limpieza = formulario(**{campo: None for campo in anteriores})
+        actualizado, errores = validar_vehiculo(limpieza, valores_anteriores=anteriores)
+        self.assertEqual(errores, {})
+        for campo in anteriores:
+            self.assertIsNone(actualizado[campo])
 
     def test_transmision_y_combustible_validan_texto_historico_sin_normalizarlo(self):
         valores = (

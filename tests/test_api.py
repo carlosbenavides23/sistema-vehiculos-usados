@@ -84,6 +84,7 @@ def repositorio_falso():
         return fila
 
     return {
+        "filas": filas,
         "listar_vehiculos": lista,
         "obtener_vehiculo": obtener,
         "crear_vehiculo": crear,
@@ -296,6 +297,83 @@ class ApiPostgresContractTest(unittest.TestCase):
         self.assertEqual(actualizado.json["vehiculo"]["precio_centavos"], 1_950_000)
         self.assertEqual(actualizado.json["vehiculo"]["transmision"], "automatica")
         self.assertEqual(actualizado.json["vehiculo"]["combustible"], "gasolina")
+
+    def test_crear_editar_y_limpiar_ficha_tecnica_ampliada(self):
+        self.iniciar_admin()
+        creado = self.crear_vehiculo(
+            tipo_vehiculo="SUV", version="Limited", motor="2.0 L, 4 cilindros",
+            numero_puertas="5", capacidad_pasajeros="6",
+            camara_reversa="true", bluetooth="false",
+        )
+        self.assertEqual(creado["tipo_vehiculo"], "suv")
+        self.assertEqual(creado["tipo_vehiculo_etiqueta"], "SUV")
+        self.assertEqual(creado["version"], "Limited")
+        self.assertEqual(creado["motor"], "2.0 L, 4 cilindros")
+        self.assertEqual(creado["numero_puertas"], 5)
+        self.assertEqual(creado["capacidad_pasajeros"], 6)
+        self.assertIs(creado["camara_reversa"], True)
+        self.assertIs(creado["bluetooth"], False)
+
+        actualizado = self.cliente.put(
+            f"/api/vehiculos/{creado['id']}",
+            json={"vehiculo": formulario(
+                modelo="Corolla actualizado", tipo_vehiculo="sedan", version="SE",
+                motor="1.8 L", numero_puertas="4", capacidad_pasajeros="5",
+                camara_reversa="", bluetooth="true",
+            )},
+            headers={"X-CSRF-Token": self.token()},
+        )
+        self.assertEqual(actualizado.status_code, 200, actualizado.json)
+        ficha = actualizado.json["vehiculo"]
+        self.assertEqual(ficha["tipo_vehiculo"], "sedan")
+        self.assertEqual(ficha["version"], "SE")
+        self.assertEqual(ficha["motor"], "1.8 L")
+        self.assertEqual(ficha["numero_puertas"], 4)
+        self.assertEqual(ficha["capacidad_pasajeros"], 5)
+        self.assertIsNone(ficha["camara_reversa"])
+        self.assertIs(ficha["bluetooth"], True)
+
+    def test_edicion_compatibilidad_cliente_antiguo_y_tipo_historico_desconocido(self):
+        self.iniciar_admin()
+        creado = self.crear_vehiculo(version="Adventure", capacidad_pasajeros="7")
+        self.repo["filas"][0]["tipo_vehiculo"] = "Station Wagon clásico"
+        self.repo["filas"][0]["tipo_vehiculo_etiqueta"] = "Station Wagon clásico"
+
+        antiguo = formulario(modelo="Yaris", tipo_vehiculo="Station Wagon clásico")
+        for campo in ("version", "motor", "numero_puertas", "capacidad_pasajeros", "camara_reversa", "bluetooth"):
+            antiguo.pop(campo)
+        antigua_respuesta = self.cliente.put(
+            f"/api/vehiculos/{creado['id']}", json={"vehiculo": antiguo},
+            headers={"X-CSRF-Token": self.token()},
+        )
+        self.assertEqual(antigua_respuesta.status_code, 200, antigua_respuesta.json)
+        self.assertEqual(antigua_respuesta.json["vehiculo"]["tipo_vehiculo"], "Station Wagon clásico")
+        self.assertEqual(antigua_respuesta.json["vehiculo"]["version"], "Adventure")
+        self.assertEqual(antigua_respuesta.json["vehiculo"]["capacidad_pasajeros"], 7)
+
+        invalida = self.cliente.put(
+            f"/api/vehiculos/{creado['id']}",
+            json={"vehiculo": formulario(tipo_vehiculo="Sedán deportivo artesanal")},
+            headers={"X-CSRF-Token": self.token()},
+        )
+        self.assertEqual(invalida.status_code, 422)
+        self.assertIn("tipo_vehiculo", invalida.json["errores"])
+
+        seleccionada = self.cliente.put(
+            f"/api/vehiculos/{creado['id']}",
+            json={"vehiculo": formulario(tipo_vehiculo="Hatchback")},
+            headers={"X-CSRF-Token": self.token()},
+        )
+        self.assertEqual(seleccionada.status_code, 200)
+        self.assertEqual(seleccionada.json["vehiculo"]["tipo_vehiculo"], "hatchback")
+
+    def test_filtro_de_tipo_recibe_etiquetas_historicas_y_devuelve_categoria_estable(self):
+        self.iniciar_admin()
+        sedan = self.crear_vehiculo(tipo_vehiculo="Sedán")
+        self.crear_vehiculo(tipo_vehiculo="Pickup")
+        respuesta = self.cliente.get("/api/vehiculos?tipo_vehiculo=Sed%C3%A1n")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual([fila["id"] for fila in respuesta.json["vehiculos"]], [sedan["id"]])
 
     def test_disponibilidad_condicional_impide_deshacer_version_obsoleta(self):
         self.iniciar_admin()

@@ -14,6 +14,32 @@
   const chatEnabled = body.dataset.chatEnabled === "true";
   const vehicleFieldValues = window.AdminV6FieldValues;
   const historicalVehicleSelects = ["transmision", "combustible"];
+  const typeAliasData = JSON.parse(one("#vehicle-type-aliases")?.textContent || "{}");
+
+  function typeAliasKey(value) {
+    return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function setVehicleType(value) {
+    const field = form?.elements.namedItem("tipo_vehiculo");
+    if (!field) return;
+    field.querySelectorAll("option[data-historical-type]").forEach((option) => option.remove());
+    const canonical = typeAliasData[typeAliasKey(value)];
+    if (canonical) {
+      field.value = canonical;
+      return;
+    }
+    if (value === null || value === undefined || value === "") {
+      field.value = "";
+      return;
+    }
+    const historical = document.createElement("option");
+    historical.value = String(value);
+    historical.textContent = `Tipo histórico · ${value}`;
+    historical.dataset.historicalType = "true";
+    field.append(historical);
+    field.value = historical.value;
+  }
 
   const auth = one("#admin-auth");
   const workspace = one("#admin-workspace");
@@ -668,6 +694,7 @@
     pendingCreate = null;
     clearFormErrors();
     historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
+    setVehicleType(null);
     form.reset();
     one("#vehicle-form-title").textContent = "Registrar vehículo";
     one("#vehicle-form-subtitle").textContent = "Completá los datos para registrar un vehículo.";
@@ -691,14 +718,15 @@
     clearFormErrors();
     historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
     form.reset();
-    ["marca", "modelo", "anio", "kilometraje", "ubicacion", "descripcion", "disponibilidad", "color", "placa", "tipo_vehiculo"].forEach((name) => {
+    ["marca", "modelo", "anio", "kilometraje", "ubicacion", "descripcion", "disponibilidad", "color", "placa", "version", "motor", "numero_puertas", "capacidad_pasajeros"].forEach((name) => {
       const field = form.elements.namedItem(name);
       if (field) field.value = vehicle[name] ?? "";
     });
+    setVehicleType(vehicle.tipo_vehiculo);
     historicalVehicleSelects.forEach((name) => {
       vehicleFieldValues.setPreservingCurrentValue(form.elements.namedItem(name), vehicle[name]);
     });
-    ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia"].forEach((name) => {
+    ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia", "camara_reversa", "bluetooth"].forEach((name) => {
       const field = form.elements.namedItem(name);
       if (field) field.value = vehicle[name] === null || vehicle[name] === undefined ? "" : String(vehicle[name]);
     });
@@ -726,11 +754,14 @@
 
   function formData() {
     const values = Object.fromEntries(new FormData(form));
-    ["color", "placa", "tipo_vehiculo"].forEach((name) => { values[name] = values[name]?.trim() || null; });
+    ["color", "placa", "version", "motor"].forEach((name) => { values[name] = values[name]?.trim() || null; });
+    const tipoVehiculo = form.elements.namedItem("tipo_vehiculo")?.value;
+    values.tipo_vehiculo = tipoVehiculo || null;
+    ["numero_puertas", "capacidad_pasajeros"].forEach((name) => { values[name] = values[name] === "" ? null : values[name]; });
     historicalVehicleSelects.forEach((name) => {
       values[name] = vehicleFieldValues.serializedValue(form.elements.namedItem(name));
     });
-    ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia"].forEach((name) => {
+    ["aire_acondicionado", "ventanas_electricas", "pantalla_multimedia", "camara_reversa", "bluetooth"].forEach((name) => {
       values[name] = values[name] === "" ? null : values[name] === "true";
     });
     return values;

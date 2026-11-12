@@ -175,7 +175,7 @@
                 <div class="admin-field"><label for="vehicle-brand">Marca <span aria-hidden="true">*</span></label><input id="vehicle-brand" name="marca" maxlength="60" required autocomplete="off"><small data-error-for="marca"></small></div>
                 <div class="admin-field"><label for="vehicle-model">Modelo <span aria-hidden="true">*</span></label><input id="vehicle-model" name="modelo" maxlength="60" required autocomplete="off"><small data-error-for="modelo"></small></div>
                 <div class="admin-field"><label for="vehicle-year">Año <span aria-hidden="true">*</span></label><input id="vehicle-year" name="anio" type="number" min="1900" max="{{ max_year }}" step="1" inputmode="numeric" required><small data-error-for="anio"></small></div>
-                <div class="admin-field"><label for="vehicle-type">Tipo de vehículo</label><input id="vehicle-type" name="tipo_vehiculo" maxlength="40" placeholder="Ej. SUV, sedán o pickup"><small data-error-for="tipo_vehiculo"></small></div>
+                <div class="admin-field"><label for="vehicle-type">Tipo de vehículo</label><div class="admin-select-wrap"><select id="vehicle-type" name="tipo_vehiculo"><option value="">No especificado</option>{% for tipo in tipos_vehiculo %}<option value="{{ tipo.codigo }}">{{ tipo.etiqueta }}</option>{% endfor %}</select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="tipo_vehiculo"></small></div>
                 <div class="admin-field"><label for="vehicle-price">Precio (USD) <span aria-hidden="true">*</span></label><div class="admin-input-prefix"><span aria-hidden="true">$</span><input id="vehicle-price" name="precio_venta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div><small data-error-for="precio_venta"></small></div>
                 <div class="admin-field"><label for="vehicle-location">Ubicación <span aria-hidden="true">*</span></label><input id="vehicle-location" name="ubicacion" maxlength="100" placeholder="Managua" required><small data-error-for="ubicacion"></small></div>
               </div>
@@ -185,6 +185,10 @@
               <div class="admin-form-card-heading"><h2 id="vehicle-tech-title">Características técnicas</h2><p>Dejá los campos vacíos cuando la información no esté disponible.</p></div>
               <div class="admin-form-grid">
                 <div class="admin-field"><label for="vehicle-mileage">Kilometraje <span aria-hidden="true">*</span></label><div class="admin-input-suffix"><input id="vehicle-mileage" name="kilometraje" type="number" min="0" step="1" inputmode="numeric" required><span>km</span></div><small data-error-for="kilometraje"></small></div>
+                <div class="admin-field"><label for="vehicle-version">Versión</label><input id="vehicle-version" name="version" maxlength="40" placeholder="Ej. Limited"><small data-error-for="version"></small></div>
+                <div class="admin-field"><label for="vehicle-engine">Motor</label><input id="vehicle-engine" name="motor" maxlength="60" placeholder="Ej. 2.0 L, 4 cilindros"><small data-error-for="motor"></small></div>
+                <div class="admin-field"><label for="vehicle-doors">Número de puertas</label><input id="vehicle-doors" name="numero_puertas" type="number" min="1" max="10" step="1" inputmode="numeric" placeholder="No especificado"><small data-error-for="numero_puertas"></small></div>
+                <div class="admin-field"><label for="vehicle-passengers">Capacidad de pasajeros</label><input id="vehicle-passengers" name="capacidad_pasajeros" type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="No especificada"><small data-error-for="capacidad_pasajeros"></small></div>
                 <div class="admin-field"><label for="vehicle-transmission">Transmisión</label><div class="admin-select-wrap"><select id="vehicle-transmission" name="transmision"><option value="">No especificada</option><option>Automática</option><option>Manual</option><option>CVT</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="transmision"></small></div>
                 <div class="admin-field"><label for="vehicle-fuel">Combustible</label><div class="admin-select-wrap"><select id="vehicle-fuel" name="combustible"><option value="">No especificado</option><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="combustible"></small></div>
                 <div class="admin-field"><label for="vehicle-color">Color</label><input id="vehicle-color" name="color" maxlength="40"><small data-error-for="color"></small></div>
@@ -197,6 +201,8 @@
                   <div class="admin-field"><label for="vehicle-ac">Aire acondicionado</label><div class="admin-select-wrap"><select id="vehicle-ac" name="aire_acondicionado"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
                   <div class="admin-field"><label for="vehicle-windows">Ventanas eléctricas</label><div class="admin-select-wrap"><select id="vehicle-windows" name="ventanas_electricas"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
                   <div class="admin-field"><label for="vehicle-screen">Pantalla multimedia</label><div class="admin-select-wrap"><select id="vehicle-screen" name="pantalla_multimedia"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div></div>
+                  <div class="admin-field"><label for="vehicle-rear-camera">Cámara de reversa</label><div class="admin-select-wrap"><select id="vehicle-rear-camera" name="camara_reversa"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="camara_reversa"></small></div>
+                  <div class="admin-field"><label for="vehicle-bluetooth">Bluetooth</label><div class="admin-select-wrap"><select id="vehicle-bluetooth" name="bluetooth"><option value="">No especificado</option><option value="true">Sí</option><option value="false">No</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="bluetooth"></small></div>
                 </div>
               </fieldset>
             </section>
@@ -349,5 +355,6 @@
       </div>
     </form>
   </dialog>
+  <script id="vehicle-type-aliases" type="application/json">{{ mapa_alias_tipos_vehiculo | tojson }}</script>
 </body>
 </html>

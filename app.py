@@ -26,6 +26,7 @@ import cuentas
 import propiedad
 import politica_v7
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
+from tipos_vehiculo import MAPA_ALIAS_TIPOS_VEHICULO, TIPOS_VEHICULO, etiqueta_tipo_vehiculo
 
 
 MAX_SOLICITUD = 1_100_000
@@ -295,6 +296,7 @@ def create_app(configuracion=None):
         privado = (vendedor and str(owner) == vendedor['id']) or (session.get('admin_authenticated') and owner is None)
         if not privado:
             salida.pop("placa", None)
+        salida["tipo_vehiculo_etiqueta"] = etiqueta_tipo_vehiculo(salida.get("tipo_vehiculo")) if salida.get("tipo_vehiculo") else None
         if fotografias is None:
             fotografias = fotos_repositorio("listar_fotografias", vehiculo["id"])
         salida["fotografias"] = [respuesta_fotografia(f) for f in fotografias]
@@ -331,14 +333,15 @@ def create_app(configuracion=None):
 
     @aplicacion.get("/")
     def inicio():
-        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None, chat_habilitado=chat_publico_habilitado())
+        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None, chat_habilitado=chat_publico_habilitado(), tipos_vehiculo=TIPOS_VEHICULO, mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO)
 
     @aplicacion.get("/vehiculo/<int:identificador>")
     def pagina_vehiculo(identificador):
         # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
         return render_template(
             "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
-            chat_habilitado=chat_publico_habilitado(),
+            chat_habilitado=chat_publico_habilitado(), tipos_vehiculo=TIPOS_VEHICULO,
+            mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
         )
 
     @aplicacion.get("/administracion")
@@ -351,6 +354,8 @@ def create_app(configuracion=None):
             solo_lectura=current_app.config["APP_READ_ONLY"],
             chat_habilitado=chat_publico_habilitado(),
             max_year=datetime.now().year + 1,
+            tipos_vehiculo=TIPOS_VEHICULO,
+            mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
         ))
         respuesta.headers["Cache-Control"] = "no-store"
         return respuesta
@@ -902,7 +907,13 @@ def create_app(configuracion=None):
         cuerpo, fallo = leer_json({"vehiculo"})
         if fallo:
             return fallo
-        vehiculo, errores = validar_vehiculo(cuerpo["vehiculo"])
+        try:
+            anterior = repositorio("obtener_vehiculo", identificador)
+        except Exception as error:
+            return error_persistencia(error)
+        if anterior is None:
+            return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
+        vehiculo, errores = validar_vehiculo(cuerpo["vehiculo"], valores_anteriores=anterior)
         if errores:
             return jsonify(respuesta_error("Revisa los campos indicados.", errores)), 422
         try:
@@ -1172,7 +1183,7 @@ def create_app(configuracion=None):
 
     @aplicacion.get('/vendedor')
     def panel_vendedor():
-        return render_template('admin_v6.html', csrf_token=token_csrf(), solo_lectura=current_app.config['APP_READ_ONLY'], chat_habilitado=False, max_year=datetime.now().year+1, vendedor_panel=True)
+        return render_template('admin_v6.html', csrf_token=token_csrf(), solo_lectura=current_app.config['APP_READ_ONLY'], chat_habilitado=False, max_year=datetime.now().year+1, vendedor_panel=True, tipos_vehiculo=TIPOS_VEHICULO, mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO)
 
     @aplicacion.get('/api/vendedor/admin/session')
     def sesion_vendedor():

@@ -8,13 +8,15 @@ import uuid
 import propiedad
 
 from vehiculos import MAX_VEHICULOS
+from tipos_vehiculo import variantes_tipo_vehiculo
 
 
 CAMPOS_DATOS = (
     "marca", "modelo", "anio", "kilometraje", "precio_centavos", "ubicacion",
     "descripcion", "disponibilidad", "color", "placa", "tipo_vehiculo",
     "transmision", "combustible", "aire_acondicionado", "ventanas_electricas",
-    "pantalla_multimedia",
+    "pantalla_multimedia", "version", "motor", "numero_puertas",
+    "capacidad_pasajeros", "camara_reversa", "bluetooth",
 )
 CAMPOS_SALIDA = ("id", *CAMPOS_DATOS, "created_at", "updated_at", "vendedor_id")
 SELECCION = ", ".join(CAMPOS_SALIDA)
@@ -83,7 +85,7 @@ def buscar_vehiculos(filtros):
         # evita tratar los caracteres % y _ como comodines de LIKE.
         campos_busqueda = (
             "marca", "modelo", "descripcion", "ubicacion", "tipo_vehiculo",
-            "color", "transmision", "combustible",
+            "color", "transmision", "combustible", "version", "motor",
         )
         expresion_texto = "lower(concat_ws(' ', " + ", ".join(campos_busqueda) + "))"
         for palabra in consulta.casefold().split():
@@ -104,8 +106,9 @@ def buscar_vehiculos(filtros):
 
     tipo = filtros.get("tipo_vehiculo")
     if tipo:
-        condiciones.append("lower(tipo_vehiculo) = lower(%s)")
-        valores.append(tipo)
+        equivalentes = tuple(valor.casefold() for valor in variantes_tipo_vehiculo(tipo))
+        condiciones.append("lower(tipo_vehiculo) = ANY(%s)")
+        valores.append(list(equivalentes))
 
     where = " WHERE " + " AND ".join(condiciones) if condiciones else ""
     ordenes = {
@@ -140,12 +143,12 @@ def crear_vehiculo(datos, clave_solicitud=None):
     """Inserta una fila y deja que IDENTITY asigne el identificador."""
     clave = str(uuid.UUID(str(clave_solicitud))) if clave_solicitud is not None else None
     huella = hashlib.sha256(json.dumps(
-        {campo: datos[campo] for campo in CAMPOS_DATOS},
+        {campo: datos.get(campo) for campo in CAMPOS_DATOS},
         sort_keys=True, ensure_ascii=False, separators=(",", ":"),
     ).encode("utf-8")).hexdigest() if clave else None
     columnas = ", ".join(CAMPOS_DATOS)
     marcadores = ", ".join(["%s"] * len(CAMPOS_DATOS))
-    valores = tuple(datos[campo] for campo in CAMPOS_DATOS)
+    valores = tuple(datos.get(campo) for campo in CAMPOS_DATOS)
     scope, args = propiedad.condicion()
     if propiedad.vendedor.get():
         columnas += ', vendedor_id'
@@ -197,7 +200,7 @@ def crear_vehiculo_idempotente(datos, clave):
 def editar_vehiculo(identificador, datos):
     scope, args = propiedad.condicion()
     asignaciones = ", ".join(f"{campo} = %s" for campo in CAMPOS_DATOS)
-    valores = tuple(datos[campo] for campo in CAMPOS_DATOS)
+    valores = tuple(datos.get(campo) for campo in CAMPOS_DATOS)
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(

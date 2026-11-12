@@ -30,7 +30,7 @@ SEMILLA = next((RAIZ / "supabase/migrations").glob("*_seed_demo_vehicles.sql")).
 
 
 @contextmanager
-def base_aislada(preparar_auth=False):
+def base_aislada(preparar_auth=False, excluir_migracion=None):
     """Fixture reutilizable por pruebas HTTP: conserva intacta la base configurada."""
     dsn_base = os.environ.get("TEST_DATABASE_URL", "")
     parametros = conninfo_to_dict(dsn_base)
@@ -53,6 +53,8 @@ def base_aislada(preparar_auth=False):
                 if preparar_auth:
                     conexion.execute("CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY, raw_user_meta_data jsonb NOT NULL)")
                 for archivo in sorted((RAIZ / "supabase/migrations").glob("*.sql")):
+                    if archivo.name == excluir_migracion:
+                        continue
                     conexion.execute(archivo.read_text(encoding="utf-8-sig"))
             dsn = make_conninfo(**prueba)
             with patch.dict(os.environ, {"DATABASE_URL": dsn, "ALLOW_LOCAL_DATABASE": "true"}):
