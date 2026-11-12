@@ -9,7 +9,8 @@ import uuid
 os.environ.setdefault("FLASK_SECRET_KEY", "clave-exclusiva-del-test-local")
 
 from PIL import Image
-from werkzeug.security import generate_password_hash
+from test_api import identidad_simulada, VENDEDOR_TEST
+import roles_usuarios
 
 import almacenamiento
 from app import create_app
@@ -68,10 +69,15 @@ class FlujoIntegralTest(unittest.TestCase):
         aislamiento = base_aislada()
         self.dsn = aislamiento.__enter__()
         self.addCleanup(aislamiento.__exit__, None, None, None)
+        roles_usuarios.asignar_rol_inicial(VENDEDOR_TEST, 'vendedor')
+        identidad_patch = patch('cuentas.identidad', side_effect=identidad_simulada)
+        identidad_patch.start()
+        self.addCleanup(identidad_patch.stop)
         self.storage = StorageDoble()
         self.app = create_app({
             "TESTING": True, "SECRET_KEY": "secreto-test-integral",
-            "ADMIN_PASSWORD_HASH": generate_password_hash("acceso-test-integral"),
+            "USER_AUTH_ENABLED": True,
+            "CUENTA_AUTH": object(),
             "SESSION_COOKIE_SECURE": False, "APP_READ_ONLY": False, "STORAGE": self.storage,
         })
         self.cliente = self.app.test_client()
@@ -82,19 +88,18 @@ class FlujoIntegralTest(unittest.TestCase):
             return sesion["csrf_token"]
 
     def entrar(self):
-        respuesta = self.cliente.post("/api/admin/login", json={"password": "acceso-test-integral"}, headers={"X-CSRF-Token": self.csrf()})
-        self.assertEqual(respuesta.status_code, 200, respuesta.json)
+        self.cliente.set_cookie('fixture_auth', 'seller')
 
     def headers(self, clave=None):
         return {"X-CSRF-Token": self.csrf(), "Idempotency-Key": clave or str(uuid.uuid4())}
 
     def crear(self):
-        respuesta = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers=self.headers())
+        respuesta = self.cliente.post("/api/vendedor/vehiculos", json={"vehiculo": formulario()}, headers=self.headers())
         self.assertEqual(respuesta.status_code, 201, respuesta.json)
         return respuesta.json["vehiculo"]["id"]
 
     def subir(self, vehiculo_id, contenido=None, clave=None, foto_id=None):
-        ruta = f"/api/vehiculos/{vehiculo_id}/fotografias"
+        ruta = f"/api/vendedor/vehiculos/{vehiculo_id}/fotografias"
         if foto_id is not None:
             ruta += f"/{foto_id}"
         return self.cliente.open(ruta, method="PUT" if foto_id is not None else "POST",
@@ -104,22 +109,22 @@ class FlujoIntegralTest(unittest.TestCase):
         inicial = self.cliente.get("/api/vehiculos")
         self.assertEqual(len(inicial.json["vehiculos"]), 6)
         originales = inicial.json["vehiculos"]
-        self.assertEqual(self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}).status_code, 401)
+        self.assertEqual(self.cliente.post("/api/vendedor/vehiculos", json={"vehiculo": formulario()}).status_code, 401)
         self.entrar()
         clave = str(uuid.uuid4())
-        primera = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers=self.headers(clave))
-        repetida = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario()}, headers=self.headers(clave))
+        primera = self.cliente.post("/api/vendedor/vehiculos", json={"vehiculo": formulario()}, headers=self.headers(clave))
+        repetida = self.cliente.post("/api/vendedor/vehiculos", json={"vehiculo": formulario()}, headers=self.headers(clave))
         self.assertEqual(primera.json["vehiculo"]["id"], repetida.json["vehiculo"]["id"])
         identificador = primera.json["vehiculo"]["id"]
-        distinta = self.cliente.post("/api/vehiculos", json={"vehiculo": formulario(modelo="Otro")}, headers=self.headers(clave))
+        distinta = self.cliente.post("/api/vendedor/vehiculos", json={"vehiculo": formulario(modelo="Otro")}, headers=self.headers(clave))
         self.assertEqual(distinta.status_code, 409)
-        self.assertEqual(self.cliente.put(f"/api/vehiculos/{identificador}", json={"vehiculo": formulario()}, headers={}).status_code, 403)
-        editada = self.cliente.put(f"/api/vehiculos/{identificador}", json={"vehiculo": formulario(modelo="Editado")}, headers=self.headers())
+        self.assertEqual(self.cliente.put(f"/api/vendedor/vehiculos/{identificador}", json={"vehiculo": formulario()}, headers={}).status_code, 403)
+        editada = self.cliente.put(f"/api/vendedor/vehiculos/{identificador}", json={"vehiculo": formulario(modelo="Editado")}, headers=self.headers())
         self.assertEqual(editada.json["vehiculo"]["id"], identificador)
         self.assertTrue(editada.json["vehiculo"]["aire_acondicionado"])
         self.assertFalse(editada.json["vehiculo"]["ventanas_electricas"])
         self.assertIsNone(editada.json["vehiculo"]["pantalla_multimedia"])
-        self.cliente.patch(f"/api/vehiculos/{identificador}/disponibilidad", json={"disponibilidad": "vendido"}, headers=self.headers())
+        self.cliente.patch(f"/api/vendedor/vehiculos/{identificador}/disponibilidad", json={"disponibilidad": "vendido"}, headers=self.headers())
         lector = self.app.test_client()
         registro = lector.get(f"/api/vehiculos/{identificador}").json["vehiculo"]
         self.assertEqual(registro["modelo"], "Editado")
@@ -146,7 +151,7 @@ class FlujoIntegralTest(unittest.TestCase):
                 tipo_vehiculo=tipo,
             )
             respuesta = self.cliente.post(
-                "/api/vehiculos", json={"vehiculo": datos},
+                "/api/vendedor/vehiculos", json={"vehiculo": datos},
                 headers=self.headers(),
             )
             self.assertEqual(respuesta.status_code, 201, respuesta.json)
@@ -195,7 +200,7 @@ class FlujoIntegralTest(unittest.TestCase):
             self.assertLessEqual(max(imagen.size), 1600)
         self.assertEqual(self.subir(identificador, clave=clave).json["fotografia"]["id"], foto["id"])
         self.assertEqual(len(self.storage.objetos), 1)
-        editada = self.cliente.put(f"/api/vehiculos/{identificador}", json={"vehiculo": formulario(modelo="Conserva foto")}, headers=self.headers())
+        editada = self.cliente.put(f"/api/vendedor/vehiculos/{identificador}", json={"vehiculo": formulario(modelo="Conserva foto")}, headers=self.headers())
         self.assertEqual(editada.json["vehiculo"]["fotografias"][0]["id"], foto["id"])
         self.storage.fallar_subida = True
         fallida = self.subir(identificador, png("red"), foto_id=foto["id"])
@@ -209,7 +214,7 @@ class FlujoIntegralTest(unittest.TestCase):
         self.assertIn(original, self.storage.objetos)
         nueva_ruta = reemplazo.json["fotografia"]["storage_path"]
         self.assertNotEqual(nueva_ruta, original)
-        borrada = self.cliente.delete(f"/api/vehiculos/{identificador}/fotografias/{foto['id']}", headers=self.headers())
+        borrada = self.cliente.delete(f"/api/vendedor/vehiculos/{identificador}/fotografias/{foto['id']}", headers=self.headers())
         self.assertEqual(borrada.status_code, 200)
         self.assertEqual(borrada.json["fotografias"], [])
         self.assertTrue(borrada.json["limpieza_pendiente"])
@@ -240,21 +245,6 @@ class FlujoIntegralTest(unittest.TestCase):
         self.assertEqual(reintento.status_code, 201, reintento.json)
         self.assertEqual(len(reintento.json["fotografias"]), 1)
         self.assertEqual(len(self.storage.objetos), 1)
-
-    def test_intentos_persisten_al_cambiar_cookies_y_no_calculan_hash_bloqueado(self):
-        for _ in range(5):
-            cliente = self.app.test_client()
-            cliente.get("/")
-            respuesta = cliente.post("/api/admin/login", json={"password": "incorrecta"}, headers={"X-CSRF-Token": self.csrf(cliente)})
-            self.assertEqual(respuesta.status_code, 401)
-        cliente = self.app.test_client()
-        cliente.get("/")
-        with patch("app.check_password_hash") as verificador:
-            bloqueada = cliente.post("/api/admin/login", json={"password": "acceso-test-integral"}, headers={"X-CSRF-Token": self.csrf(cliente)})
-        self.assertEqual(bloqueada.status_code, 429)
-        verificador.assert_not_called()
-        self.assertGreater(int(bloqueada.headers["Retry-After"]), 0)
-
 
 if __name__ == "__main__":
     unittest.main()

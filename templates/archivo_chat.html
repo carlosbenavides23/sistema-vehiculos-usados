@@ -1,0 +1,38 @@
+{% from 'macros/icons.html' import lucide_icon %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archivo histórico · Panel de vendedor</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/vehiculo.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/redesign.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-v6.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/archivo-chat.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/iconos.css') }}">
+  <script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/archivo-chat.js') }}"></script>
+</head>
+<body class="admin-v6">
+  <a class="skip-link" href="#archivo">Saltar al archivo</a>
+  <header class="admin-topbar"><div class="admin-topbar-inner"><a class="admin-brand" href="/vendedor">Panel de vendedor</a><a class="admin-button admin-button-secondary" href="/vendedor">Volver al inventario</a></div></header>
+  <main id="archivo" class="archive-content">
+    <div class="admin-page-heading"><div><p class="admin-eyebrow">Solo lectura</p><h1>Archivo histórico</h1><p>Consultas anónimas anteriores a las cuentas. No se pueden responder desde este archivo.</p></div></div>
+    {% if conversacion %}
+      <a class="admin-button admin-button-secondary" href="/vendedor/archivo">{{ lucide_icon('arrow-left', 20) }}Volver al archivo</a>
+      <section class="admin-form-card archive-thread" aria-labelledby="archivo-vehiculo">
+        <h2 id="archivo-vehiculo">{{ conversacion.marca }} {{ conversacion.modelo }} · {{ conversacion.anio }}</h2>
+        <div role="log" aria-label="Mensajes archivados">
+          {% for mensaje in mensajes %}<article class="archive-message"><p><strong>{{ 'Comprador anónimo' if mensaje.remitente == 'comprador' else 'Administración anterior' }}</strong> · <time datetime="{{ mensaje.created_at.isoformat() }}">{{ mensaje.created_at.strftime('%d/%m/%Y %H:%M') }}</time></p><p class="archive-message-content">{{ mensaje.contenido }}</p></article>{% else %}<p>No hay mensajes en esta página.</p>{% endfor %}
+        </div>
+      </section>
+      {% if siguiente %}<a class="admin-button admin-button-secondary" href="{{ url_for('archivo_historico', conversacion_id=conversacion.id, despues=siguiente) }}">Mensajes siguientes</a>{% endif %}
+    {% else %}
+      <ul class="archive-list" aria-label="Conversaciones archivadas">
+      {% for fila in conversaciones %}<li class="admin-form-card"><h2>{{ fila.marca }} {{ fila.modelo }} · {{ fila.anio }}</h2><a class="admin-button admin-button-secondary" href="{{ url_for('archivo_historico', conversacion_id=fila.id) }}">Consultar historial<span class="visually-hidden"> de {{ fila.marca }} {{ fila.modelo }}</span></a></li>{% else %}<li>No hay conversaciones históricas de tus vehículos.</li>{% endfor %}
+      </ul>
+      {% if siguiente %}<a class="admin-button admin-button-secondary" href="{{ url_for('archivo_historico', cursor=siguiente) }}">Conversaciones siguientes</a>{% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

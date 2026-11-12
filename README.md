@@ -8,11 +8,10 @@ PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modif
 
 - Catálogo público, características opcionales y galería de hasta cinco fotografías por vehículo.
 - Búsqueda por texto con filtros combinables de disponibilidad, precio, año y tipo de vehículo, ordenamiento por precio o año, y fichas públicas compartibles.
-- Registro, edición y disponibilidad con administración Flask, CSRF e idempotencia de altas.
-- Color, placa, tipo, transmisión, combustible y equipamiento triestado: Sí, No y No especificado. La placa se entrega únicamente a la sesión administrativa.
+- Registro, edición, disponibilidad y retiro por vendedor propietario autenticado con Supabase Auth, CSRF e idempotencia de altas.
+- Color, placa, tipo, transmisión, combustible y equipamiento triestado: Sí, No y No especificado. La placa se entrega únicamente al vendedor propietario autenticado.
 - Preparación JPEG/PNG/WebP en navegador y validación/recodificación WebP en Python. Persistencia de objetos mediante Supabase Storage, bucket existente `vehiculos`.
 - Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
-- Límite de acceso persistente en PostgreSQL, compartido entre procesos y resistente a borrar cookies.
 
 Los registros iniciales son ficticios. Las cuentas de compradores y vendedores y el chat privado se desarrollan en V7.1–V7.6; pagos y certificación mecánica permanecen fuera del alcance confirmado. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
 
@@ -27,7 +26,6 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
-.\.venv\Scripts\python.exe -c "from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass()))"
 ```
 
 Linux, desde la raíz:
@@ -37,10 +35,9 @@ python3 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
 test -e .env || cp .env.example .env
 ./.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))'
-./.venv/bin/python -c 'from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass()))'
 ```
 
-Si `.env` ya existe, edítalo y conserva sus valores; no vuelvas a copiar la plantilla encima. Los dos últimos comandos generan la clave Flask y el hash de la contraseña administrativa. Introduce la contraseña mediante el prompt privado, nunca en argumentos de comandos ni en texto claro dentro de `.env`.
+Si `.env` ya existe, edítalo y conserva sus valores; no vuelvas a copiar la plantilla encima. El último comando genera la clave Flask. La autenticación interactiva utiliza Supabase Auth; no se configura una contraseña administrativa global.
 
 | Variable | Configuración |
 | --- | --- |
@@ -49,10 +46,8 @@ Si `.env` ya existe, edítalo y conserva sus valores; no vuelvas a copiar la pla
 | `SUPABASE_SECRET_KEY` | Clave moderna `sb_secret_...`, exclusivamente de servidor. Se envía como `apikey`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Alternativa heredada JWT `service_role` cuando no hay `SUPABASE_SECRET_KEY`. Nunca usar una clave pública para escribir. |
 | `FLASK_SECRET_KEY` | Clave aleatoria para firmar sesiones. Distinta por ambiente. |
-| `ADMIN_PASSWORD_HASH` | Hash Werkzeug scrypt. Sin él la administración no inicia sesión. |
 | `SESSION_COOKIE_SECURE` | `false` solo en HTTP local; `true` en HTTPS. Vercel la fuerza a segura. |
 | `APP_READ_ONLY` | `true` bloquea login y todas las escrituras. Preview de Vercel siempre fuerza este modo. |
-| `CHAT_ENABLED` | `false` por defecto. Preview y solo lectura lo fuerzan a `false`; habilitar Production requiere autorización y migración aplicada. |
 | `ALLOW_LOCAL_DATABASE` | `true` solo para PostgreSQL loopback aislado sin TLS. En remoto el driver siempre exige TLS. |
 
 Las claves se configuran dentro del archivo local o las variables del ambiente, nunca en Git, HTML, JavaScript, capturas o mensajes. El navegador no se conecta directamente a PostgreSQL ni recibe claves Supabase.
@@ -83,13 +78,12 @@ En Linux sustituye el ejecutable por `./.venv/bin/python`. La primera orden no b
 | Método y ruta | Acceso / cuerpo |
 | --- | --- |
 | `GET /api/vehiculos` y `GET /api/vehiculos/<id>` | Consulta pública. Devuelve vehículos con `fotografias`; omite placa sin sesión. |
-| `POST /api/vehiculos` | Admin + CSRF + `Idempotency-Key` UUID; JSON `{vehiculo}`. |
-| `PUT /api/vehiculos/<id>` | Admin + CSRF; JSON `{vehiculo}`. Conserva ID y fotos. |
-| `PATCH /api/vehiculos/<id>/disponibilidad` | Admin + CSRF; JSON `{disponibilidad}`. |
-| `POST /api/vehiculos/<id>/fotografias` | Admin + CSRF + UUID; multipart con un único campo `fotografia`. |
-| `PUT /api/vehiculos/<id>/fotografias/<foto_id>` | Admin + CSRF + UUID; sustituye con multipart individual. |
-| `DELETE /api/vehiculos/<id>/fotografias/<foto_id>` | Admin + CSRF; retira referencia y encola limpieza. |
-| `GET /api/admin/session`, `POST /api/admin/login`, `POST /api/admin/logout` | Estado, login `{password}` y logout; mutaciones con CSRF. |
+| `POST /api/vendedor/vehiculos` | Vendedor propietario + CSRF + `Idempotency-Key` UUID; JSON `{vehiculo}`. |
+| `PUT /api/vendedor/vehiculos/<id>` | Vendedor propietario + CSRF; JSON `{vehiculo}`. Conserva ID y fotos. |
+| `PATCH /api/vendedor/vehiculos/<id>/disponibilidad` | Vendedor propietario + CSRF; JSON `{disponibilidad}`. |
+| `POST /api/vendedor/vehiculos/<id>/fotografias` | Vendedor propietario + CSRF + UUID; multipart con un único campo `fotografia`. |
+| `PUT /api/vendedor/vehiculos/<id>/fotografias/<foto_id>` | Vendedor propietario + CSRF + UUID; sustituye con multipart individual. |
+| `DELETE /api/vendedor/vehiculos/<id>/fotografias/<foto_id>` | Vendedor propietario + CSRF; retira referencia y encola limpieza. |
 
 El token CSRF viaja en `X-CSRF-Token`; una alta o carga reintentada conserva su mismo UUID y contenido. Reutilizarlo con datos diferentes devuelve 409. Los formularios envían únicamente un vehículo, nunca la colección completa. Los precios permanecen en USD y PostgreSQL guarda centavos enteros. Las respuestas API y la página con CSRF llevan `Cache-Control: no-store`.
 
@@ -107,15 +101,9 @@ La ficha admite versión, motor, puertas, capacidad de pasajeros y los indicador
 
 La transferencia operativa del inventario sin propietario a una cuenta vendedora se prepara con `scripts/transferir_inventario.py`. Requiere plan y respaldo externos, nunca se ejecuta desde Flask ni durante el despliegue. Consultar [el procedimiento V7.8](docs/v78-migracion-inventario.md) antes de cualquier aplicación o reversión.
 
-## Mensajería (implementada, aún desactivada)
+## Mensajería y archivo histórico V7.9
 
-El chat comprador-administrador usa Flask y PostgreSQL sin exponer tablas a Supabase Data API. El comprador recibe una credencial aleatoria del servidor en una cookie HttpOnly/SameSite=Lax, Secure bajo HTTPS, con expiración de **30 días**. PostgreSQL guarda solo el hash SHA-256. Esta identidad es independiente de la sesión administrativa.
-
-La conversación se crea al enviar el primer mensaje, nunca al abrir la ficha. El límite HTTP es 2.000 caracteres y hay un límite persistente de ocho mensajes de comprador por minuto. La emisión de identidades nuevas también se limita a 20 por hora y por HMAC de origen; este digest se usa exclusivamente para abuso, no como identidad, y no se almacena la IP en claro ni se confía `X-Forwarded-For`. Reintentos con la misma clave UUID no duplican mensajes. El administrador usa la sesión y CSRF actuales. El polling consulta mensajes nuevos cada cuatro segundos con la conversación abierta y se pausa cuando la pestaña queda oculta.
-
-`CHAT_ENABLED` está en `false` por defecto y la interfaz no muestra el módulo. Vercel Preview y cualquier entorno de solo lectura lo fuerzan a `false`. Para probar en desarrollo, configura `CHAT_ENABLED=true` solo junto a PostgreSQL local aislado y aplica allí `supabase/migrations/20261105103900_chat_anonimo.sql`. Este PR no aplica migraciones a Supabase. Antes de habilitar el chat público se debe autorizar y aplicar el DDL, verificar respaldos/permisos, definir retención y borrado, y habilitar `CHAT_ENABLED=true` solo en Production.
-
-Las conversaciones y mensajes no tienen purga automática en esta entrega. La política y mecanismo de retención deben definirse antes de habilitar escrituras públicas; la expiración de la cookie a los 30 días no borra los datos almacenados.
+La mensajería privada usa las cuentas verificadas de comprador y vendedor. El chat anónimo ya no admite sesiones, conversaciones ni mensajes nuevos. Las conversaciones anteriores se conservan en PostgreSQL y su propietario actual puede consultarlas, sin responder, desde `/vendedor/archivo`. No se convierten visitantes en cuentas. Ver [retiro administrativo V7.9](docs/v79-retiro-administracion.md).
 
 ## Semillas e importación antigua
 
@@ -168,7 +156,7 @@ Comprobaciones adicionales: `python -m compileall -q app.py vehiculos.py persist
 
 Configura las variables por ambiente en Vercel; nunca las escribas en `vercel.json`. Para que el catálogo de Preview lea datos y genere sesiones, asigna `DATABASE_URL`, `FLASK_SECRET_KEY` y `SUPABASE_URL` al ambiente **Preview**. `DATABASE_URL` debe usar TLS; usa un rol de solo lectura o un proyecto de datos separado cuando esté disponible. Los enlaces públicos de fotos solo necesitan `SUPABASE_URL`; no copies claves de escritura ni el hash administrativo de Production a Preview.
 
-**Preview siempre fuerza modo de solo lectura**, aunque `APP_READ_ONLY=false`: `/api/admin/session` informa `solo_lectura: true`, la interfaz oculta «Administrar» y `/api/admin/login` responde 503. Es deliberado para evitar escrituras desde una Preview contra datos compartidos. Para habilitar administración en Production, asigna `ADMIN_PASSWORD_HASH`, `FLASK_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL` y una clave de servidor `SUPABASE_SECRET_KEY` (preferida) o `SUPABASE_SERVICE_ROLE_KEY` (alternativa heredada); configura `APP_READ_ONLY=false` y conserva cookies HTTPS seguras. No habilites escrituras de Preview sin un entorno de datos/Storage separado y una revisión explícita de la protección.
+**Preview siempre fuerza modo de solo lectura**, aunque `APP_READ_ONLY=false`. El acceso de vendedor requiere las banderas V7, Supabase Auth y sesiones verificadas; Production conserva además `V7_PRODUCTION_ENABLED`. Las variables `ADMIN_PASSWORD_HASH` y `CHAT_ENABLED` dejaron de ser utilizadas. No se cambió ninguna variable remota en esta entrega. Ver el procedimiento V7.9 antes de publicar.
 
 Antes de Production: comprobar credenciales y conectividad reales; verificar Storage sin usar los seis anuncios como pruebas; revisar las fotos y el acceso del equipo; aprobar el despliegue definitivo. Esta tarea no autoriza promoción a Production ni cambios a las variables de entorno.
 

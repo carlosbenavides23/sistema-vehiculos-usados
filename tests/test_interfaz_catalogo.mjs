@@ -63,25 +63,22 @@ test("el catálogo no carga formularios ni diálogos de administración heredado
   }
   assert.doesNotMatch(plantillaHtml, /vehicle-actions|Prototipo demostrativo|propuesta-[ab]\.css|datos-demo\.js/);
   assert.doesNotMatch(source, /abrirFormulario|abrirFotos|cambiarDisponibilidad|cerrarSesion|api\("\/api\/vehiculos"/);
-  const adminLink = plantillaHtml.match(/<a id="admin-panel-link"[\s\S]*?<\/a>/)?.[0] || "";
-  assert.match(adminLink, /href="\/administracion"/);
-  assert.match(adminLink, /aria-label="Administrar"/);
-  assert.match(adminLink, /admin-panel-link-label">Administrar<\/span>/);
+  assert.doesNotMatch(plantillaHtml, /href="\/administracion"|admin-panel-link/);
   assert.doesNotMatch(plantillaHtml, /js\/fotografias\.js/);
 });
 
 test("el panel V6 conserva autenticación, vehículo, fotografías y bandeja", async () => {
   const adminTemplate = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
   const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
-  assert.match(adminTemplate, /id="admin-login-form"/);
+  assert.doesNotMatch(adminTemplate, /id="admin-login-form"|id="admin-password"/);
   assert.match(adminTemplate, /data-admin-view="inventory"/);
   assert.match(adminTemplate, /data-admin-view="vehicle-form"/);
-  assert.match(adminTemplate, /id="admin-chat-list"/);
-  assert.match(adminTemplate, /id="admin-reply-form"/);
+  assert.match(adminTemplate, /id="seller-chat-list"/);
+  assert.match(adminTemplate, /id="seller-reply-form"/);
   assert.match(adminTemplate, /js\/fotografias\.js/);
   assert.match(adminTemplate, /js\/admin-v6\.js/);
   assert.match(adminScript, /\/vehiculos\/\$\{encodeURIComponent\(savedVehicle\.id\)\}\/fotografias/);
-  assert.match(adminScript, /\/admin\/chat\/conversaciones/);
+  assert.doesNotMatch(adminScript, /\/admin\/(?:chat|login|session)/);
 });
 
 class ElementoFalso {
@@ -249,15 +246,10 @@ test("contraer filtros avanzados conserva valores y el submit incluye todos los 
   assert.equal(app.indicadorFiltrosAvanzados.hidden, false);
 });
 
-test("el catálogo enlaza al panel solo cuando el ambiente no es de solo lectura", async () => {
-  const enlace = plantillaHtml.match(/<a\b(?=[^>]*\bhref="\/administracion")[^>]*>([\s\S]*?)<\/a>/);
-  assert.ok(enlace, "Debe existir un enlace al único panel administrativo.");
-  assert.match(enlace[1], /Administrar/);
-  assert.match(source, /solicitar\("\/api\/admin\/session"\)/);
-  const preview = prepararAplicacion("", true);
-  await preview.esperarCarga();
-  assert.equal(preview.adminPanel.hidden, true);
-  const production = prepararAplicacion();
-  await production.esperarCarga();
-  assert.equal(production.adminPanel.hidden, false);
+test("el catálogo ofrece cuentas y no consulta la sesión administrativa retirada", async () => {
+  assert.match(plantillaHtml, /href="\/cuenta"/);
+  assert.doesNotMatch(source, /\/api\/admin\/session/);
+  const app = prepararAplicacion();
+  await app.esperarCarga();
+  assert.equal(app.rutas.some(ruta => ruta.startsWith('/api/admin/')), false);
 });

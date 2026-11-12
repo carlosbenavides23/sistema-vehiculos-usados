@@ -7,11 +7,10 @@
   const csrfMeta = one('meta[name="csrf-token"]');
   const csrf = () => csrfMeta?.content || "";
   const sellerPanel = document.body.dataset.sellerPanel === 'true';
-  const apiRoot = sellerPanel ? '/api/vendedor' : '/api';
+  const apiRoot = '/api/vendedor';
   const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
   const number = new Intl.NumberFormat("es-NI", { maximumFractionDigits: 0 });
   const readonly = body.dataset.readOnly === "true";
-  const chatEnabled = body.dataset.chatEnabled === "true";
   const vehicleFieldValues = window.AdminV6FieldValues;
   const historicalVehicleSelects = ["transmision", "combustible"];
   const typeAliasData = JSON.parse(one("#vehicle-type-aliases")?.textContent || "{}");
@@ -43,10 +42,7 @@
 
   const auth = one("#admin-auth");
   const workspace = one("#admin-workspace");
-  const loginForm = one("#admin-login-form");
-  const loginPassword = one("#admin-password");
   const loginError = one("#admin-login-error");
-  const loginStatus = one("#admin-login-status");
   const logout = one("#admin-logout");
   const mobileMenuButton = one("#admin-mobile-menu");
   const adminNavigation = one("#admin-navigation");
@@ -61,9 +57,6 @@
   const photoInput = one("#vehicle-photo-input");
   const photoConfirm = one("#vehicle-photo-upload-confirm");
   const deleteDialog = one("#admin-photo-delete-dialog");
-  const inboxList = one("#admin-chat-list");
-  const threadMessages = one("#admin-thread-messages");
-  const replyForm = one("#admin-reply-form");
 
   let csrfToken = csrf();
   let authenticated = false;
@@ -76,22 +69,11 @@
   let deleteTarget = null;
   let retireTarget = null;
   let retireBusy = false;
-  let currentConversation = null;
-  let inboxCursor = null;
-  let hasMoreInbox = false;
-  let inboxBusy = false;
-  let threadGeneration = 0;
-  let messageCursor = 0;
-  let pollTimer = null;
-  let pollBusy = false;
-  let pendingReply = null;
   let inventoryGeneration = 0;
   let availabilityBusy = false;
   let availabilityUndo = null;
   let availabilitySession = 0;
-  const messageIds = new Set();
   const fieldErrorNames = new Set();
-  const drafts = new Map();
   let savedFormSnapshot = null;
   let photoPreparing = false;
   let photoDraftGeneration = 0;
@@ -162,8 +144,7 @@
     try {
       let response;
       let url = `${apiRoot}${path}`;
-      if (!sellerPanel && path.startsWith('/vehiculos') && method === 'GET' && !/^\/vehiculos\/\d/.test(path)) url = `/api/admin${path}`;
-      if (sellerPanel && path === '/admin/logout') url = '/api/cuenta/logout';
+      if (path === '/logout') url = '/api/cuenta/logout';
       try { response = await fetch(url, init); }
       catch { throw new Error("No pudimos comunicarnos con el servidor. Revisá la conexión e intentá de nuevo."); }
       let data;
@@ -188,13 +169,8 @@
     syncMobileNavigation();
     if (authenticated) {
       loadInventory();
-      if (chatEnabled && currentView() === "conversations") loadInbox();
     } else {
       availabilitySession += 1;
-      stopPolling();
-      currentConversation = null;
-      drafts.clear();
-      pendingReply = null;
       availabilityUndo = null;
       one("#availability-notice").hidden = true;
       if (sellerPanel) document.dispatchEvent(new Event("seller-account-session-ended"));
@@ -213,7 +189,7 @@
   async function checkSession() {
     if (readOnly) return;
     try {
-      const state = await request("/admin/session");
+      const state = await request("/session");
       readOnly = Boolean(state.solo_lectura);
       if (readOnly) {
         one("#admin-readonly").hidden = false;
@@ -222,52 +198,16 @@
         return;
       }
       setAuthenticated(Boolean(state.autenticado));
-      if (!state.autenticado) loginPassword.focus();
     } catch (error) {
       setLoginError(error.message);
     }
   }
 
-  loginForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (readOnly) return;
-    const button = one('button[type="submit"]', loginForm);
-    setLoginError("");
-    button.disabled = true;
-    loginForm.setAttribute("aria-busy", "true");
-    loginStatus.textContent = "Verificando acceso…";
-    try {
-      const result = await request("/admin/login", { method: "POST", body: { password: loginPassword.value } });
-      if (result.csrf_token) {
-        csrfToken = result.csrf_token;
-        csrfMeta.content = csrfToken;
-      }
-      loginForm.reset();
-      setAuthenticated(true);
-      showView("inventory");
-      one('[data-admin-view="inventory"]')?.focus();
-    } catch (error) {
-      if (error.status === 503 && /únicamente consultar/i.test(error.message)) {
-        readOnly = true;
-        one("#admin-readonly").hidden = false;
-        auth.hidden = true;
-        return;
-      }
-      setLoginError(error.status === 429 ? `${error.message}${error.retryAfter ? ` Esperá ${error.retryAfter} segundos.` : ""}` : error.message);
-      if (error.status === 401) loginPassword.select();
-    } finally {
-      button.disabled = false;
-      loginForm.removeAttribute("aria-busy");
-      loginStatus.textContent = "";
-    }
-  });
-
   async function logoutAdmin() {
     if (!authenticated) return;
     if (!confirmVehicleDeparture()) return;
-    stopPolling();
     try {
-      const result = await request("/admin/logout", { method: "POST", body: {} });
+      const result = await request("/logout", { method: "POST", body: {} });
       if (sellerPanel) { window.CuentaSesion?.changed(); location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
@@ -281,15 +221,13 @@
     clearPhotoDraft();
     showView("inventory");
     setLoginError("");
-    loginPassword.value = "";
-    loginPassword.focus();
   }
 
   all("[data-admin-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
   logout?.addEventListener("click", logoutAdmin);
 
   function showView(view) {
-    const validView = view === "conversations" && !chatEnabled ? "inventory" : view;
+    const validView = view;
     all("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== validView; });
     all("[data-admin-view]").forEach((button) => {
       const active = button.dataset.adminView === validView;
@@ -299,10 +237,12 @@
     });
     closeMobileNavigation();
     if (validView === "inventory") loadInventory();
-    if (validView === "conversations") { loadInbox(); restartPolling(); }
-    else stopPolling();
     if (validView === "vehicle-form") one("#vehicle-brand")?.focus();
   }
+
+  one('[data-archive-link]')?.addEventListener('click', (event) => {
+    if (!confirmVehicleDeparture()) event.preventDefault();
+  });
 
   all("[data-admin-view]").forEach((button) => button.addEventListener("click", () => {
     if (!authenticated) return;
@@ -974,226 +914,6 @@
 
   deleteDialog?.addEventListener("close", () => { deleteTarget = null; });
   one("#admin-photo-delete-cancel")?.addEventListener("click", () => { deleteTarget = null; });
-
-  function formatTime(value) {
-    if (!value) return "";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("es-NI", { dateStyle: "short", timeStyle: "short" }).format(date);
-  }
-
-  function makeInboxItem(conversation) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "admin-chat-item";
-    button.setAttribute("role", "option");
-    button.setAttribute("aria-selected", String(String(currentConversation?.id) === String(conversation.id)));
-    button.dataset.conversationId = conversation.id;
-    const title = document.createElement("strong");
-    title.textContent = `${conversation.marca || "Vehículo"} ${conversation.modelo || ""}`.trim();
-    const time = document.createElement("time");
-    time.textContent = formatTime(conversation.ultimo_mensaje_en || conversation.updated_at);
-    const excerpt = document.createElement("span");
-    excerpt.textContent = `${conversation.estado === "atendida" ? "Atendida" : "Pendiente"} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
-    button.append(title, time, excerpt);
-    button.addEventListener("click", () => selectConversation(conversation));
-    button.addEventListener("keydown", (event) => {
-      if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
-      event.preventDefault();
-      const options = all(".admin-chat-item", inboxList);
-      const current = options.indexOf(button);
-      options[(current + (event.key === "ArrowDown" ? 1 : options.length - 1)) % options.length]?.focus();
-    });
-    return button;
-  }
-
-  function renderInbox(items, append = false) {
-    if (!append) inboxList.replaceChildren();
-    items.forEach((item) => {
-      const existing = one(`[data-conversation-id="${CSS.escape(String(item.id))}"]`, inboxList);
-      const node = makeInboxItem(item);
-      if (existing) existing.replaceWith(node);
-      else inboxList.append(node);
-    });
-    one("#admin-chat-load-more").hidden = !hasMoreInbox;
-  }
-
-  async function loadInbox({ append = false } = {}) {
-    if (!authenticated || !chatEnabled || inboxBusy) return;
-    if (!append) inboxCursor = null;
-    inboxBusy = true;
-    const params = new URLSearchParams();
-    const status = one("#admin-chat-status").value;
-    if (status) params.set("estado", status);
-    if (append && inboxCursor) params.set("cursor_id", inboxCursor);
-    one("#admin-chat-list-feedback").textContent = append ? "Cargando más conversaciones…" : "Cargando conversaciones…";
-    try {
-      const query = params.toString();
-      const result = await request(`/admin/chat/conversaciones${query ? `?${query}` : ""}`);
-      hasMoreInbox = Boolean(result.hay_mas);
-      inboxCursor = result.siguiente_cursor || null;
-      renderInbox(result.conversaciones || [], append);
-      one("#admin-chat-list-feedback").textContent = result.conversaciones?.length || append ? "" : "No hay conversaciones en este filtro.";
-    } catch (error) {
-      one("#admin-chat-list-feedback").textContent = error.status === 401 ? "Tu sesión administrativa venció." : error.message;
-      if (error.status === 401) setAuthenticated(false);
-    } finally { inboxBusy = false; }
-  }
-
-  one("#admin-chat-status")?.addEventListener("change", () => loadInbox());
-  one("#admin-chat-load-more")?.addEventListener("click", () => loadInbox({ append: true }));
-
-  function appendMessage(message, animateNew = false) {
-    const id = String(message.id);
-    if (messageIds.has(id)) return;
-    messageIds.add(id);
-    const node = document.createElement("article");
-    node.className = `admin-message${message.remitente === "administrador" ? " is-admin" : ""}${animateNew ? " is-entering" : ""}`;
-    node.dataset.messageId = id;
-    const content = document.createElement("span");
-    content.textContent = message.contenido || "";
-    const time = document.createElement("time");
-    time.textContent = formatTime(message.created_at);
-    node.append(content, time);
-    threadMessages.append(node);
-    const parsedId = Number(message.id);
-    if (Number.isSafeInteger(parsedId)) messageCursor = Math.max(messageCursor, parsedId);
-    threadMessages.scrollTop = threadMessages.scrollHeight;
-  }
-
-  function setThreadView(selected) {
-    one("#admin-chat-workspace").classList.toggle("has-selected", selected);
-    one("#admin-chat-empty").hidden = selected;
-    one("#admin-chat-thread").hidden = !selected;
-  }
-
-  async function selectConversation(conversation) {
-    if (currentConversation) drafts.set(String(currentConversation.id), one("#admin-reply-text").value);
-    currentConversation = conversation;
-    const generation = ++threadGeneration;
-    messageCursor = 0;
-    messageIds.clear();
-    one("#admin-reply-text").value = drafts.get(String(conversation.id)) || "";
-    threadMessages.replaceChildren();
-    setThreadView(true);
-    one("#admin-thread-title").textContent = `${conversation.marca || "Vehículo"} ${conversation.modelo || ""}`.trim();
-    one("#admin-thread-state").textContent = conversation.estado === "atendida" ? "Atendida" : "Pendiente";
-    one("#admin-thread-state").dataset.state = conversation.estado;
-    one("#admin-thread-resolve").hidden = conversation.estado === "atendida";
-    all(".admin-chat-item", inboxList).forEach((item) => item.setAttribute("aria-selected", String(item.dataset.conversationId === String(conversation.id))));
-    one("#admin-thread-feedback").textContent = "Cargando mensajes…";
-    renderInbox([], true);
-    try {
-      const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(conversation.id)}/mensajes?despues_de_id=0`);
-      if (generation !== threadGeneration || String(currentConversation?.id) !== String(conversation.id)) return;
-      (result.mensajes || []).forEach(appendMessage);
-      one("#admin-thread-feedback").textContent = result.mensajes?.length ? "" : "Esta conversación aún no tiene mensajes.";
-      if (window.matchMedia("(max-width: 640px)").matches) one("#admin-chat-back").focus();
-      restartPolling();
-    } catch (error) {
-      one("#admin-thread-feedback").textContent = error.status === 401 ? "Tu sesión administrativa venció." : error.message;
-      if (error.status === 401) setAuthenticated(false);
-    }
-  }
-
-  one("#admin-chat-back")?.addEventListener("click", () => {
-    drafts.set(String(currentConversation?.id), one("#admin-reply-text").value);
-    currentConversation = null;
-    threadGeneration += 1;
-    setThreadView(false);
-    stopPolling();
-    one(".admin-chat-item")?.focus();
-  });
-
-  async function pollMessages() {
-    if (pollBusy || !currentConversation || document.hidden || currentView() !== "conversations" || !authenticated) return;
-    pollBusy = true;
-    const selectedId = String(currentConversation.id);
-    const generation = threadGeneration;
-    try {
-      const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(selectedId)}/mensajes?despues_de_id=${encodeURIComponent(messageCursor)}`);
-      if (generation !== threadGeneration || String(currentConversation?.id) !== selectedId) return;
-      (result.mensajes || []).forEach((message) => appendMessage(message, true));
-      if (result.mensajes?.length) one("#admin-thread-feedback").textContent = "";
-    } catch (error) {
-      if (error.status === 401) {
-        one("#admin-thread-feedback").textContent = "Tu sesión administrativa venció.";
-        setAuthenticated(false);
-      } else one("#admin-thread-feedback").textContent = error.message;
-    } finally { pollBusy = false; }
-  }
-
-  function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
-  function restartPolling() {
-    stopPolling();
-    if (!authenticated || !currentConversation || currentView() !== "conversations" || document.hidden) return;
-    pollTimer = setTimeout(async () => {
-      pollTimer = null;
-      await pollMessages();
-      restartPolling();
-    }, 4000);
-  }
-
-  one("#admin-reply-text")?.addEventListener("input", (event) => {
-    if (currentConversation) drafts.set(String(currentConversation.id), event.currentTarget.value);
-  });
-
-  replyForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    let content = one("#admin-reply-text").value.trim();
-    if (!content || !authenticated || !currentConversation) return;
-    if (pendingReply?.uncertain && pendingReply.conversationId === String(currentConversation.id) && pendingReply.content !== content) {
-      content = pendingReply.content;
-      one("#admin-reply-text").value = content;
-      one("#admin-thread-feedback").textContent = "Restauré el texto del envío pendiente para reintentar sin duplicarlo.";
-    }
-    if (!pendingReply || pendingReply.conversationId !== String(currentConversation.id) || pendingReply.content !== content) {
-      pendingReply = { conversationId: String(currentConversation.id), content, key: crypto.randomUUID() };
-    }
-    const conversationId = String(currentConversation.id);
-    const button = one("#admin-reply-submit");
-    button.disabled = true;
-    one("#admin-thread-feedback").textContent = "Enviando respuesta…";
-    try {
-      const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(conversationId)}/mensajes`, {
-        method: "POST", body: { contenido: content }, idempotencyKey: pendingReply.key,
-      });
-      if (result.mensaje && String(currentConversation?.id) === conversationId) appendMessage(result.mensaje, true);
-      if (drafts.get(conversationId)?.trim() === content) drafts.delete(conversationId);
-      if (String(currentConversation?.id) === conversationId && one("#admin-reply-text").value.trim() === content) {
-        one("#admin-reply-text").value = "";
-      }
-      pendingReply = null;
-      one("#admin-thread-feedback").textContent = "Respuesta enviada.";
-      await loadInbox();
-    } catch (error) {
-      if (pendingReply && (!error.status || error.status >= 500)) pendingReply.uncertain = true;
-      one("#admin-thread-feedback").textContent = `${error.message} Si reintentás el mismo texto, se reutiliza la clave para evitar duplicarlo.`;
-      if (error.status === 401) setAuthenticated(false);
-    } finally { button.disabled = false; }
-  });
-
-  one("#admin-thread-resolve")?.addEventListener("click", async () => {
-    if (!currentConversation || currentConversation.estado === "atendida") return;
-    const button = one("#admin-thread-resolve");
-    button.disabled = true;
-    try {
-      const result = await request(`/admin/chat/conversaciones/${encodeURIComponent(currentConversation.id)}/atendida`, { method: "PATCH", body: { atendida: true } });
-      currentConversation = result.conversacion || { ...currentConversation, estado: "atendida" };
-      one("#admin-thread-state").textContent = "Atendida";
-      one("#admin-thread-state").dataset.state = "atendida";
-      button.hidden = true;
-      setStatus("Conversación marcada como atendida.");
-      await loadInbox();
-    } catch (error) {
-      one("#admin-thread-feedback").textContent = error.message;
-      if (error.status === 401) setAuthenticated(false);
-    } finally { button.disabled = false; }
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stopPolling();
-    else restartPolling();
-  });
 
   checkSession();
 })();

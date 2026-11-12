@@ -46,7 +46,7 @@ class CuentasTest(unittest.TestCase):
         self.assertTrue(self.revocado);self.assertEqual(self.client.get('/api/cuenta').status_code,401)
         self.assertEqual(self.post('login',{'email':'ficticio@example.test','password':'incorrecta'}).status_code,401)
         self.assertEqual(self.post('login',{'email':'ficticio@example.test','password':'password-fixture'}).status_code,200)
-        self.assertFalse(self.client.get('/api/admin/session').json['autenticado'])
+        self.assertEqual(self.client.get('/api/admin/session').status_code, 404)
     def test_csrf_e_entradas(self):
         self.assertEqual(self.client.post('/api/cuenta/login',json={}).status_code,403)
         self.assertEqual(self.post('registro',{'email':'x','password':'short','rol':'admin','nombre_visible':'A'}).status_code,422)
