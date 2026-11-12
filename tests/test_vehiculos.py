@@ -5,7 +5,9 @@ import unittest
 
 from vehiculos import (
     MAX_ENTERO_SEGURO,
+    filtrar_vehiculos,
     validar_estado_legacy,
+    validar_filtros_busqueda,
     validar_vehiculo,
 )
 
@@ -131,6 +133,30 @@ class ValidacionVehiculosTest(unittest.TestCase):
         self.assertEqual(errores, {})
         self.assertEqual(resultado["tipo_vehiculo"], historico)
         self.assertIn("tipo_vehiculo", validar_vehiculo(formulario(tipo_vehiculo="Otro tipo"), valores_anteriores={"tipo_vehiculo": historico})[1])
+
+    def test_filtro_tipo_canonico_alias_y_historico_desconocido(self):
+        inventario = [
+            {"id": 1, "marca": "Toyota", "modelo": "Sedán", "anio": 2020, "tipo_vehiculo": "Sedán"},
+            {"id": 2, "marca": "Ford", "modelo": "Pickup", "anio": 2021, "tipo_vehiculo": "Pickup"},
+            {"id": 3, "marca": "Subaru", "modelo": "Wagon", "anio": 2019, "tipo_vehiculo": "Station Wagon"},
+            {"id": 4, "marca": "Jeep", "modelo": "Especial", "anio": 2022, "tipo_vehiculo": "SUV especial"},
+            {"id": 5, "marca": "Honda", "modelo": "Civic", "anio": 2023, "tipo_vehiculo": "sedan"},
+            {"id": 6, "marca": "Subaru", "modelo": "Wagon", "anio": 2018, "tipo_vehiculo": "station wagon"},
+            {"id": 7, "marca": "Prueba", "modelo": "Unicode", "anio": 2018, "tipo_vehiculo": "Straße"},
+        ]
+
+        def buscar(**parametros):
+            filtros, errores = validar_filtros_busqueda(parametros)
+            self.assertEqual(errores, {})
+            return filtrar_vehiculos(inventario, filtros)
+
+        self.assertEqual({fila["id"] for fila in buscar(tipo_vehiculo="sedan")}, {1, 5})
+        self.assertEqual([fila["id"] for fila in buscar(tipo_vehiculo="pick-up")], [2])
+        self.assertEqual({fila["id"] for fila in buscar(tipo_vehiculo="Station Wagon")}, {3, 6})
+        self.assertEqual(buscar(tipo_vehiculo="Station Wagon especial"), [])
+        self.assertEqual(buscar(tipo_vehiculo="SUV"), [])
+        self.assertEqual(buscar(tipo_vehiculo="STRASSE"), [])
+        self.assertEqual([fila["id"] for fila in buscar(tipo_vehiculo="sedán", anio_min="2021")], [5])
 
     def test_campos_nuevos_ausentes_preservan_y_null_explicito_limpia(self):
         anteriores = {

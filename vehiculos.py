@@ -192,9 +192,24 @@ def filtrar_vehiculos(vehiculos, filtros):
             continue
         tipo = filtros.get("tipo_vehiculo")
         if tipo:
-            valores_tipo = {valor.casefold() for valor in variantes_tipo_vehiculo(tipo)}
-            actual = (vehiculo.get("tipo_vehiculo") or "").casefold()
-            if actual not in valores_tipo and (normalizar_tipo_vehiculo(actual) != normalizar_tipo_vehiculo(tipo)):
+            # El repositorio SQL compara lower(tipo_vehiculo); usar lower aquí
+            # mantiene la misma semántica para los alias y textos históricos.
+            valores_tipo = {valor.lower() for valor in variantes_tipo_vehiculo(tipo)}
+            actual_original = vehiculo.get("tipo_vehiculo") or ""
+            actual = actual_original.lower()
+            tipo_canonico = normalizar_tipo_vehiculo(tipo)
+            actual_canonico = normalizar_tipo_vehiculo(actual_original)
+            coinciden_codigos = (
+                tipo_canonico is not None
+                and actual_canonico is not None
+                and actual_canonico == tipo_canonico
+            )
+            coinciden_historicos = (
+                tipo_canonico is None
+                and actual_canonico is None
+                and actual == tipo.lower()
+            )
+            if actual not in valores_tipo and not coinciden_codigos and not coinciden_historicos:
                 continue
         salida.append(dict(vehiculo))
 
