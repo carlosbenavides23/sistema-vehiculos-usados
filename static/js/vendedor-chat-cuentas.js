@@ -23,6 +23,8 @@
   let cursor = null;
   let hasMore = false;
   let listBusy = false;
+  let inboxGeneration = 0;
+  let inboxRevision = 0;
   let messageCursor = 0;
   let generation = 0;
   let pollTimer = null;
@@ -108,7 +110,10 @@
     const state = conversation.vehiculo_retirado ? "Publicación retirada · solo lectura" : conversation.estado === "atendida" ? "Atendida" : "Pendiente";
     excerpt.textContent = `${state} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
     button.append(title, contact, time, excerpt);
-    button.addEventListener("click", () => openConversation(conversation));
+    button.addEventListener("click", () => {
+      const latest = conversations.find(row => String(row.id) === button.dataset.conversationId);
+      if (latest) openConversation(latest);
+    });
     button.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
       const items = [...list.querySelectorAll(".admin-chat-item")];
@@ -119,39 +124,81 @@
     return button;
   }
 
+  function syncSelection() {
+    list.querySelectorAll('[role="option"]').forEach(button => {
+      button.setAttribute("aria-selected", String(button.dataset.conversationId === String(currentConversation?.id)));
+    });
+  }
+
   function renderList() {
+    const focused = list.contains(document.activeElement) ? document.activeElement : null;
+    const scroll = list.scrollTop;
+    let position = list.firstElementChild;
+    const ids = new Set(conversations.map(row => String(row.id)));
     for (const conversation of conversations) {
-      const next = renderItem(conversation);
-      const existing = list.querySelector(`[data-conversation-id="${CSS.escape(String(conversation.id))}"]`);
-      if (existing) existing.replaceWith(next);
-      else list.append(next);
+      const id = String(conversation.id);
+      const signature = JSON.stringify(conversation);
+      let existing = list.querySelector(`[data-conversation-id="${CSS.escape(id)}"]`);
+      if (!existing) existing = renderItem(conversation);
+      else if (existing.dataset.signature !== signature) {
+        const updated = renderItem(conversation);
+        existing.replaceChildren(...updated.childNodes);
+      }
+      existing.dataset.signature = signature;
+      if (existing !== position) list.insertBefore(existing, position);
+      position = existing.nextElementSibling;
     }
+    [...list.children].forEach(node => { if (!ids.has(node.dataset.conversationId)) node.remove(); });
+    syncSelection();
+    if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    list.scrollTop = scroll;
     one("seller-chat-load-more").hidden = !hasMore;
   }
 
-  async function loadInbox({ append = false } = {}) {
-    if (listBusy) return;
+  async function loadInbox({ append = false, refresh = false } = {}) {
+    if (listBusy || !panelVisible()) return;
     listBusy = true;
-    const requestGeneration = generation;
-    if (!append) { cursor = null; conversations = []; list.replaceChildren(); }
+    const ticket = ++inboxGeneration;
+    const revision = inboxRevision;
+    const epoch = identityGeneration;
     list.setAttribute("aria-busy", "true");
-    status(listFeedback, append ? "Cargando más conversaciones…" : "Cargando conversaciones…");
-    const query = new URLSearchParams({ limite: "50" });
-    if (append && cursor) query.set("cursor_id", cursor);
+    if (!refresh) status(listFeedback, append ? "Cargando más conversaciones…" : "Cargando conversaciones…");
     try {
-      const result = await api(`/api/cuenta/chat/vendedor/conversaciones?${query}`);
-      if (requestGeneration !== generation) return;
-      const incoming = result.conversaciones || [];
-      conversations = append ? [...conversations, ...incoming] : incoming;
-      cursor = result.siguiente_cursor || null;
+      // Refresh the loaded window, including rows pushed onto another page by
+      // new activity. Do not discard expanded pages or change the API cursor.
+      const remaining = new Set(refresh ? conversations.map(row => String(row.id)) : []);
+      const incoming = [];
+      let next = append ? cursor : null;
+      let result;
+      do {
+        const query = new URLSearchParams({ limite: "50" });
+        if (next) query.set("cursor_id", next);
+        result = await api(`/api/cuenta/chat/vendedor/conversaciones?${query}`);
+        if (ticket !== inboxGeneration || epoch !== identityGeneration || revision !== inboxRevision || !panelVisible()) return;
+        for (const row of result.conversaciones || []) {
+          incoming.push(row);
+          remaining.delete(String(row.id));
+        }
+        const previous = next;
+        next = result.siguiente_cursor || null;
+        if (next === previous) break;
+      } while (refresh && remaining.size && result.hay_mas && next);
+      conversations = [...new Map((append ? [...conversations, ...incoming] : incoming).map(row => [String(row.id), row])).values()];
+      cursor = next;
       hasMore = Boolean(result.hay_mas);
       renderList();
       status(listFeedback, conversations.length ? "" : "Todavía no hay consultas de tus publicaciones.");
     } catch (error) {
-      if (error.stale || requestGeneration !== generation) return;
+      if (error.stale || ticket !== inboxGeneration || epoch !== identityGeneration) return;
       if ([401, 403, 404].includes(error.status)) return expireSession();
-      status(listFeedback, error.status === 404 ? "La mensajería no está habilitada en este entorno." : error.message, "error");
-    } finally { listBusy = false; list.setAttribute("aria-busy", "false"); }
+      status(listFeedback, error.message, "error");
+    } finally {
+      if (ticket === inboxGeneration) {
+        listBusy = false;
+        list.setAttribute("aria-busy", "false");
+        restartPolling();
+      }
+    }
   }
 
   function saveDraft() {
@@ -174,7 +221,7 @@
     time.textContent = formatDate(message.created_at);
     node.append(content, time);
     threadMessages.append(node);
-    threadMessages.scrollTop = threadMessages.scrollHeight;
+
     if (/^\d+$/.test(id)) messageCursor = Math.max(messageCursor, Number(id));
   }
 
@@ -188,7 +235,9 @@
     try {
       const result = await api(`/api/cuenta/chat/vendedor/conversaciones/${encodeURIComponent(conversationId)}/mensajes?despues_de_id=${cursorValue}`);
       if (requestGeneration !== generation || String(currentConversation?.id) !== conversationId) return;
+      const follow = initial || threadMessages.scrollHeight - threadMessages.clientHeight - threadMessages.scrollTop <= 48;
       (result.mensajes || []).forEach(appendMessage);
+      if (follow) threadMessages.scrollTop = threadMessages.scrollHeight;
       if (initial) status(threadFeedback, result.mensajes?.length ? "" : "Esta conversación aún no tiene mensajes.");
       else if (result.mensajes?.length) status(threadFeedback, "");
       restartPolling();
@@ -208,6 +257,7 @@
     generation += 1;
     const requestGeneration = generation;
     currentConversation = conversation;
+    syncSelection();
     messageCursor = 0;
     messageIds.clear();
     threadMessages.replaceChildren();
@@ -226,6 +276,7 @@
     replyForm.hidden = retired;
     replyText.value = drafts.get(String(conversation.id)) || "";
     workspace.classList.add("has-selected");
+    fitWorkspace();
     status(threadFeedback, "Cargando mensajes…");
     await loadMessages({ initial: true, requestGeneration });
     if (requestGeneration === generation && !retired) replyText.focus({ preventScroll: true });
@@ -236,22 +287,51 @@
     saveDraft();
     generation += 1;
     currentConversation = null;
+    syncSelection();
     thread.hidden = true;
     one("seller-chat-empty").hidden = false;
     workspace.classList.remove("has-selected");
-    stopPolling();
+    restartPolling();
     (list.querySelector(".admin-chat-item") || nav).focus();
+  }
+
+  function panelVisible() {
+    const panel = document.querySelector('[data-admin-panel="account-conversations"]');
+    return !document.hidden && !one("admin-workspace").hidden && panel && !panel.hidden;
+  }
+
+  function fitWorkspace() {
+    if (!panelVisible()) return;
+    const height = window.visualViewport?.height || window.innerHeight;
+    const controls = (thread.querySelector('.admin-thread-heading')?.offsetHeight || 0) + replyForm.offsetHeight + threadFeedback.offsetHeight;
+    const minimum = Math.min(Math.max(0, height - 16), controls + 64);
+    workspace.style.setProperty("--seller-chat-height", `${Math.max(minimum, height - Math.max(0, workspace.getBoundingClientRect().top) - 16)}px`);
+    // A virtual keyboard can leave less room than the header and editor need.
+    // Keep usable controls and let the document bring the focused editor into view.
+    if (document.activeElement === replyText && replyText.getBoundingClientRect().bottom > height) {
+      replyText.scrollIntoView({ block: "end", behavior: "instant" });
+    }
   }
 
   function restartPolling() {
     stopPolling();
-    const panel = document.querySelector('[data-admin-panel="account-conversations"]');
-    if (!currentConversation || !workspace.classList.contains("has-selected") || document.hidden || !panel || panel.hidden) return;
+    if (!accountId || !panelVisible()) return;
+    fitWorkspace();
     pollTimer = setTimeout(async () => {
       pollTimer = null;
-      await loadMessages();
+      if (!panelVisible()) return;
+      await loadInbox({ refresh: true });
+      if (panelVisible()) await loadMessages();
+      restartPolling();
     }, 4000);
   }
+
+  window.addEventListener("resize", fitWorkspace);
+  window.visualViewport?.addEventListener("resize", fitWorkspace);
+  new MutationObserver(() => {
+    if (panelVisible()) { fitWorkspace(); restartPolling(); }
+    else stopPolling();
+  }).observe(document.querySelector('[data-admin-panel="account-conversations"]'), { attributes: true, attributeFilter: ["hidden"] });
 
   function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
 
@@ -264,6 +344,8 @@
 
   function clearPrivateState() {
     generation += 1;
+    inboxGeneration += 1;
+    listBusy = false;
     identityGeneration += 1;
     accountId = null;
     requests.forEach((controller) => controller.abort());
@@ -323,6 +405,8 @@
       if (drafts.get(conversationId)?.trim() === content) drafts.delete(conversationId);
       if (requestGeneration !== generation || String(currentConversation?.id) !== conversationId) return;
       appendMessage(result.mensaje);
+      threadMessages.scrollTop = threadMessages.scrollHeight;
+      inboxRevision += 1;
       if (replyText.value.trim() === content) replyText.value = "";
       status(threadFeedback, replyText.value.trim() ? "Envío pendiente confirmado. Tu texto nuevo sigue sin enviar." : "Respuesta enviada.");
       const index = conversations.findIndex((row) => String(row.id) === conversationId);

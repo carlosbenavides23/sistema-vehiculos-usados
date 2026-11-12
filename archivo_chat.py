@@ -9,7 +9,11 @@ def listar(vendedor_id, cursor=None):
     cursor = str(UUID(str(cursor))) if cursor else None
     with _conectar() as db:
         filas = db.execute("""SELECT c.id, c.estado, v.id AS vehiculo_id,
-                v.marca, v.modelo, v.anio
+                v.marca, v.modelo, v.anio, c.created_at,
+                (SELECT m.created_at FROM public.mensajes_chat m
+                 WHERE m.conversacion_id=c.id ORDER BY m.id DESC LIMIT 1) AS ultimo_mensaje_en,
+                (SELECT left(m.contenido, 160) FROM public.mensajes_chat m
+                 WHERE m.conversacion_id=c.id ORDER BY m.id DESC LIMIT 1) AS extracto
             FROM public.conversaciones c
             JOIN public.vehiculos v ON v.id=c.vehiculo_id
             JOIN public.roles_usuarios r ON r.usuario_id=v.vendedor_id AND r.rol='vendedor'
