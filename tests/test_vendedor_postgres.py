@@ -58,10 +58,11 @@ class VendedorPostgresTest(unittest.TestCase):
                 clientes.append(client);headers.append({'X-CSRF-Token':token,'Idempotency-Key':str(uuid4())})
             a,b,c=clientes;ha,hb,hc=headers
             ruta='/api/vendedor/vehiculos'
-            ra=a.post(ruta,json={'vehiculo':formulario()},headers=ha);self.assertEqual(ra.status_code,201,ra.json)
+            ra=a.post(ruta,json={'vehiculo':formulario(tipo_vehiculo='SUV', version='Limited', motor='2.0 L', numero_puertas='5', capacidad_pasajeros='6', camara_reversa='true', bluetooth='false')},headers=ha);self.assertEqual(ra.status_code,201,ra.json)
             self.assertEqual(b.post(ruta,json={'vehiculo':formulario()},headers={**hb,'Idempotency-Key':ha['Idempotency-Key']}).status_code,409)
             rb=b.post(ruta,json={'vehiculo':formulario(modelo='Otro')},headers=hb);self.assertEqual(rb.status_code,201,rb.json)
             va,vb=ra.json['vehiculo'],rb.json['vehiculo'];ia,ib=va['id'],vb['id']
+            self.assertEqual((va['tipo_vehiculo'],va['version'],va['motor'],va['numero_puertas'],va['capacidad_pasajeros'],va['camara_reversa'],va['bluetooth']),('suv','Limited','2.0 L',5,6,True,False))
             with psycopg.connect(dsn,autocommit=True) as db:
                 self.assertEqual(str(db.execute('SELECT vendedor_id FROM public.vehiculos WHERE id=%s',(ia,)).fetchone()[0]),ids[0])
                 with self.assertRaises(psycopg.errors.RaiseException):db.execute('UPDATE public.vehiculos SET vendedor_id=%s WHERE id=%s',(ids[1],ia))
@@ -86,6 +87,9 @@ class VendedorPostgresTest(unittest.TestCase):
             self.assertEqual(a.patch(f'{ruta}/{ib}/disponibilidad',json={'disponibilidad':'vendido'},headers=ha).status_code,404)
             self.assertEqual(b.patch(f'{ruta}/{ib}/disponibilidad',json={'disponibilidad':'vendido','version_esperada':vb['updated_at']},headers=hb).status_code,200)
             self.assertEqual(b.put(f'{ruta}/{ib}',json={'vehiculo':formulario(modelo='Edición propia')},headers=hb).status_code,200)
+            propia=b.put(f'{ruta}/{ib}',json={'vehiculo':formulario(modelo='Actualización técnica',motor='1.6 L',numero_puertas='4')},headers=hb)
+            self.assertEqual(propia.status_code,200,propia.json)
+            self.assertEqual(propia.json['vehiculo']['motor'],'1.6 L')
             clave=str(uuid4());contexto=propiedad.vendedor.set(ids[1])
             try: reserva=persistencia_fotos.preparar_subida(ib,clave,'b'*64)
             finally: propiedad.vendedor.reset(contexto)

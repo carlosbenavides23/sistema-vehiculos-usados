@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 import re
+from tipos_vehiculo import normalizar_tipo_vehiculo, variantes_tipo_vehiculo
 
 
 MAX_ENTERO_SEGURO = 9_007_199_254_740_991
@@ -17,18 +18,22 @@ CAMPOS_TEXTO_OPCIONALES = {
     "tipo_vehiculo": 40,
     "transmision": 30,
     "combustible": 30,
+    "version": 40,
+    "motor": 60,
 }
 # Estos dos campos pueden contener valores históricos y el formulario debe
 # poder reenviarlos sin alterar sus mayúsculas, tildes ni espacios exteriores.
 CAMPOS_TEXTO_PRESERVAR = {"transmision", "combustible"}
 CAMPOS_BOOLEANOS_OPCIONALES = (
     "aire_acondicionado", "ventanas_electricas", "pantalla_multimedia",
+    "camara_reversa", "bluetooth",
 )
-CAMPOS_FORMULARIO = CAMPOS_REQUERIDOS | set(CAMPOS_TEXTO_OPCIONALES) | set(CAMPOS_BOOLEANOS_OPCIONALES)
+CAMPOS_ENTEROS_OPCIONALES = {"numero_puertas": (1, 10), "capacidad_pasajeros": (1, 100)}
+CAMPOS_FORMULARIO = CAMPOS_REQUERIDOS | set(CAMPOS_TEXTO_OPCIONALES) | set(CAMPOS_ENTEROS_OPCIONALES) | set(CAMPOS_BOOLEANOS_OPCIONALES)
 CAMPOS_VEHICULO = {
     "id", "marca", "modelo", "anio", "kilometraje", "precio_centavos",
     "ubicacion", "descripcion", "disponibilidad", *CAMPOS_TEXTO_OPCIONALES,
-    *CAMPOS_BOOLEANOS_OPCIONALES, "created_at", "updated_at",
+    *CAMPOS_ENTEROS_OPCIONALES, *CAMPOS_BOOLEANOS_OPCIONALES, "created_at", "updated_at",
 }
 CAMPOS_LEGACY = {
     "id", "marca", "modelo", "anio", "kilometraje", "precio_centavos",
@@ -152,7 +157,7 @@ def validar_filtros_busqueda(parametros):
         if not isinstance(tipo, str) or not 1 <= len(tipo.strip()) <= 40:
             errores["tipo_vehiculo"] = "El tipo debe tener entre 1 y 40 caracteres."
         else:
-            resultado["tipo_vehiculo"] = tipo.strip()
+            resultado["tipo_vehiculo"] = normalizar_tipo_vehiculo(tipo) or tipo.strip()
 
     orden = obtener("orden")
     if orden not in (None, ""):
@@ -171,7 +176,7 @@ def filtrar_vehiculos(vehiculos, filtros):
     for vehiculo in vehiculos:
         textos = " ".join(str(vehiculo.get(campo) or "") for campo in (
             "marca", "modelo", "descripcion", "ubicacion", "tipo_vehiculo",
-            "color", "transmision", "combustible",
+            "color", "transmision", "combustible", "version", "motor",
         )).lower()
         if any(palabra not in textos for palabra in palabras):
             continue
@@ -186,8 +191,11 @@ def filtrar_vehiculos(vehiculos, filtros):
         if "anio_max" in filtros and vehiculo.get("anio", 0) > filtros["anio_max"]:
             continue
         tipo = filtros.get("tipo_vehiculo")
-        if tipo and (vehiculo.get("tipo_vehiculo") or "").lower() != tipo.lower():
-            continue
+        if tipo:
+            valores_tipo = {valor.casefold() for valor in variantes_tipo_vehiculo(tipo)}
+            actual = (vehiculo.get("tipo_vehiculo") or "").casefold()
+            if actual not in valores_tipo and (normalizar_tipo_vehiculo(actual) != normalizar_tipo_vehiculo(tipo)):
+                continue
         salida.append(dict(vehiculo))
 
     orden = filtros.get("orden")
@@ -207,7 +215,7 @@ def filtrar_vehiculos(vehiculos, filtros):
     return salida
 
 
-def validar_vehiculo(datos):
+def validar_vehiculo(datos, valores_anteriores=None):
     """Normaliza un envío del formulario y devuelve errores por campo."""
     if not isinstance(datos, dict):
         return None, {"vehiculo": "El vehículo debe ser un objeto."}
@@ -251,7 +259,13 @@ def validar_vehiculo(datos):
     else:
         resultado["disponibilidad"] = disponibilidad
 
+    anteriores = valores_anteriores if isinstance(valores_anteriores, dict) else {}
     for campo, maximo in CAMPOS_TEXTO_OPCIONALES.items():
+        if campo == "tipo_vehiculo":
+            continue
+        if campo not in datos and campo in anteriores:
+            resultado[campo] = anteriores[campo]
+            continue
         valor = datos.get(campo)
         if valor is None or valor == "":
             resultado[campo] = None
@@ -264,7 +278,47 @@ def validar_vehiculo(datos):
         else:
             resultado[campo] = valor if campo in CAMPOS_TEXTO_PRESERVAR else valor.strip()
 
+    if "tipo_vehiculo" not in datos and "tipo_vehiculo" in anteriores:
+        resultado["tipo_vehiculo"] = anteriores["tipo_vehiculo"]
+    else:
+        valor_tipo = datos.get("tipo_vehiculo")
+        if valor_tipo in (None, ""):
+            resultado["tipo_vehiculo"] = None
+        elif not isinstance(valor_tipo, str) or not 1 <= len(valor_tipo.strip()) <= 40:
+            errores["tipo_vehiculo"] = "Selecciona una categoría válida."
+        else:
+            tipo_canonico = normalizar_tipo_vehiculo(valor_tipo)
+            anterior = anteriores.get("tipo_vehiculo")
+            es_legacy_sin_equivalencia = (
+                isinstance(anterior, str)
+                and normalizar_tipo_vehiculo(anterior) is None
+                and valor_tipo == anterior
+            )
+            if tipo_canonico:
+                resultado["tipo_vehiculo"] = tipo_canonico
+            elif es_legacy_sin_equivalencia:
+                resultado["tipo_vehiculo"] = anterior
+            else:
+                errores["tipo_vehiculo"] = "Selecciona una de las categorías disponibles."
+
+    for campo, (minimo, maximo) in CAMPOS_ENTEROS_OPCIONALES.items():
+        if campo not in datos and campo in anteriores:
+            resultado[campo] = anteriores[campo]
+            continue
+        valor = datos.get(campo)
+        if valor in (None, ""):
+            resultado[campo] = None
+            continue
+        numero = _entero_formulario(valor)
+        if numero is None or not minimo <= numero <= maximo:
+            errores[campo] = f"{campo.replace('_', ' ').capitalize()} debe estar entre {minimo} y {maximo}."
+        else:
+            resultado[campo] = numero
+
     for campo in CAMPOS_BOOLEANOS_OPCIONALES:
+        if campo not in datos and campo in anteriores:
+            resultado[campo] = anteriores[campo]
+            continue
         valor = datos.get(campo)
         if valor in (None, "") and not isinstance(valor, (list, dict)):
             resultado[campo] = None

@@ -7,6 +7,7 @@
   const indicadorFiltrosAvanzados = porId("filtros-avanzados-activos");
   const nombresFiltrosAvanzados = ["precio_min", "precio_max", "anio_min", "anio_max", "tipo_vehiculo", "orden"];
   const idFicha = document.body.dataset.vehiculoId || "";
+  const aliasTipos = JSON.parse(porId("vehicle-type-aliases")?.textContent || "{}");
   const dolaresEnteros = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
   const entero = new Intl.NumberFormat("es-NI");
   let vehiculos = [];
@@ -235,6 +236,9 @@
       tarjeta.querySelector(".vehicle-location-text").textContent = vehiculo.ubicacion;
       tarjeta.querySelector(".vehicle-description").textContent = vehiculo.descripcion;
       tarjeta.querySelector(".vehicle-mileage").textContent = `${entero.format(vehiculo.kilometraje)} km`;
+      const tipoVehiculo = vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo || "";
+      tarjeta.querySelector(".vehicle-type").textContent = tipoVehiculo;
+      tarjeta.querySelector(".vehicle-type-attribute").hidden = !tipoVehiculo;
       for (const [selector, valor] of [[".vehicle-transmission", vehiculo.transmision], [".vehicle-fuel", vehiculo.combustible]]) {
         const campo = tarjeta.querySelector(selector);
         campo.textContent = valor || "";
@@ -276,7 +280,23 @@
   function copiarFiltrosDesdeUrl() {
     const parametros = new URLSearchParams(location.search);
     for (const campo of filtrosCatalogo.elements) {
-      if (campo.name && parametros.has(campo.name)) campo.value = parametros.get(campo.name);
+      if (!campo.name || !parametros.has(campo.name)) continue;
+      const valor = parametros.get(campo.name);
+      if (campo.name === "tipo_vehiculo" && valor && campo.options && typeof campo.options[Symbol.iterator] === "function") {
+        const clave = valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        const canonico = aliasTipos[clave];
+        if (canonico) campo.value = canonico;
+        else {
+          let historico = [...campo.options].find((opcion) => opcion.value === valor);
+          if (!historico) {
+            historico = document.createElement("option");
+            historico.value = valor;
+            historico.textContent = `Tipo histórico · ${valor}`;
+            campo.append(historico);
+          }
+          campo.value = valor;
+        }
+      } else campo.value = valor;
     }
     parametrosCatalogoActivos = leerParametrosCatalogo();
     actualizarFiltrosAvanzados(true);
@@ -423,7 +443,7 @@
     const estadoCompra = porId("ficha-estado-compra");
     estadoCompra.textContent = disponible ? "Disponible" : "Vendido";
     estadoCompra.classList.toggle("sold", !disponible);
-    [["transmision", vehiculo.transmision], ["combustible", vehiculo.combustible], ["tipo", vehiculo.tipo_vehiculo]].forEach(([clave, valor]) => {
+    [["transmision", vehiculo.transmision], ["combustible", vehiculo.combustible], ["tipo", vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo]].forEach(([clave, valor]) => {
       const fila = document.querySelector(`[data-spec="${clave}"]`);
       const contenido = porId(`ficha-${clave}`);
       contenido.textContent = valor || "";
@@ -433,14 +453,20 @@
     const lista = porId("ficha-caracteristicas");
     lista.replaceChildren();
     const caracteristicas = [];
-    if (vehiculo.tipo_vehiculo) caracteristicas.push(["Tipo", vehiculo.tipo_vehiculo]);
+    if (vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo) caracteristicas.push(["Tipo", vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo]);
+    if (vehiculo.version) caracteristicas.push(["Versión", vehiculo.version]);
+    if (vehiculo.motor) caracteristicas.push(["Motor", vehiculo.motor]);
+    if (vehiculo.numero_puertas !== null && vehiculo.numero_puertas !== undefined) caracteristicas.push(["Puertas", String(vehiculo.numero_puertas)]);
+    if (vehiculo.capacidad_pasajeros !== null && vehiculo.capacidad_pasajeros !== undefined) caracteristicas.push(["Pasajeros", String(vehiculo.capacidad_pasajeros)]);
     if (vehiculo.color) caracteristicas.push(["Color", vehiculo.color]);
     if (vehiculo.transmision) caracteristicas.push(["Transmisión", vehiculo.transmision]);
     if (vehiculo.combustible) caracteristicas.push(["Combustible", vehiculo.combustible]);
     [
       ["aire_acondicionado", "Aire acondicionado"],
       ["ventanas_electricas", "Ventanas eléctricas"],
-      ["pantalla_multimedia", "Pantalla multimedia"]
+      ["pantalla_multimedia", "Pantalla multimedia"],
+      ["camara_reversa", "Cámara de reversa"],
+      ["bluetooth", "Bluetooth"]
     ].forEach(([campo, etiqueta]) => {
       if (vehiculo[campo] !== null && vehiculo[campo] !== undefined) {
         caracteristicas.push([etiqueta, vehiculo[campo] ? "Sí" : "No"]);

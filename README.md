@@ -99,6 +99,10 @@ El registro requiere un nombre visible de 2 a 40 caracteres. Supabase Auth trans
 
 La migración `supabase/migrations/20261112171056_v76_nombres_visibles.sql` debe aplicarse en el entorno objetivo antes de desplegar el código V7.6. No se ejecuta automáticamente ni esta entrega la aplicó en Supabase remoto.
 
+## Ficha técnica V7.7
+
+La ficha admite versión, motor, puertas, capacidad de pasajeros y los indicadores triestado de cámara de reversa y Bluetooth. Tipo de vehículo usa códigos canónicos definidos en `tipos_vehiculo.py`; la migración `20261112191129_v77_ficha_tecnica.sql` agrega columnas opcionales y normaliza equivalencias históricas claras. Tipos desconocidos se conservan literalmente y pueden corregirse desde el selector. Aplicar la migración antes de desplegar la nueva API. La compatibilidad y las verificaciones se documentan en [V7.7](docs/v77-ficha-tecnica.md).
+
 ## Mensajería (implementada, aún desactivada)
 
 El chat comprador-administrador usa Flask y PostgreSQL sin exponer tablas a Supabase Data API. El comprador recibe una credencial aleatoria del servidor en una cookie HttpOnly/SameSite=Lax, Secure bajo HTTPS, con expiración de **30 días**. PostgreSQL guarda solo el hash SHA-256. Esta identidad es independiente de la sesión administrativa.
