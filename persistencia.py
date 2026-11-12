@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import uuid
+import propiedad
 
 from vehiculos import MAX_VEHICULOS
 
@@ -15,7 +16,7 @@ CAMPOS_DATOS = (
     "transmision", "combustible", "aire_acondicionado", "ventanas_electricas",
     "pantalla_multimedia",
 )
-CAMPOS_SALIDA = ("id", *CAMPOS_DATOS, "created_at", "updated_at")
+CAMPOS_SALIDA = ("id", *CAMPOS_DATOS, "created_at", "updated_at", "vendedor_id")
 SELECCION = ", ".join(CAMPOS_SALIDA)
 
 
@@ -63,16 +64,18 @@ def _normalizar_fila(fila):
 
 
 def listar_vehiculos():
+    scope, args = propiedad.lectura()
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
-            cursor.execute(f"SELECT {SELECCION} FROM public.vehiculos WHERE retirado_en IS NULL ORDER BY id")
+            cursor.execute(f"SELECT {SELECCION} FROM public.vehiculos WHERE retirado_en IS NULL AND {scope} ORDER BY id", args)
             return [_normalizar_fila(fila) for fila in cursor.fetchall()]
 
 
 def buscar_vehiculos(filtros):
     """Consulta el catálogo con filtros normalizados y valores parametrizados."""
-    condiciones = ["retirado_en IS NULL"]
-    valores = []
+    scope, args = propiedad.lectura()
+    condiciones = ["retirado_en IS NULL", scope]
+    valores = list(args)
 
     consulta = filtros.get("q")
     if consulta:
@@ -123,11 +126,12 @@ def buscar_vehiculos(filtros):
 
 
 def obtener_vehiculo(identificador):
+    scope, args = propiedad.lectura()
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
-                f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL",
-                (identificador,),
+                f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL AND {scope}",
+                (identificador, *args),
             )
             return _normalizar_fila(cursor.fetchone())
 
@@ -142,6 +146,11 @@ def crear_vehiculo(datos, clave_solicitud=None):
     columnas = ", ".join(CAMPOS_DATOS)
     marcadores = ", ".join(["%s"] * len(CAMPOS_DATOS))
     valores = tuple(datos[campo] for campo in CAMPOS_DATOS)
+    scope, args = propiedad.condicion()
+    if propiedad.vendedor.get():
+        columnas += ', vendedor_id'
+        marcadores += ', %s'
+        valores += (propiedad.vendedor.get(),)
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             # Serializa altas para conservar el límite histórico de 500 registros.
@@ -156,8 +165,8 @@ def crear_vehiculo(datos, clave_solicitud=None):
                     if anterior["huella"] != huella:
                         raise ValueError("La clave de solicitud ya se usó con otros datos.")
                     cursor.execute(
-                        f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL",
-                        (anterior["vehiculo_id"],),
+                        f"SELECT {SELECCION} FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL AND {scope}",
+                        (anterior["vehiculo_id"], *args),
                     )
                     guardado = _normalizar_fila(cursor.fetchone())
                     if guardado is None:
@@ -186,46 +195,50 @@ def crear_vehiculo_idempotente(datos, clave):
 
 
 def editar_vehiculo(identificador, datos):
+    scope, args = propiedad.condicion()
     asignaciones = ", ".join(f"{campo} = %s" for campo in CAMPOS_DATOS)
     valores = tuple(datos[campo] for campo in CAMPOS_DATOS)
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET {asignaciones}, updated_at = now() "
-                f"WHERE id = %s AND retirado_en IS NULL RETURNING {SELECCION}",
-                (*valores, identificador),
+                f"WHERE id = %s AND retirado_en IS NULL AND {scope} RETURNING {SELECCION}",
+                (*valores, identificador, *args),
             )
             return _normalizar_fila(cursor.fetchone())
 
 
 def cambiar_disponibilidad(identificador, disponibilidad):
+    scope, args = propiedad.condicion()
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET disponibilidad = %s, updated_at = now() "
-                f"WHERE id = %s AND retirado_en IS NULL RETURNING {SELECCION}",
-                (disponibilidad, identificador),
+                f"WHERE id = %s AND retirado_en IS NULL AND {scope} RETURNING {SELECCION}",
+                (disponibilidad, identificador, *args),
             )
             return _normalizar_fila(cursor.fetchone())
 
 
 def cambiar_disponibilidad_condicional(identificador, disponibilidad, version_esperada):
     """Solo modifica la fila si conserva la versión leída por el administrador."""
+    scope, args = propiedad.condicion()
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"UPDATE public.vehiculos SET disponibilidad = %s, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') "
-                f"WHERE id = %s AND retirado_en IS NULL AND updated_at = %s::timestamptz RETURNING {SELECCION}",
-                (disponibilidad, identificador, version_esperada),
+                f"WHERE id = %s AND retirado_en IS NULL AND updated_at = %s::timestamptz AND {scope} RETURNING {SELECCION}",
+                (disponibilidad, identificador, version_esperada, *args),
             )
             return _normalizar_fila(cursor.fetchone())
 
 
 def retirar_vehiculo(identificador, version_esperada):
     """Retira una versión concreta conservando fotos, objetos e historial."""
+    scope, args = propiedad.condicion()
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT retirado_en, updated_at FROM public.vehiculos WHERE id = %s FOR UPDATE", (identificador,))
+            cursor.execute(f"SELECT retirado_en, updated_at FROM public.vehiculos WHERE id = %s AND {scope} FOR UPDATE", (identificador, *args))
             fila = cursor.fetchone()
             if fila is None:
                 return "no_encontrado"
@@ -237,7 +250,7 @@ def retirar_vehiculo(identificador, version_esperada):
             cursor.execute("SELECT EXISTS (SELECT 1 FROM public.fotografia_operaciones WHERE vehiculo_id = %s AND estado = 'pendiente' AND created_at > now() - interval '1 hour') AS pendiente", (identificador,))
             if cursor.fetchone()["pendiente"]:
                 return "fotografia_pendiente"
-            cursor.execute("UPDATE public.vehiculos SET retirado_en = clock_timestamp(), updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') WHERE id = %s", (identificador,))
+            cursor.execute(f"UPDATE public.vehiculos SET retirado_en = clock_timestamp(), updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') WHERE id = %s AND {scope}", (identificador, *args))
             return "retirado"
 
 

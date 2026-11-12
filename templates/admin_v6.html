@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <title>Administración · Vehículos usados</title>
+  <title>{{ 'Panel de vendedor' if vendedor_panel else 'Administración' }} · Vehículos usados</title>
   <link rel="icon" href="{{ url_for('static', filename='img/vehiculo.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/iconos.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
@@ -17,7 +17,7 @@
   <script defer src="{{ url_for('static', filename='js/admin-v6-field-values.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
 </head>
-<body class="admin-v6" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
+<body class="admin-v6" data-seller-panel="{{ 'true' if vendedor_panel else 'false' }}" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#admin-main">Saltar al panel</a>
   <header class="admin-topbar">
     <div class="admin-topbar-inner">
@@ -26,7 +26,7 @@
         <span>Vehículos usados</span>
       </a>
       <div class="admin-topbar-actions">
-        <span class="admin-topbar-label">Panel administrativo</span>
+        <span class="admin-topbar-label">{{ 'Panel de vendedor' if vendedor_panel else 'Panel administrativo' }}</span>
         <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation" hidden>
           {{ lucide_icon('menu', 24) }}
         </button>
@@ -41,16 +41,16 @@
   <main id="admin-main" class="admin-main">
     <section id="admin-readonly" class="admin-readonly-card" aria-labelledby="admin-readonly-title" {% if not solo_lectura %}hidden{% endif %}>
       <span class="admin-brand-mark admin-readonly-mark" aria-hidden="true">V.</span>
-      <h1 id="admin-readonly-title">Panel administrativo</h1>
+      <h1 id="admin-readonly-title">{{ 'Panel de vendedor' if vendedor_panel else 'Panel administrativo' }}</h1>
       <p>Este ambiente permite únicamente consultar el catálogo. Las funciones administrativas no están disponibles aquí.</p>
       <a class="admin-button admin-button-secondary" href="/">Volver al catálogo</a>
     </section>
 
     <section id="admin-auth" class="admin-auth-card" aria-labelledby="admin-auth-title" {% if solo_lectura %}hidden{% endif %}>
       <span class="admin-brand-mark admin-auth-mark" aria-hidden="true">V.</span>
-      <h1 id="admin-auth-title">Acceso administrativo</h1>
-      <p class="admin-auth-copy">Ingresá con la contraseña autorizada para administrar las publicaciones.</p>
-      <form id="admin-login-form" class="admin-login-form" novalidate>
+      <h1 id="admin-auth-title">{{ 'Acceso de vendedor' if vendedor_panel else 'Acceso administrativo' }}</h1>
+      <p class="admin-auth-copy">{% if vendedor_panel %}Ingresá con tu cuenta para gestionar tus publicaciones.{% else %}Ingresá con la contraseña autorizada para administrar las publicaciones.{% endif %}</p>
+      {% if vendedor_panel %}<a class="admin-button admin-button-primary" href="/cuenta">Iniciar sesión con mi cuenta</a>{% endif %}<form {% if vendedor_panel %}hidden{% endif %} id="admin-login-form" class="admin-login-form" novalidate>
         <div class="admin-field">
           <label for="admin-password">Contraseña</label>
           <input id="admin-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
@@ -67,7 +67,7 @@
 
     <section id="admin-workspace" class="admin-workspace" hidden>
       <aside id="admin-navigation" class="admin-sidebar" aria-label="Navegación administrativa">
-        <p class="admin-nav-heading">Administración</p>
+        <p class="admin-nav-heading">{{ 'Mis publicaciones' if vendedor_panel else 'Administración' }}</p>
         <nav class="admin-nav-list">
           <button class="admin-nav-link is-active" type="button" data-admin-view="inventory" aria-current="page">
             {{ lucide_icon('car-front', 20) }}
@@ -99,7 +99,7 @@
               <h1 id="inventory-title" tabindex="-1">Gestioná tus vehículos</h1>
               <p class="admin-subheading">Organizá publicaciones, fotografías y disponibilidad.</p>
             </div>
-            <button class="admin-button admin-button-primary" type="button" data-new-vehicle>
+            <button class="admin-button admin-button-primary" type="button" data-admin-view="vehicle-form" data-new-vehicle>
               {{ lucide_icon('plus', 20) }}
               Registrar vehículo
             </button>

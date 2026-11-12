@@ -6,7 +6,8 @@
   const body = document.body;
   const csrfMeta = one('meta[name="csrf-token"]');
   const csrf = () => csrfMeta?.content || "";
-  const apiRoot = "/api";
+  const sellerPanel = document.body.dataset.sellerPanel === 'true';
+  const apiRoot = sellerPanel ? '/api/vendedor' : '/api';
   const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
   const number = new Intl.NumberFormat("es-NI", { maximumFractionDigits: 0 });
   const readonly = body.dataset.readOnly === "true";
@@ -134,7 +135,10 @@
     init.signal = controller.signal;
     try {
       let response;
-      try { response = await fetch(`${apiRoot}${path}`, init); }
+      let url = `${apiRoot}${path}`;
+      if (!sellerPanel && path.startsWith('/vehiculos') && method === 'GET' && !/^\/vehiculos\/\d/.test(path)) url = `/api/admin${path}`;
+      if (sellerPanel && path === '/admin/logout') url = '/api/cuenta/logout';
+      try { response = await fetch(url, init); }
       catch { throw new Error("No pudimos comunicarnos con el servidor. Revisá la conexión e intentá de nuevo."); }
       let data;
       try { data = await response.json(); }
@@ -232,6 +236,7 @@
     stopPolling();
     try {
       const result = await request("/admin/logout", { method: "POST", body: {} });
+      if (sellerPanel) { location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
         csrfMeta.content = csrfToken;

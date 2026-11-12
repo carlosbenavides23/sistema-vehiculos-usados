@@ -12,6 +12,7 @@
     const user=data.usuario;
     estado.textContent=user?`Sesión iniciada: ${user.email} · ${user.rol}`:data.mensaje||'';
     form.hidden=Boolean(user);one('salir-cuenta').hidden=!user;
+    one('panel-vendedor').hidden=user?.rol!=='vendedor';
   }
   api('/api/cuenta').then(mostrar).catch(()=>{});
   one('mostrar-password').onclick=()=>{const campo=one('password'), visible=campo.type==='password';campo.type=visible?'text':'password';one('mostrar-password').textContent=visible?'Ocultar contraseña':'Mostrar contraseña';one('mostrar-password').setAttribute('aria-pressed',String(visible));};

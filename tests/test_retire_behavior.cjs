@@ -15,7 +15,7 @@ const assert = require('node:assert/strict');
       let status=200,data={ok:true,csrf_token:'fixture'};
       if(u.pathname==='/api/admin/session')data={ok:true,autenticado:auth,solo_lectura:false};
       else if(u.pathname==='/api/admin/login')auth=true;
-      else if(u.pathname==='/api/vehiculos')data={ok:true,vehiculos:retired?[]:[car]};
+      else if(u.pathname==='/api/admin/vehiculos')data={ok:true,vehiculos:retired?[]:[car]};
       else if(u.pathname==='/api/vehiculos/2/retirar'){
         attempts++;
         assert.equal(req.postDataJSON().version_esperada,car.updated_at);

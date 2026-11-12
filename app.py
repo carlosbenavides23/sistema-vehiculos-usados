@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from dotenv import load_dotenv
-from flask import Flask, current_app, jsonify, render_template, request, session
+from flask import Flask, current_app, jsonify, render_template, request, session, g
 from werkzeug.exceptions import BadRequest, HTTPException, UnsupportedMediaType
 from werkzeug.security import check_password_hash
 
@@ -20,6 +20,8 @@ import persistencia
 import persistencia_fotos
 import persistencia_chat
 from cuentas import bp as cuentas_bp
+import cuentas
+import propiedad
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
@@ -110,7 +112,7 @@ def create_app(configuracion=None):
     def exigir_admin_y_csrf():
         if current_app.config["APP_READ_ONLY"]:
             return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
-        if not session.get("admin_authenticated"):
+        if not session.get("admin_authenticated") and not getattr(g, 'cuenta_vendedor', None):
             return jsonify(respuesta_error("Inicia sesión como administrador para continuar.")), 401
         if not csrf_valido():
             return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
@@ -119,7 +121,7 @@ def create_app(configuracion=None):
     def exigir_admin_sin_csrf():
         if current_app.config["APP_READ_ONLY"]:
             return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
-        if not session.get("admin_authenticated"):
+        if not session.get("admin_authenticated") and not getattr(g, 'cuenta_vendedor', None):
             return jsonify(respuesta_error("Inicia sesión como administrador para continuar.")), 401
         return None
 
@@ -218,7 +220,10 @@ def create_app(configuracion=None):
 
     def respuesta_vehiculo(vehiculo, fotografias=None):
         salida = dict(vehiculo)
-        if not session.get("admin_authenticated"):
+        owner = salida.pop('vendedor_id', None)
+        vendedor = getattr(g, 'cuenta_vendedor', None)
+        privado = (vendedor and str(owner) == vendedor['id']) or (session.get('admin_authenticated') and owner is None)
+        if not privado:
             salida.pop("placa", None)
         if fotografias is None:
             fotografias = fotos_repositorio("listar_fotografias", vehiculo["id"])
@@ -831,6 +836,8 @@ def create_app(configuracion=None):
                 return jsonify(respuesta_error("No se encontró la fotografía.")), 404
             limpieza_pendiente = limpiar_despues_del_commit()
             resultado = resultado_fotos(identificador, limpieza_pendiente=limpieza_pendiente)
+        except LookupError:
+            return jsonify(respuesta_error("No se encontró la fotografía.")), 404
         except Exception as error:
             return error_persistencia(error)
         return jsonify(resultado)
@@ -856,6 +863,58 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("La solicitud no pudo completarse. Intenta de nuevo.")), 503
         return "La página no está disponible temporalmente.", 503
 
+    @aplicacion.before_request
+    def contexto_vendedor():
+        es_vendedor = request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
+        es_legacy = request.path == '/api/admin/vehiculos'
+        if not es_vendedor and not es_legacy:
+            return None
+        owner = None
+        if es_vendedor:
+            if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
+                return jsonify(respuesta_error('Panel no habilitado.')), 404
+            user = cuentas.identidad()
+            if not user: return jsonify(respuesta_error('Iniciá sesión para continuar.')), 401
+            if user['rol'] != 'vendedor': return jsonify(respuesta_error('Se requiere una cuenta vendedora.')), 403
+            g.cuenta_vendedor = user
+            owner = user['id']
+        else:
+            rechazo = exigir_admin_sin_csrf()
+            if rechazo: return rechazo
+        g.propiedad_tokens = (propiedad.vendedor.set(owner), propiedad.privado.set(True))
+
+    @aplicacion.teardown_request
+    def limpiar_propiedad(error):
+        tokens = getattr(g, 'propiedad_tokens', None)
+        if tokens:
+            propiedad.vendedor.reset(tokens[0]); propiedad.privado.reset(tokens[1])
+            g.propiedad_tokens = None
+
+    @aplicacion.after_request
+    def cookies_vendedor(response):
+        if request.path == '/vendedor' or request.path.startswith('/api/vendedor/'):
+            return cuentas.cookies(response)
+        return response
+
+    @aplicacion.get('/vendedor')
+    def panel_vendedor():
+        return render_template('admin_v6.html', csrf_token=token_csrf(), solo_lectura=current_app.config['APP_READ_ONLY'], chat_habilitado=False, max_year=datetime.now().year+1, vendedor_panel=True)
+
+    @aplicacion.get('/api/vendedor/admin/session')
+    def sesion_vendedor():
+        return jsonify(ok=True, autenticado=True, solo_lectura=current_app.config['APP_READ_ONLY'])
+
+    aplicacion.add_url_rule('/api/admin/vehiculos', 'inventario_legacy', listar_vehiculos, methods=['GET'])
+    for ruta, funcion, metodos in (
+        ('', listar_vehiculos, ['GET']), ('', registrar_vehiculo, ['POST']),
+        ('/<int:identificador>', consultar_vehiculo, ['GET']), ('/<int:identificador>', editar_vehiculo, ['PUT']),
+        ('/<int:identificador>/disponibilidad', cambiar_disponibilidad, ['PATCH']),
+        ('/<int:identificador>/retirar', retirar_publicacion, ['POST']),
+        ('/<int:identificador>/fotografias', agregar_fotografia, ['POST']),
+        ('/<int:identificador>/fotografias/<int:fotografia_id>', sustituir_fotografia, ['PUT']),
+        ('/<int:identificador>/fotografias/<int:fotografia_id>', eliminar_fotografia, ['DELETE']),
+    ):
+        aplicacion.add_url_rule('/api/vendedor/vehiculos'+ruta, 'vendedor_'+funcion.__name__, funcion, methods=metodos)
     return aplicacion
 
 
