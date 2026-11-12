@@ -24,6 +24,7 @@ import persistencia_chat_cuentas
 from cuentas import bp as cuentas_bp
 import cuentas
 import propiedad
+import politica_v7
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
@@ -54,10 +55,7 @@ def _cargar_dotenv():
 
 
 def _solo_lectura_desde_entorno():
-    valor = os.environ.get("APP_READ_ONLY", "").lower()
-    # Esta entrega permite Preview únicamente de consulta. Ninguna cadena de
-    # conexión ni APP_READ_ONLY=false habilitan escrituras en ese ambiente.
-    return os.environ.get("VERCEL_ENV") == "preview" or valor not in ("", "false")
+    return politica_v7.solo_lectura({"APP_READ_ONLY": os.environ.get("APP_READ_ONLY")})
 
 
 def create_app(configuracion=None):
@@ -69,7 +67,11 @@ def create_app(configuracion=None):
         ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=bool(os.environ.get("VERCEL")) or os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true",
+        SESSION_COOKIE_SECURE=(
+            bool(os.environ.get("VERCEL"))
+            or os.environ.get("VERCEL_ENV", "").lower() in ("preview", "production")
+            or os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+        ),
         MAX_CONTENT_LENGTH=MAX_SOLICITUD,
         MAX_FORM_MEMORY_SIZE=MAX_SOLICITUD,
         MAX_FORM_PARTS=3,
@@ -81,10 +83,16 @@ def create_app(configuracion=None):
         CHAT_REPOSITORY=None,
         CHAT_CUENTAS_REPOSITORY=None,
         STORAGE=None,
-        USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true" and os.environ.get("VERCEL_ENV") != "production",
+        USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true",
+        V7_PRODUCTION_ENABLED=os.environ.get("V7_PRODUCTION_ENABLED", "false").lower() == "true",
     )
     if configuracion:
         aplicacion.config.update(configuracion)
+    # La protección de Preview no puede ser desactivada mediante valores de
+    # configuración inyectados o por APP_READ_ONLY=false.
+    aplicacion.config["APP_READ_ONLY"] = politica_v7.solo_lectura(aplicacion.config)
+    if os.environ.get("VERCEL_ENV", "").lower() in ("preview", "production") or os.environ.get("VERCEL"):
+        aplicacion.config["SESSION_COOKIE_SECURE"] = True
     aplicacion.register_blueprint(cuentas_bp)
     # La función pública no se puede habilitar desde Preview ni en un entorno
     # configurado como solo lectura, aunque alguien solicite CHAT_ENABLED.
@@ -1111,9 +1119,12 @@ def create_app(configuracion=None):
         es_vendedor = request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
         es_legacy = request.path == '/api/admin/vehiculos'
         es_chat_cuenta = request.path.startswith('/api/cuenta/chat/')
+        solo_lectura_actual = politica_v7.solo_lectura(current_app.config)
         if es_chat_cuenta:
-            if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
+            if not politica_v7.habilitada(current_app.config):
                 return jsonify(respuesta_error('Mensajería de cuentas no habilitada.')), 404
+            if solo_lectura_actual and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                return jsonify(respuesta_error('Este ambiente permite únicamente consultas; no se pueden modificar conversaciones.')), 503
             try:
                 usuario = cuentas.identidad()
             except auth_proveedor.ErrorAuth as error:
@@ -1129,8 +1140,10 @@ def create_app(configuracion=None):
             return None
         owner = None
         if es_vendedor:
-            if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
+            if not politica_v7.habilitada(current_app.config):
                 return jsonify(respuesta_error('Panel no habilitado.')), 404
+            if solo_lectura_actual and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                return jsonify(respuesta_error('Este ambiente permite únicamente consultas; no se pueden modificar publicaciones.')), 503
             user = cuentas.identidad()
             if not user: return jsonify(respuesta_error('Iniciá sesión para continuar.')), 401
             if user['rol'] != 'vendedor': return jsonify(respuesta_error('Se requiere una cuenta vendedora.')), 403

@@ -1,6 +1,12 @@
 # Cuentas V7.1 (preparación interna)
 
-Aplicar la migración de roles y sesiones antes de habilitar `USER_AUTH_ENABLED=true` en un entorno aislado. La aplicación fuerza las rutas de cuentas a permanecer deshabilitadas cuando `VERCEL_ENV=production`. Preview de cuentas requiere Auth y PostgreSQL separados de Production.
+La política de preparación y desactivación está detallada en [V7.4](V74_PREPARACION_DESPLIEGUE.md).
+
+V7 permanece deshabilitada por defecto. `USER_AUTH_ENABLED=true` es el opt-in general; en Vercel Production también se exige `V7_PRODUCTION_ENABLED=true`. Ambos flags son insuficientes si faltan dependencias válidas: `FLASK_SECRET_KEY` de al menos 32 caracteres, `DATABASE_URL` PostgreSQL, `SUPABASE_URL` HTTPS del proyecto, `SUPABASE_PUBLISHABLE_KEY` (o `SUPABASE_ANON_KEY`) y cookies seguras en Vercel. La verificación es sintáctica y no conecta con servicios durante el arranque. La importación de Flask no crea usuarios ni exige conectividad remota.
+
+Preview puede exponer rutas V7 de lectura solo con `USER_AUTH_ENABLED=true` y dependencias configuradas para ese ambiente, pero siempre fuerza `APP_READ_ONLY=true` y cookies seguras. `APP_READ_ONLY=false` no puede habilitar escrituras en Preview. Se bloquean registro, login (porque crea una sesión local), chat y cambios del vendedor antes de llamar a Auth o escribir en PostgreSQL. El cierre de sesión sigue revocando primero la sesión local y después intenta la revocación remota. Si la configuración V7 requerida no está completa, las rutas V7 quedan deshabilitadas sin revelar qué valor falta.
+
+Para Production, mantén `USER_AUTH_ENABLED=false` y `V7_PRODUCTION_ENABLED=false` hasta que exista respaldo restaurable, las migraciones estén aplicadas en orden, permisos/trigger se hayan verificado bajo los roles reales y Supabase Auth se haya probado en un proyecto aislado. Solo entonces ambos flags pueden cambiarse deliberadamente en el ambiente Production. No basta `APP_READ_ONLY=false`; la bandera V6 tampoco concede por sí misma acceso V7. La separación de variables por ambiente debe impedir que credenciales de Production se copien a Preview.
 
 Configurar `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (o `SUPABASE_ANON_KEY`), `DATABASE_URL`, `FLASK_SECRET_KEY` y cookies Secure bajo HTTPS. No se usa una clave administrativa de Auth ni se almacenan contraseñas. En Authentication → Providers → Email, desactivar Confirm email para el prototipo si se autoriza; con confirmación activa el registro informa que se revise el correo. No se cambió esa opción remotamente.
 
