@@ -46,7 +46,8 @@ def _rol_valido(cursor, usuario_id, rol, bloqueo="KEY SHARE"):
 
 def _conversacion(cursor, conversacion_id):
     cursor.execute(
-        """SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio
+        """SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio,
+                  (v.retirado_en IS NOT NULL) AS vehiculo_retirado
            FROM public.conversaciones_cuentas AS c
            JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
            WHERE c.id = %s""",
@@ -139,6 +140,7 @@ def _listar(usuario_id, rol, cursor_id=None, limite=50):
             cursor.execute(
                 f"""SELECT c.id, c.comprador_id, c.vehiculo_id, v.vendedor_id,
                            c.estado, c.created_at, c.updated_at,
+                           (v.retirado_en IS NOT NULL) AS vehiculo_retirado,
                            v.marca, v.modelo, v.anio,
                            m.contenido AS ultimo_mensaje, m.remitente AS ultimo_remitente,
                            m.created_at AS ultimo_mensaje_en
@@ -171,7 +173,8 @@ def _obtener(conversacion_id, usuario_id, rol):
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
             cursor.execute(
-                f"""SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio
+                f"""SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio,
+                           (v.retirado_en IS NOT NULL) AS vehiculo_retirado
                     FROM public.conversaciones_cuentas AS c
                     JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
                     WHERE c.id = %s AND {alcance}""",
@@ -186,6 +189,28 @@ def obtener_conversacion_comprador(conversacion_id, comprador_id):
 
 def obtener_conversacion_vendedor(conversacion_id, vendedor_id):
     return _obtener(conversacion_id, vendedor_id, "vendedor")
+
+
+def obtener_conversacion_vehiculo_comprador(comprador_id, vehiculo_id):
+    """Busca sin crear una conversación al abrir el chat desde la ficha."""
+    comprador_id = _uuid(comprador_id, "comprador_id")
+    try:
+        vehiculo_id = int(vehiculo_id)
+    except (ValueError, TypeError, OverflowError) as error:
+        raise ValueError("vehiculo_id debe ser un entero válido.") from error
+    if vehiculo_id <= 0:
+        raise ValueError("vehiculo_id debe ser un entero positivo.")
+    with _conectar() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                """SELECT c.id FROM public.conversaciones_cuentas AS c
+                   JOIN public.roles_usuarios AS r
+                     ON r.usuario_id = c.comprador_id AND r.rol = 'comprador'
+                   WHERE c.comprador_id = %s AND c.vehiculo_id = %s""",
+                (comprador_id, vehiculo_id),
+            )
+            conversacion = cursor.fetchone()
+            return _conversacion(cursor, conversacion["id"]) if conversacion else None
 
 
 def _mensajes(conversacion_id, usuario_id, rol, despues_de_id):
@@ -343,11 +368,21 @@ def responder_vendedor(vendedor_id, conversacion_id, clave_idempotencia, huella,
         with conexion.cursor() as cursor:
             if not _rol_valido(cursor, vendedor_id, "vendedor"):
                 return None
+            # Sigue el orden vehículo -> conversación, igual que el envío del
+            # comprador, y se coordina con el retiro lógico antes de responder.
             cursor.execute(
-                """SELECT c.id FROM public.conversaciones_cuentas AS c
+                """SELECT c.id, c.vehiculo_id, v.retirado_en
+                   FROM public.conversaciones_cuentas AS c
                    JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
-                   WHERE c.id = %s AND v.vendedor_id = %s FOR UPDATE OF c""",
+                   WHERE c.id = %s AND v.vendedor_id = %s FOR UPDATE OF v""",
                 (conversacion_id, vendedor_id),
+            )
+            vehiculo = cursor.fetchone()
+            if vehiculo is None:
+                return None
+            cursor.execute(
+                "SELECT id FROM public.conversaciones_cuentas WHERE id = %s FOR UPDATE",
+                (conversacion_id,),
             )
             if cursor.fetchone() is None:
                 return None
@@ -356,6 +391,8 @@ def responder_vendedor(vendedor_id, conversacion_id, clave_idempotencia, huella,
             )
             if existente is not None:
                 return {"mensaje": existente["mensaje"], "duplicado": True}
+            if vehiculo["retirado_en"] is not None:
+                return None
             mensaje = _insertar_mensaje(
                 cursor, conversacion_id, vendedor_id, "vendedor", clave, huella, contenido,
             )

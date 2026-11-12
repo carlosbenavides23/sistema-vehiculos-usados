@@ -95,6 +95,17 @@ class ChatCuentasPostgresTest(unittest.TestCase):
         self.assertIsNone(chat.listar_mensajes_vendedor(conv_a, self.vendedor_b))
         self.assertEqual(chat.listar_mensajes_comprador(conv_a, self.comprador_a)[0]["contenido"], "Comprador A")
         self.assertEqual(chat.listar_mensajes_vendedor(conv_a, self.vendedor_a)[0]["contenido"], "Comprador A")
+        self.assertEqual(
+            chat.obtener_conversacion_vehiculo_comprador(self.comprador_a, self.vehiculo_a["id"])["id"],
+            conv_a,
+        )
+        self.assertEqual(
+            chat.obtener_conversacion_vehiculo_comprador(self.comprador_b, self.vehiculo_a["id"])["id"],
+            envio_b["conversacion"]["id"],
+        )
+        self.assertIsNone(
+            chat.obtener_conversacion_vehiculo_comprador(self.comprador_a, self.vehiculo_b["id"]),
+        )
         self.assertEqual(chat.listar_conversaciones_comprador(self.vendedor_a), [])
         self.assertEqual(chat.listar_conversaciones_vendedor(self.comprador_a), [])
 
@@ -273,6 +284,13 @@ class ChatCuentasPostgresTest(unittest.TestCase):
 
     def test_retiro_preserva_historial_pero_bloquea_nuevos_mensajes(self):
         envio = self._enviar(texto="Historial antes del retiro")
+        clave_respuesta = uuid.uuid4()
+        contenido_respuesta = "Respuesta anterior al retiro"
+        respuesta = chat.responder_vendedor(
+            self.vendedor_a, envio["conversacion"]["id"], clave_respuesta,
+            self._huella(contenido_respuesta), contenido_respuesta,
+        )
+        self.assertFalse(respuesta["duplicado"])
         token = propiedad.vendedor.set(self.vendedor_a)
         try:
             estado = persistencia.retirar_vehiculo(
@@ -286,10 +304,21 @@ class ChatCuentasPostgresTest(unittest.TestCase):
         )
         self.assertEqual(recuperada["id"], envio["conversacion"]["id"])
         self.assertIsNone(self._enviar(texto="No debe persistirse después del retiro"))
+        self.assertTrue(chat.responder_vendedor(
+            self.vendedor_a, envio["conversacion"]["id"], clave_respuesta,
+            self._huella(contenido_respuesta), contenido_respuesta,
+        )["duplicado"])
+        self.assertIsNone(chat.responder_vendedor(
+            self.vendedor_a, envio["conversacion"]["id"], uuid.uuid4(),
+            self._huella("Respuesta no permitida"), "Respuesta no permitida",
+        ))
         historial = chat.listar_mensajes_comprador(
             envio["conversacion"]["id"], self.comprador_a,
         )
-        self.assertEqual([m["contenido"] for m in historial], ["Historial antes del retiro"])
+        self.assertEqual(
+            [m["contenido"] for m in historial],
+            ["Historial antes del retiro", contenido_respuesta],
+        )
 
     def test_paginacion_vendedor_no_revela_otras_cuentas(self):
         self._enviar(self.comprador_a, self.vehiculo_a, "Uno")

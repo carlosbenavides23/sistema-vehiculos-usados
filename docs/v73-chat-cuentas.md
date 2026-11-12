@@ -34,6 +34,28 @@ como comprador, responder como vendedor y marcar como atendida. Los mensajes
 conservan el máximo de 4.000 caracteres, la cuota de ocho envíos de comprador
 por minuto y reintentos idempotentes.
 
+## API V7.3.2
+
+Las rutas nuevas permanecen disponibles solo con USER_AUTH_ENABLED y se bloquean
+en Vercel Production hasta la activación posterior de V7. Todas requieren
+identidad verificada mediante cuentas.identidad(); las escrituras requieren el
+CSRF de la sesión Flask, Idempotency-Key UUID y solo aceptan el cuerpo
+{contenido}. No aceptan IDs de cuenta del cliente.
+
+| Método | Ruta | Acceso |
+| --- | --- | --- |
+| GET | /api/cuenta/chat/comprador/conversaciones | Comprador; cursores opcionales |
+| GET | /api/cuenta/chat/comprador/vehiculos/{id}/conversacion | Comprador; lookup sin crear conversación |
+| GET | /api/cuenta/chat/comprador/conversaciones/{uuid}/mensajes | Comprador participante; cursor despues_de_id |
+| POST | /api/cuenta/chat/comprador/vehiculos/{id}/mensajes | Comprador; publicación activa |
+| GET | /api/cuenta/chat/vendedor/conversaciones | Vendedor; solo sus vehículos |
+| GET | /api/cuenta/chat/vendedor/conversaciones/{uuid}/mensajes | Vendedor propietario |
+| POST | /api/cuenta/chat/vendedor/conversaciones/{uuid}/mensajes | Vendedor propietario; publicación activa |
+
+Los recursos privados llevan Cache-Control no-store. Una conversación ajena o
+inexistente devuelve 404 indistinguible. El historial retirado permanece
+disponible a sus participantes, pero no admite mensajes nuevos.
+
 Los historiales previos de una publicación retirada continúan siendo accesibles
 a sus participantes, pero la publicación retirada no admite nuevos mensajes;
 una publicación retirada o heredada sin propietario no admite una conversación
