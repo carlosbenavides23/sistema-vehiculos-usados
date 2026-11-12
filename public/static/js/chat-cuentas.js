@@ -28,7 +28,9 @@
   let currentConversation = null;
   let currentVehicle = null;
   let threadScope = null;
-  let pendingSend = null;
+  const pendingSends = new Map();
+  const requests = new Set();
+  let identityGeneration = 0;
   let cursor = 0;
   let listCursor = null;
   let hasMore = false;
@@ -40,8 +42,17 @@
   let openedBy = null;
 
   async function api(url, options = {}) {
+    const epoch = identityGeneration;
+    if (url !== "/api/cuenta") {
+      const expected = accountId;
+      await verifyAccount();
+      if (expected !== accountId) { sessionExpired(); throw { stale: true }; }
+    }
+    if (epoch !== identityGeneration) throw { stale: true };
+    const controller = new AbortController();
+    requests.add(controller);
     const headers = { Accept: "application/json" };
-    const init = { method: options.method || "GET", credentials: "same-origin", cache: "no-store", headers };
+    const init = { method: options.method || "GET", credentials: "same-origin", cache: "no-store", headers, signal: controller.signal };
     if (options.body !== undefined) {
       headers["Content-Type"] = "application/json";
       headers["X-CSRF-Token"] = csrf;
@@ -50,9 +61,13 @@
     }
     let response;
     try { response = await fetch(url, init); }
-    catch { throw Object.assign(new Error("No hay conexión. Inténtalo de nuevo; el texto escrito se conserva."), { network: true }); }
+    catch {
+      if (epoch !== identityGeneration) throw { stale: true };
+      throw Object.assign(new Error("No hay conexión. Inténtalo de nuevo; el texto escrito se conserva."), { network: true });
+    } finally { requests.delete(controller); }
     let result = {};
     try { result = await response.json(); } catch { /* El estado HTTP basta para informar el fallo. */ }
+    if (epoch !== identityGeneration) throw { stale: true };
     if (!response.ok || result.ok === false) {
       const error = new Error(result.mensaje || "No pudimos completar la operación. Inténtalo de nuevo.");
       error.status = response.status;
@@ -91,11 +106,15 @@
   }
 
   function clearPrivateState() {
+    generation += 1;
+    identityGeneration += 1;
+    requests.forEach((controller) => controller.abort());
+    requests.clear();
     conversations = [];
     currentConversation = null;
     currentVehicle = null;
     threadScope = null;
-    pendingSend = null;
+    pendingSends.clear();
     cursor = 0;
     listCursor = null;
     hasMore = false;
@@ -108,6 +127,9 @@
     one("chat-comprador-panel").hidden = false;
     one("chat-comprador-ficha-no-disponible").hidden = true;
     fichaButton.hidden = true;
+    one("chat-comprador-vehiculo").textContent = "";
+    one("chat-comprador-estado").textContent = "";
+    threadStatus.textContent = "";
     stopPolling();
   }
 
@@ -141,6 +163,7 @@
       }
       return true;
     } catch (error) {
+      if (error.stale) return false;
       clearPrivateState();
       switchView("list");
       if (error.status === 401) setLoginPrompt("Inicia sesión para consultar y enviar mensajes privados.");
@@ -219,6 +242,7 @@
       renderConversations();
       setStatus(listStatus, conversations.length ? "" : "Todavía no tienes conversaciones. Explora el catálogo y contacta al vendedor desde la ficha de un vehículo.");
     } catch (error) {
+      if (error.stale || requestGeneration !== generation) return;
       if (error.status === 401) { sessionExpired(); return; }
       setStatus(listStatus, error.message, "error");
     } finally { listBusy = false; list.setAttribute("aria-busy", "false"); }
@@ -271,7 +295,8 @@
       else if (result.mensajes?.length) setStatus(threadStatus, "");
       restartPolling();
     } catch (error) {
-      if (error.status === 401) { sessionExpired(); return; }
+      if (error.stale || requestGeneration !== generation) return;
+      if ([401, 403, 404].includes(error.status)) { sessionExpired(); return; }
       setStatus(threadStatus, error.message, "error");
     } finally { if (polling) pollBusy = false; messages.setAttribute("aria-busy", "false"); }
   }
@@ -282,8 +307,7 @@
     generation += 1;
     currentConversation = conversation;
     currentVehicle = { id: conversation.vehiculo_id, marca: conversation.vehiculo?.marca || conversation.marca, modelo: conversation.vehiculo?.modelo || conversation.modelo, anio: conversation.vehiculo?.anio || conversation.anio, vehiculo_retirado: Boolean(conversation.vehiculo_retirado) };
-    threadScope = String(conversation.id);
-    pendingSend = null;
+    threadScope = `vehicle:${conversation.vehiculo_id}`;
     cursor = 0;
     messageIds.clear();
     messages.replaceChildren();
@@ -308,7 +332,6 @@
     const [marca, ...modelo] = heading.split(/\s+/);
     currentVehicle = { id: Number(vehicleId), marca, modelo: modelo.join(" "), vehiculo_retirado: false };
     threadScope = `vehicle:${vehicleId}`;
-    pendingSend = null;
     cursor = 0;
     messageIds.clear();
     messages.replaceChildren();
@@ -335,6 +358,7 @@
       if (result.conversacion) await openConversation(result.conversacion);
       else openNewVehicleThread(vehicleId);
     } catch (error) {
+      if (error.stale) return;
       if (error.status === 401) { sessionExpired(); return; }
       switchView("thread");
       form.hidden = true;
@@ -344,7 +368,7 @@
 
   async function openInbox() {
     openDialog(trigger, "list");
-    clearPrivateState();
+    saveDraft();
     switchView("list");
     if (!await requireBuyer() || !dialog.open) return;
     await loadConversations();
@@ -386,15 +410,18 @@
     let content = textarea.value.trim();
     if (!content) { textarea.focus(); return; }
     const scope = threadScope;
+    let pendingSend = pendingSends.get(scope);
     if (pendingSend?.uncertain && pendingSend.scope === scope && pendingSend.content !== content) {
       content = pendingSend.content;
-      textarea.value = content;
-      setStatus(threadStatus, "Restauramos el texto del envío pendiente para reintentarlo sin duplicarlo.");
+      setStatus(threadStatus, "Comprobando el envío pendiente. El texto nuevo se conserva sin enviar.");
     }
     if (!pendingSend || pendingSend.scope !== scope || pendingSend.content !== content) {
       pendingSend = { scope, content, key: crypto.randomUUID() };
+      pendingSends.set(scope, pendingSend);
     }
     const requestGeneration = generation;
+    const sendingIdentity = identityGeneration;
+    pendingSend.uncertain = true; // También conserva la clave si se abandona el hilo durante el envío.
     sendBusy = true;
     submit.disabled = true;
     form.setAttribute("aria-busy", "true");
@@ -403,30 +430,27 @@
       const result = await api(`/api/cuenta/chat/comprador/vehiculos/${encodeURIComponent(currentVehicle.id)}/mensajes`, {
         method: "POST", body: { contenido: content }, key: pendingSend.key,
       });
+      if (sendingIdentity !== identityGeneration) return;
+      pendingSends.delete(scope);
+      if (drafts.get(scope)?.trim() === content) drafts.delete(scope);
+      if (threadScope === scope && textarea.value.trim() === content) textarea.value = "";
       if (requestGeneration !== generation || !dialog.open) return;
-      const previousScope = threadScope;
       currentConversation = result.conversacion;
-      currentVehicle = { ...result.conversacion, vehiculo_retirado: Boolean(result.conversacion.vehiculo_retirado) };
-      threadScope = String(result.conversacion.id);
-      if (previousScope !== threadScope && drafts.has(previousScope)) {
-        drafts.set(threadScope, drafts.get(previousScope));
-        drafts.delete(previousScope);
-      }
-      pendingSend = null;
+      currentVehicle = { id: result.conversacion.vehiculo_id, vehiculo_retirado: Boolean(result.conversacion.vehiculo_retirado) };
       if (textarea.value.trim() === content) textarea.value = "";
-      drafts.delete(threadScope);
       appendMessage(result.mensaje, true);
       one("chat-comprador-estado").textContent = result.conversacion.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
       const index = conversations.findIndex((item) => String(item.id) === String(result.conversacion.id));
       if (index >= 0) conversations[index] = result.conversacion;
       else conversations.unshift(result.conversacion);
       renderConversations();
-      setStatus(threadStatus, "Mensaje enviado.");
+      setStatus(threadStatus, textarea.value.trim() ? "Envío pendiente confirmado. Tu texto nuevo sigue sin enviar." : "Mensaje enviado.");
       restartPolling();
     } catch (error) {
-      if (error.status === 401) { sessionExpired(); return; }
-      if (pendingSend && (!error.status || error.status >= 500)) pendingSend.uncertain = true;
-      else if (error.status === 409) pendingSend = null;
+      if (error.stale || sendingIdentity !== identityGeneration) return;
+      if ([401, 403, 404].includes(error.status)) { sessionExpired(); return; }
+      if (error.status && error.status < 500 && error.status !== 429) pendingSends.delete(scope);
+      if (requestGeneration !== generation) return;
       const retry = error.status === 429 && error.retryAfter ? ` Espera ${error.retryAfter} segundos.` : "";
       setStatus(threadStatus, `${error.message}${retry}`, "error");
     } finally { sendBusy = false; submit.disabled = false; form.removeAttribute("aria-busy"); }
@@ -464,8 +488,19 @@
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stopPolling();
-    else restartPolling();
+    else recheckIdentity();
   });
+  async function recheckIdentity() {
+    if (!accountId) return;
+    const expected = accountId;
+    try {
+      await verifyAccount();
+      if (expected !== accountId) sessionExpired();
+      else restartPolling();
+    } catch (error) { if (!error.stale && error.status === 401) sessionExpired(); }
+  }
+  window.addEventListener("focus", recheckIdentity);
+  document.addEventListener("cuenta-sesion-cambio", sessionExpired);
 
   const ficha = one("ficha-contenido");
   if (ficha && body.dataset.vehiculoId) {

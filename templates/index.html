@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/motion.css') }}">
   <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
-  {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% else %}<script defer src="{{ url_for('static', filename='js/chat.js') }}"></script>{% endif %}
+  {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script><script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% else %}<script defer src="{{ url_for('static', filename='js/chat.js') }}"></script>{% endif %}
 </head>
 <body data-vehiculo-id="{{ vehiculo_id or '' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-user-auth-enabled="{{ 'true' if config.USER_AUTH_ENABLED else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#inventario">Saltar al inventario</a>

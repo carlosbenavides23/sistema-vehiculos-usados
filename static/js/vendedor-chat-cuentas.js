@@ -28,11 +28,26 @@
   let pollTimer = null;
   let pollBusy = false;
   let sendBusy = false;
-  let pendingReply = null;
+  const pendingReplies = new Map();
+  const requests = new Set();
+  let accountId = null;
+  let identityGeneration = 0;
 
   async function api(url, options = {}) {
+    const epoch = identityGeneration;
+    if (url !== "/api/cuenta") {
+      const result = await api("/api/cuenta");
+      if (result.usuario?.rol !== "vendedor" || (accountId && accountId !== result.usuario.id)) {
+        expireSession();
+        throw { stale: true };
+      }
+      accountId = result.usuario.id;
+    }
+    if (epoch !== identityGeneration) throw { stale: true };
+    const controller = new AbortController();
+    requests.add(controller);
     const headers = { Accept: "application/json" };
-    const init = { method: options.method || "GET", credentials: "same-origin", cache: "no-store", headers };
+    const init = { method: options.method || "GET", credentials: "same-origin", cache: "no-store", headers, signal: controller.signal };
     if (options.body !== undefined) {
       headers["Content-Type"] = "application/json";
       headers["X-CSRF-Token"] = csrf;
@@ -41,9 +56,13 @@
     }
     let response;
     try { response = await fetch(url, init); }
-    catch { throw Object.assign(new Error("No hay conexión. El texto de respuesta se conserva."), { network: true }); }
+    catch {
+      if (epoch !== identityGeneration) throw { stale: true };
+      throw Object.assign(new Error("No hay conexión. El texto de respuesta se conserva."), { network: true });
+    } finally { requests.delete(controller); }
     let result = {};
     try { result = await response.json(); } catch { /* El estado HTTP da el contexto suficiente. */ }
+    if (epoch !== identityGeneration) throw { stale: true };
     if (!response.ok || result.ok === false) {
       const error = new Error(result.mensaje || "No pudimos completar la operación.");
       error.status = response.status;
@@ -126,8 +145,8 @@
       renderList();
       status(listFeedback, conversations.length ? "" : "Todavía no hay consultas de tus publicaciones.");
     } catch (error) {
-      if (requestGeneration !== generation) return;
-      if (error.status === 401) return expireSession();
+      if (error.stale || requestGeneration !== generation) return;
+      if ([401, 403, 404].includes(error.status)) return expireSession();
       status(listFeedback, error.status === 404 ? "La mensajería no está habilitada en este entorno." : error.message, "error");
     } finally { listBusy = false; list.setAttribute("aria-busy", "false"); }
   }
@@ -171,8 +190,8 @@
       else if (result.mensajes?.length) status(threadFeedback, "");
       restartPolling();
     } catch (error) {
-      if (requestGeneration !== generation) return;
-      if (error.status === 401) return expireSession();
+      if (error.stale || requestGeneration !== generation) return;
+      if ([401, 403, 404].includes(error.status)) return expireSession();
       status(threadFeedback, error.message, "error");
     } finally {
       if (polling) pollBusy = false;
@@ -186,7 +205,6 @@
     generation += 1;
     const requestGeneration = generation;
     currentConversation = conversation;
-    pendingReply = null;
     messageCursor = 0;
     messageIds.clear();
     threadMessages.replaceChildren();
@@ -214,7 +232,6 @@
     saveDraft();
     generation += 1;
     currentConversation = null;
-    pendingReply = null;
     thread.hidden = true;
     one("seller-chat-empty").hidden = false;
     workspace.classList.remove("has-selected");
@@ -235,19 +252,7 @@
   function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
 
   function expireSession() {
-    generation += 1;
-    stopPolling();
-    currentConversation = null;
-    conversations = [];
-    drafts.clear();
-    pendingReply = null;
-    messageCursor = 0;
-    messageIds.clear();
-    list.replaceChildren();
-    threadMessages.replaceChildren();
-    thread.hidden = true;
-    one("seller-chat-empty").hidden = false;
-    workspace.classList.remove("has-selected");
+    clearPrivateState();
     status(listFeedback, "Tu sesión venció. Vuelve a iniciar sesión para consultar tus conversaciones.", "error");
     document.dispatchEvent(new Event("seller-account-session-invalid"));
     one("seller-chat-title").focus({ preventScroll: true });
@@ -255,16 +260,23 @@
 
   function clearPrivateState() {
     generation += 1;
+    identityGeneration += 1;
+    accountId = null;
+    requests.forEach((controller) => controller.abort());
+    requests.clear();
     stopPolling();
     currentConversation = null;
     conversations = [];
     drafts.clear();
-    pendingReply = null;
+    pendingReplies.clear();
     messageCursor = 0;
     messageIds.clear();
     list.replaceChildren();
     threadMessages.replaceChildren();
     replyText.value = "";
+    one("seller-thread-title").textContent = "";
+    one("seller-thread-state").textContent = "";
+    one("seller-thread-vehicle-link").removeAttribute("href");
     thread.hidden = true;
     one("seller-chat-empty").hidden = false;
     workspace.classList.remove("has-selected");
@@ -282,15 +294,18 @@
     let content = replyText.value.trim();
     if (!content) { replyText.focus(); return; }
     const conversationId = String(currentConversation.id);
+    let pendingReply = pendingReplies.get(conversationId);
     if (pendingReply?.uncertain && pendingReply.conversationId === conversationId && pendingReply.content !== content) {
       content = pendingReply.content;
-      replyText.value = content;
-      status(threadFeedback, "Restauramos el texto del envío pendiente para reintentarlo sin duplicarlo.");
+      status(threadFeedback, "Comprobando el envío pendiente. El texto nuevo se conserva sin enviar.");
     }
     if (!pendingReply || pendingReply.conversationId !== conversationId || pendingReply.content !== content) {
       pendingReply = { conversationId, content, key: crypto.randomUUID() };
+      pendingReplies.set(conversationId, pendingReply);
     }
     const requestGeneration = generation;
+    const sendingIdentity = identityGeneration;
+    pendingReply.uncertain = true;
     sendBusy = true;
     replyButton.disabled = true;
     replyForm.setAttribute("aria-busy", "true");
@@ -299,12 +314,13 @@
       const result = await api(`/api/cuenta/chat/vendedor/conversaciones/${encodeURIComponent(conversationId)}/mensajes`, {
         method: "POST", body: { contenido: content }, key: pendingReply.key,
       });
+      if (sendingIdentity !== identityGeneration) return;
+      pendingReplies.delete(conversationId);
+      if (drafts.get(conversationId)?.trim() === content) drafts.delete(conversationId);
       if (requestGeneration !== generation || String(currentConversation?.id) !== conversationId) return;
       appendMessage(result.mensaje);
       if (replyText.value.trim() === content) replyText.value = "";
-      drafts.delete(conversationId);
-      pendingReply = null;
-      status(threadFeedback, "Respuesta enviada.");
+      status(threadFeedback, replyText.value.trim() ? "Envío pendiente confirmado. Tu texto nuevo sigue sin enviar." : "Respuesta enviada.");
       const index = conversations.findIndex((row) => String(row.id) === conversationId);
       if (index >= 0) {
         conversations[index] = { ...conversations[index], ultimo_mensaje: result.mensaje.contenido, ultimo_remitente: result.mensaje.remitente, ultimo_mensaje_en: result.mensaje.created_at, updated_at: result.mensaje.created_at };
@@ -312,9 +328,10 @@
       }
       restartPolling();
     } catch (error) {
-      if (error.status === 401) return expireSession();
-      if (pendingReply && (!error.status || error.status >= 500)) pendingReply.uncertain = true;
-      else if (error.status === 409) pendingReply = null;
+      if (error.stale || sendingIdentity !== identityGeneration) return;
+      if ([401, 403, 404].includes(error.status)) return expireSession();
+      if (error.status && error.status < 500 && error.status !== 429) pendingReplies.delete(conversationId);
+      if (requestGeneration !== generation) return;
       const retry = error.status === 429 && error.retryAfter ? ` Espera ${error.retryAfter} segundos.` : "";
       status(threadFeedback, `${error.message}${retry}`, "error");
     } finally { sendBusy = false; replyButton.disabled = false; replyForm.removeAttribute("aria-busy"); }
@@ -322,6 +339,16 @@
   document.addEventListener("seller-account-session-ended", clearPrivateState);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stopPolling();
-    else restartPolling();
+    else recheckIdentity();
   });
+  async function recheckIdentity() {
+    if (!accountId) return;
+    try {
+      const result = await api("/api/cuenta");
+      if (result.usuario?.id !== accountId || result.usuario?.rol !== "vendedor") expireSession();
+      else restartPolling();
+    } catch (error) { if (!error.stale && error.status === 401) expireSession(); }
+  }
+  window.addEventListener("focus", recheckIdentity);
+  document.addEventListener("cuenta-sesion-cambio", expireSession);
 })();

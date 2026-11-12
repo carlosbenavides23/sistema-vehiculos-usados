@@ -242,7 +242,7 @@
     stopPolling();
     try {
       const result = await request("/admin/logout", { method: "POST", body: {} });
-      if (sellerPanel) { location.assign('/cuenta'); return; }
+      if (sellerPanel) { window.CuentaSesion?.changed(); location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
         csrfMeta.content = csrfToken;

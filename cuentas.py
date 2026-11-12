@@ -44,6 +44,10 @@ def repo(nombre, *args):
     return custom[nombre](*args) if custom else globals()[nombre](*args)
 
 
+def solo_lectura():
+    return current_app.config.get('APP_READ_ONLY') or os.environ.get('VERCEL_ENV') == 'preview'
+
+
 @bp.before_request
 def proteger():
     if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
@@ -53,6 +57,8 @@ def proteger():
         esperado=session.get('csrf_token', '')
         if not esperado or not hmac.compare_digest(token, esperado):
             return jsonify(ok=False, mensaje='Recargá la página para continuar.'), 403
+        if (request.view_args or {}).get('accion') in ('registro', 'login') and solo_lectura():
+            return jsonify(ok=False, mensaje='Este ambiente permite únicamente consultas; no se pueden abrir cuentas ni sesiones.'), 503
 
 
 @bp.after_request
@@ -75,6 +81,8 @@ def identidad():
     try:
         user=proveedor().usuario(access)
     except auth_proveedor.ErrorAuth:
+        if solo_lectura():
+            return None  # Renovar tokens también escribe en Auth.
         refresh=request.cookies.get('cuenta_refresh','')
         if not refresh: return None
         tokens=proveedor().renovar(refresh)

@@ -15,6 +15,7 @@
   <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6-field-values.js') }}"></script>
+  {% if vendedor_panel %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script>{% endif %}
   <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
   {% if vendedor_panel %}<script defer src="{{ url_for('static', filename='js/vendedor-chat-cuentas.js') }}"></script>{% endif %}
 </head>
