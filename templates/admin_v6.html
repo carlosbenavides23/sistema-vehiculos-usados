@@ -16,6 +16,7 @@
   <script defer src="{{ url_for('static', filename='js/fotografias.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6-field-values.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
+  {% if vendedor_panel %}<script defer src="{{ url_for('static', filename='js/vendedor-chat-cuentas.js') }}"></script>{% endif %}
 </head>
 <body class="admin-v6" data-seller-panel="{{ 'true' if vendedor_panel else 'false' }}" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#admin-main">Saltar al panel</a>
@@ -73,6 +74,10 @@
             {{ lucide_icon('car-front', 20) }}
             <span>Inventario</span>
           </button>
+          {% if vendedor_panel %}<button id="seller-chat-nav" class="admin-nav-link" type="button" data-admin-view="account-conversations">
+            {{ lucide_icon('messages-square', 20) }}
+            <span>Conversaciones</span>
+          </button>{% endif %}
           <button class="admin-nav-link" type="button" data-admin-view="conversations" {% if not chat_habilitado %}hidden{% endif %}>
             {{ lucide_icon('messages-square', 20) }}
             <span>Conversaciones</span>
@@ -279,6 +284,45 @@
             </section>
           </div>
         </section>
+
+        {% if vendedor_panel %}<section class="admin-view seller-conversations-view" data-admin-panel="account-conversations" aria-labelledby="seller-chat-title" hidden>
+          <div class="admin-page-heading">
+            <div>
+              <p class="admin-eyebrow">Mensajería</p>
+              <h1 id="seller-chat-title" tabindex="-1">Conversaciones</h1>
+              <p class="admin-subheading">Consultas de compradores sobre tus publicaciones.</p>
+            </div>
+          </div>
+          <div id="seller-chat-workspace" class="admin-chat-workspace seller-chat-workspace">
+            <section id="seller-chat-list-pane" class="admin-chat-list-pane" aria-labelledby="seller-chat-inbox-title">
+              <header class="admin-chat-list-heading"><div><h2 id="seller-chat-inbox-title">Bandeja</h2><p>Solo aparecen conversaciones de tus vehículos.</p></div></header>
+              <p id="seller-chat-list-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
+              <div id="seller-chat-list" class="admin-chat-list" role="listbox" aria-label="Tus conversaciones"></div>
+              <button id="seller-chat-load-more" class="admin-button admin-button-secondary admin-load-more" type="button" hidden>Cargar más conversaciones</button>
+            </section>
+            <section id="seller-chat-thread-pane" class="admin-chat-thread-pane" aria-label="Detalle de conversación">
+              <div id="seller-chat-empty" class="admin-chat-empty">
+                <span class="admin-chat-empty-icon" aria-hidden="true">{{ lucide_icon('message-circle', 24) }}</span>
+                <h2>Seleccioná una conversación</h2>
+                <p>Las consultas recibidas aparecerán aquí.</p>
+              </div>
+              <div id="seller-chat-thread" class="admin-chat-thread" hidden>
+                <header class="admin-thread-heading seller-thread-heading">
+                  <button id="seller-chat-back" class="admin-icon-button seller-chat-back" type="button" aria-label="Volver a conversaciones">{{ lucide_icon('arrow-left', 20) }}</button>
+                  <div class="seller-thread-vehicle"><h2 id="seller-thread-title"></h2><a id="seller-thread-vehicle-link" href="#" hidden>Ver publicación</a><span id="seller-thread-retired" class="seller-retired-note" hidden>Publicación retirada · solo lectura</span></div>
+                  <span id="seller-thread-state" class="admin-state-pill"></span>
+                </header>
+                <div id="seller-thread-messages" class="admin-thread-messages" role="log" aria-label="Mensajes de la conversación" aria-live="polite" aria-relevant="additions"></div>
+                <p id="seller-thread-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
+                <form id="seller-reply-form" class="admin-reply-form">
+                  <label class="visually-hidden" for="seller-reply-text">Escribí una respuesta</label>
+                  <textarea id="seller-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta…" required></textarea>
+                  <button id="seller-reply-submit" class="admin-button admin-button-secondary" type="submit">{{ lucide_icon('send', 20) }} Enviar</button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </section>{% endif %}
       </div>
     </section>
   </main>

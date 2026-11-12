@@ -171,8 +171,14 @@
       pendingReply = null;
       availabilityUndo = null;
       one("#availability-notice").hidden = true;
+      if (sellerPanel) document.dispatchEvent(new Event("seller-account-session-ended"));
     }
   }
+
+  if (sellerPanel) document.addEventListener("seller-account-session-invalid", () => {
+    setAuthenticated(false);
+    setLoginError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
+  });
 
   function currentView() {
     return one(".admin-view:not([hidden])")?.dataset.adminPanel || "inventory";
@@ -280,7 +286,9 @@
     if (button.hasAttribute("data-new-vehicle")) resetVehicleForm();
     showView(button.dataset.adminView);
     if (cerrarEnMovil && button.dataset.adminView !== "vehicle-form") {
-      const titulo = one(button.dataset.adminView === "conversations" ? "#conversations-title" : "#inventory-title");
+      const tituloSelector = button.dataset.adminView === "conversations" ? "#conversations-title"
+        : button.dataset.adminView === "account-conversations" ? "#seller-chat-title" : "#inventory-title";
+      const titulo = one(tituloSelector);
       titulo?.focus({ preventScroll: true });
     }
   }));
