@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, g, jsonify, request, session, render_t
 import auth_proveedor
 import politica_v7
 from persistencia import _conectar
-from roles_usuarios import obtener_rol, obtener_nombre_visible, establecer_nombre_visible
+from roles_usuarios import obtener_rol, obtener_nombre_visible
 from nombres_usuarios import normalizar_nombre_visible
 
 bp = Blueprint('cuentas', __name__)
@@ -153,23 +153,6 @@ def estado():
     user=identidad()
     return (jsonify(ok=True,usuario=user),200) if user else (jsonify(ok=False,mensaje='Iniciá sesión para continuar.'),401)
 
-
-@bp.patch('/api/cuenta/nombre-visible')
-def actualizar_nombre_visible():
-    body=request.get_json(silent=True)
-    if not isinstance(body,dict) or set(body)!={'nombre_visible'}:
-        return jsonify(ok=False,mensaje='Revisá el nombre ingresado.'),400
-    try:
-        nombre=normalizar_nombre_visible(body['nombre_visible'])
-    except ValueError as error:
-        return jsonify(ok=False,mensaje=str(error)),422
-    user=identidad()
-    if not user:
-        return jsonify(ok=False,mensaje='Iniciá sesión para cambiar tu nombre visible.'),401
-    actualizado=repo('establecer_nombre_visible',user['id'],nombre)
-    if actualizado is None:
-        return jsonify(ok=False,mensaje='No se pudo actualizar el nombre de esta cuenta.'),409
-    return jsonify(ok=True,usuario={'id':user['id'],'rol':user['rol'],'nombre_visible':actualizado})
 
 
 @bp.get('/cuenta')
