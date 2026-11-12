@@ -59,7 +59,9 @@ class CuentasTest(unittest.TestCase):
         self.assertEqual(self.registro(nombre='  María   López  ').status_code, 200)
         self.assertEqual(self.nombres[self.uid], 'María López')
         respuesta = self.client.patch('/api/cuenta/nombre-visible', json={'nombre_visible':'Ana Pérez'}, headers={'X-CSRF-Token':self.csrf})
-        self.assertEqual(respuesta.status_code, 404)
+        # Flask identifica la ruta POST /api/cuenta/<accion>, pero PATCH no
+        # está permitido para esa ruta y nunca llega a una operación de perfil.
+        self.assertEqual(respuesta.status_code, 405)
         self.assertEqual(self.client.get('/api/cuenta').json['usuario']['nombre_visible'], 'María López')
         self.assertEqual(self.nombres[self.uid], 'María López')
         pagina = self.client.get('/cuenta')

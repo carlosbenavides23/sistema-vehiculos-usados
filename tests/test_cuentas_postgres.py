@@ -28,8 +28,8 @@ class CuentasPostgresTest(unittest.TestCase):
             db.execute('UPDATE auth.users SET raw_user_meta_data=%s WHERE id=%s',('{"v71_rol":"vendedor"}',uid))
             self.assertEqual(roles_usuarios.obtener_rol(uid),'comprador')
             self.assertEqual(roles_usuarios.obtener_nombre_visible(uid),'María López')
-            self.assertEqual(roles_usuarios.establecer_nombre_visible(uid,'Ana Pérez'),'Ana Pérez')
-            self.assertEqual(roles_usuarios.obtener_nombre_visible(uid),'Ana Pérez')
+            self.assertFalse(hasattr(roles_usuarios, 'establecer_nombre_visible'))
+            self.assertEqual(roles_usuarios.obtener_nombre_visible(uid),'María López')
             with self.assertRaises(psycopg.errors.RaiseException):
                 db.execute("UPDATE public.roles_usuarios SET rol='vendedor' WHERE usuario_id=%s",(uid,))
             malo=str(uuid4())

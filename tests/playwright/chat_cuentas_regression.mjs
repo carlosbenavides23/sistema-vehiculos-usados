@@ -23,9 +23,15 @@ try {
   browser = await chromium.launch({ headless: true, executablePath: chromiumPath });
   const errors=[];
   async function login(page, name) {
+    const identity = page.waitForResponse(r => r.request().method() === 'GET' && r.url().endsWith('/api/cuenta'));
     await page.goto(info.url+'/cuenta');
+    await identity;
+    if (await page.locator('#salir-cuenta').isVisible()) {
+      const logout = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/api/cuenta/logout'));
+      await page.locator('#salir-cuenta').click();
+      await logout;
+    }
     await page.locator('#enviar-cuenta').waitFor();
-    if (await page.locator('#salir-cuenta').isVisible()) await page.locator('#salir-cuenta').click();
     await page.locator('#email').fill(`${name}@example.test`);
     await page.locator('#password').fill('local-fixture-password');
     const loginResponse = page.waitForResponse(r => r.url().endsWith('/api/cuenta/login'));
