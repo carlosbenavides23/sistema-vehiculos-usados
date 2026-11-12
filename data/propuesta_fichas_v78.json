@@ -1,0 +1,312 @@
+{
+  "estado": "Propuesta sin aplicar; lectura remota 2026-11-12",
+  "regla": "NULL en propuesta significa sin evidencia suficiente, nunca instrucción de borrar. No hay suposiciones aplicables. Releer antes de aprobar.",
+  "vehiculos": [
+    {
+      "id": 1,
+      "marca": "Toyota",
+      "modelo": "Corolla",
+      "anio": 2021,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": true,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Descripción: «Sedán» y «cámara de retroceso».",
+      "suposiciones": []
+    },
+    {
+      "id": 2,
+      "marca": "Hyundai",
+      "modelo": "Tucson",
+      "anio": 2020,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "suv"
+      },
+      "evidencia": "Descripción: «SUV».",
+      "suposiciones": []
+    },
+    {
+      "id": 3,
+      "marca": "Suzuki",
+      "modelo": "Swift",
+      "anio": 2022,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": 5,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": null
+      },
+      "evidencia": "Descripción: «cinco puertas». «Compacto» no demuestra carrocería hatchback.",
+      "suposiciones": []
+    },
+    {
+      "id": 4,
+      "marca": "Nissan",
+      "modelo": "Frontier",
+      "anio": 2019,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "pickup"
+      },
+      "evidencia": "Descripción: «Pickup». Doble cabina no demuestra puertas ni plazas exactas.",
+      "suposiciones": []
+    },
+    {
+      "id": 5,
+      "marca": "Kia",
+      "modelo": "Rio",
+      "anio": 2021,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": true,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Descripción: «Sedán» y «conectividad Bluetooth».",
+      "suposiciones": []
+    },
+    {
+      "id": 6,
+      "marca": "Honda",
+      "modelo": "CR-V",
+      "anio": 2020,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": 5,
+        "camara_reversa": true,
+        "bluetooth": null,
+        "tipo_vehiculo": "suv"
+      },
+      "evidencia": "Descripción: «SUV», «cinco plazas» y «cámara de retroceso».",
+      "suposiciones": []
+    },
+    {
+      "id": 7,
+      "marca": "Nissan",
+      "modelo": "Sentra",
+      "anio": 2008,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Tipo actual sedan; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 8,
+      "marca": "Mazda",
+      "modelo": "3",
+      "anio": 2018,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Tipo actual sedan; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 9,
+      "marca": "Chevrolet",
+      "modelo": "Tracker",
+      "anio": 2021,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "suv"
+      },
+      "evidencia": "Tipo actual suv; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 10,
+      "marca": "Mitsubishi",
+      "modelo": "L200",
+      "anio": 2017,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "pickup"
+      },
+      "evidencia": "Tipo actual pickup; conservar. Doble cabina no demuestra puertas/plazas.",
+      "suposiciones": []
+    },
+    {
+      "id": 11,
+      "marca": "Kia",
+      "modelo": "Picanto",
+      "anio": 2020,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": null
+      },
+      "evidencia": "Tipo histórico compacto: conservar literalmente. No inferir hatchback por modelo.",
+      "suposiciones": []
+    },
+    {
+      "id": 12,
+      "marca": "Ford",
+      "modelo": "Escape",
+      "anio": 2019,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "suv"
+      },
+      "evidencia": "Tipo actual suv; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 13,
+      "marca": "Toyota",
+      "modelo": "Hilux",
+      "anio": 2016,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "pickup"
+      },
+      "evidencia": "Tipo actual pickup; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 14,
+      "marca": "Volkswagen",
+      "modelo": "Jetta",
+      "anio": 2017,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Tipo actual sedan; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 15,
+      "marca": "Isuzu",
+      "modelo": "D-Max",
+      "anio": 2018,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "pickup"
+      },
+      "evidencia": "Tipo actual pickup; conservar. «Motor diésel» solo demuestra combustible; no cilindrada ni versión.",
+      "suposiciones": []
+    },
+    {
+      "id": 16,
+      "marca": "Nissan",
+      "modelo": "Versa",
+      "anio": 2019,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Tipo actual sedan; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 17,
+      "marca": "Hyundai",
+      "modelo": "Accent",
+      "anio": 2018,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "sedan"
+      },
+      "evidencia": "Tipo actual sedan; conservar.",
+      "suposiciones": []
+    },
+    {
+      "id": 18,
+      "marca": "Toyota",
+      "modelo": "Hilux",
+      "anio": 2023,
+      "propuesta": {
+        "version": null,
+        "motor": null,
+        "numero_puertas": null,
+        "capacidad_pasajeros": null,
+        "camara_reversa": null,
+        "bluetooth": null,
+        "tipo_vehiculo": "pickup"
+      },
+      "evidencia": "Tipo actual pickup; conservar. No deducir especificaciones por año/modelo.",
+      "suposiciones": []
+    }
+  ]
+}

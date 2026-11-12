@@ -103,6 +103,10 @@ La migración `supabase/migrations/20261112171056_v76_nombres_visibles.sql` debe
 
 La ficha admite versión, motor, puertas, capacidad de pasajeros y los indicadores triestado de cámara de reversa y Bluetooth. Tipo de vehículo usa códigos canónicos definidos en `tipos_vehiculo.py`; la migración `20261112191129_v77_ficha_tecnica.sql` agrega columnas opcionales y normaliza equivalencias históricas claras. Tipos desconocidos se conservan literalmente y pueden corregirse desde el selector. Aplicar la migración antes de desplegar la nueva API. La compatibilidad y las verificaciones se documentan en [V7.7](docs/v77-ficha-tecnica.md).
 
+## Transferencia de inventario V7.8
+
+La transferencia operativa del inventario sin propietario a una cuenta vendedora se prepara con `scripts/transferir_inventario.py`. Requiere plan y respaldo externos, nunca se ejecuta desde Flask ni durante el despliegue. Consultar [el procedimiento V7.8](docs/v78-migracion-inventario.md) antes de cualquier aplicación o reversión.
+
 ## Mensajería (implementada, aún desactivada)
 
 El chat comprador-administrador usa Flask y PostgreSQL sin exponer tablas a Supabase Data API. El comprador recibe una credencial aleatoria del servidor en una cookie HttpOnly/SameSite=Lax, Secure bajo HTTPS, con expiración de **30 días**. PostgreSQL guarda solo el hash SHA-256. Esta identidad es independiente de la sesión administrativa.
