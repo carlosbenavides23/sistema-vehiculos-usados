@@ -110,6 +110,19 @@
 .admin-field small:empty { display: none; }
 .admin-form-message { margin: 0; padding: 10px 12px; border: 1px solid; border-radius: 8px; font-size: 12px; line-height: 1.45; }
 .admin-login-submit { width: 100%; margin-top: 7px; justify-content: flex-start; }
+.admin-password-control { position: relative; min-width: 0; }
+.admin-v6 .admin-password-control > input { padding-right: 56px; }
+.admin-password-toggle { position: absolute; top: 1px; right: 1px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; color: #52686c; background: #fff; }
+.admin-password-toggle:hover { color: #29453f; background: #f0f3f1; }
+.admin-password-toggle > svg { display: block; width: 20px; height: 20px; }
+.admin-auth-status:empty { display: none; }
+.admin-auth-info { margin: 0; padding: 11px 12px; border: 1px solid #c7d8cf; border-radius: 8px; color: #29453f; background: #eaf1ed; font-size: 12px; line-height: 1.45; }
+.admin-auth-switch { margin-top: 2px; padding-top: 15px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-top: 1px solid #e2eae5; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+.admin-auth-switch-button { min-height: 44px; padding: 0 8px; border: 0; border-radius: 7px; color: #35574f; background: transparent; font-size: 13px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.admin-auth-switch-button:hover { background: #eaf1ed; }
+.admin-auth-confirmation { display: grid; gap: 12px; }
+.admin-auth-confirmation > p { margin: 0; padding: 14px; border: 1px solid #c7d8cf; border-radius: 9px; color: #29453f; background: #eaf1ed; font-size: 14px; line-height: 1.55; }
+.admin-auth-confirmation .admin-button { width: 100%; }
 .admin-auth-footnote { margin: 17px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.45; }
 .admin-readonly-card { padding: 34px; text-align: center; }
 .admin-readonly-card > p { margin-bottom: 20px; }
