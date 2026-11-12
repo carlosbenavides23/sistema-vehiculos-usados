@@ -107,6 +107,25 @@ class RetiroAdminTest(unittest.TestCase):
         cuentas.borrar_sesion(cuentas.digest(a.get_cookie('cuenta_sid').value))
         self.assertEqual(a.get('/vendedor/archivo').status_code,401)
 
+    def test_metadatos_archivo_seguros_sin_modificar_historial(self):
+        texto = '<script>ejemplo</script> ' + 'x' * 200
+        with persistencia._conectar() as db:
+            db.execute('UPDATE public.mensajes_chat SET contenido=%s WHERE conversacion_id=%s', (texto, self.conversaciones[0]))
+            antes = db.execute('SELECT count(*) AS n FROM public.mensajes_chat').fetchone()['n']
+        filas, _ = archivo_chat.listar(self.ids[0])
+        fila = next(f for f in filas if f['id'] == self.conversaciones[0])
+        self.assertEqual(fila['extracto'], texto[:160])
+        self.assertIsNotNone(fila['created_at'])
+        self.assertIsNotNone(fila['ultimo_mensaje_en'])
+        self.assertNotIn('visitante_id', fila)
+        self.assertEqual(archivo_chat.listar(self.ids[1])[0], [])
+        pagina = self.clientes[0].get('/vendedor/archivo').get_data(as_text=True)
+        self.assertIn('&lt;script&gt;ejemplo&lt;/script&gt;', pagina)
+        self.assertIn('Último mensaje:', pagina)
+        self.assertNotIn(str(self.visitante), pagina)
+        with persistencia._conectar() as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM public.mensajes_chat').fetchone()['n'], antes)
+
     def test_paginacion_archivo_no_trunca_mensajes(self):
         cid = self.conversaciones[0]
         with persistencia._conectar() as db:

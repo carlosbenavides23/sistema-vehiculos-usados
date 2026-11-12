@@ -490,6 +490,7 @@
   fichaButton.addEventListener("click", () => {
     const id = fichaButton.dataset.vehicleId;
     if (!/^[1-9]\d*$/.test(id || "")) return;
+    if (textarea.value.trim() && !window.confirm("Tenés un mensaje sin enviar. ¿Querés descartarlo y ver la ficha del vehículo?")) return;
     saveDraft();
     location.assign(`/vehiculo/${encodeURIComponent(id)}?retorno=${encodeURIComponent(`${location.pathname}${location.search}`)}`);
   });

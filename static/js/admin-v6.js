@@ -70,6 +70,8 @@
   let retireTarget = null;
   let retireBusy = false;
   let inventoryGeneration = 0;
+  let inventoryLoading = false;
+  let inventoryFocus = null;
   let availabilityBusy = false;
   let availabilityUndo = null;
   let availabilitySession = 0;
@@ -228,6 +230,7 @@
 
   function showView(view) {
     const validView = view;
+    if (currentView() !== validView && statusBox?.dataset.type !== "error") setStatus("");
     all("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== validView; });
     all("[data-admin-view]").forEach((button) => {
       const active = button.dataset.adminView === validView;
@@ -336,7 +339,8 @@
     button.type = "button";
     button.className = `admin-button admin-button-${variant}`;
     button.textContent = label;
-    button.addEventListener("click", callback);
+    button.disabled = inventoryLoading;
+    button.addEventListener("click", () => { if (!inventoryLoading) callback(); });
     return button;
   }
 
@@ -352,6 +356,7 @@
 
   function makeVehicleRow(vehicle) {
     const row = document.createElement("tr");
+    row.dataset.vehicleId = String(vehicle.id);
     const infoCell = document.createElement("td");
     infoCell.append(makeVehicleInfo(vehicle));
     const priceCell = document.createElement("td");
@@ -366,7 +371,7 @@
     actions.append(actionButton("Fotos", () => openPhotos(vehicle.id)));
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
     actions.lastElementChild.classList.add("availability-toggle");
-    actions.lastElementChild.disabled = availabilityBusy;
+    actions.lastElementChild.disabled = availabilityBusy || inventoryLoading;
     actions.append(actionButton("Retirar", () => openRetireDialog(vehicle), "secondary"));
     actionsCell.append(actions);
     row.append(infoCell, priceCell, stateCell, actionsCell);
@@ -376,6 +381,7 @@
   function makeMobileVehicle(vehicle) {
     const article = document.createElement("article");
     article.className = "admin-mobile-card";
+    article.dataset.vehicleId = String(vehicle.id);
     const top = document.createElement("div");
     top.className = "admin-mobile-card-top";
     top.append(vehiclePhoto(vehicle));
@@ -398,7 +404,7 @@
     actions.append(actionButton("Fotografías", () => openPhotos(vehicle.id)));
     actions.append(actionButton(vehicle.disponibilidad === "vendido" ? "Marcar disponible" : "Marcar vendido", () => toggleAvailability(vehicle), "secondary"));
     actions.lastElementChild.classList.add("availability-toggle");
-    actions.lastElementChild.disabled = availabilityBusy;
+    actions.lastElementChild.disabled = availabilityBusy || inventoryLoading;
     actions.append(actionButton("Retirar publicación", () => openRetireDialog(vehicle), "secondary"));
     article.append(top, actions);
     return article;
@@ -418,7 +424,7 @@
   }
 
   function openRetireDialog(vehicle) {
-    if (!authenticated || retireBusy) return;
+    if (!authenticated || retireBusy || inventoryLoading) return;
     retireTarget = vehicle;
     one("#admin-retire-title").textContent = `Retirar ${vehicleTitle(vehicle)}`;
     one("#admin-retire-feedback").textContent = "";
@@ -462,21 +468,45 @@
   async function loadInventory() {
     if (!authenticated || currentView() !== "inventory") return;
     const generation = ++inventoryGeneration;
+    const focused = document.activeElement;
+    const focusedRow = focused?.closest('[data-vehicle-id]');
+    const focusId = focusedRow?.dataset.vehicleId;
+    const focusIndex = focusedRow ? [...focusedRow.querySelectorAll('button')].indexOf(focused) : -1;
+    if (focusId && focusIndex >= 0) inventoryFocus = { id: focusId, index: focusIndex, element: focused };
+    else if (!inventoryLoading) inventoryFocus = null;
+    inventoryLoading = true;
+    [inventoryList, inventoryCards].forEach(root => {
+      root.setAttribute("aria-busy", "true");
+      all("button", root).forEach(button => { button.disabled = true; });
+    });
     inventoryFeedback.textContent = "Cargando publicaciones…";
     const params = new URLSearchParams(new FormData(one("#admin-inventory-filters")));
     const query = params.toString();
     try {
       const result = await request(`/vehiculos${query ? `?${query}` : ""}`);
-      if (generation !== inventoryGeneration) return;
+      if (generation !== inventoryGeneration || !authenticated) return;
       vehicles = Array.isArray(result.vehiculos) ? result.vehiculos : [];
+      inventoryLoading = false;
       renderInventory(vehicles);
+      const recovery = inventoryFocus;
+      if (recovery && (document.activeElement === recovery.element || document.activeElement === body)) {
+        const selector = `[data-vehicle-id="${CSS.escape(recovery.id)}"]`;
+        const target = all(selector).find(row => row.getClientRects().length);
+        target?.querySelectorAll("button")[recovery.index]?.focus({ preventScroll: true });
+      }
     } catch (error) {
-      if (generation !== inventoryGeneration) return;
+      if (generation !== inventoryGeneration || !authenticated) return;
       vehicles = [];
       renderInventory([]);
       emptyInventory.hidden = true;
       inventoryFeedback.textContent = error.status === 401 ? "Tu sesión administrativa venció. Ingresá nuevamente." : error.message;
       if (error.status === 401) setAuthenticated(false);
+    } finally {
+      if (generation === inventoryGeneration) {
+        inventoryLoading = false;
+        inventoryFocus = null;
+        [inventoryList, inventoryCards].forEach(root => root.setAttribute("aria-busy", "false"));
+      }
     }
   }
 
@@ -493,12 +523,12 @@
 
   function setAvailabilityBusy(busy) {
     availabilityBusy = busy;
-    all(".availability-toggle").forEach((button) => { button.disabled = busy; });
+    all(".availability-toggle").forEach((button) => { button.disabled = busy || inventoryLoading; });
     one("#availability-undo").disabled = busy;
   }
 
   async function changeAvailability(vehicle, next, undoing = false) {
-    if (availabilityBusy) return;
+    if (availabilityBusy || inventoryLoading) return;
     availabilityUndo = null;
     if (!vehicle.updated_at) {
       showAvailabilityNotice("No se puede comprobar la versión. Actualizá el inventario antes de cambiar la disponibilidad.", false, "error");

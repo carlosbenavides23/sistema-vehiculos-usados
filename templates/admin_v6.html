@@ -122,7 +122,7 @@
             <div class="admin-table-scroll">
               <table class="admin-inventory-table">
                 <thead>
-                  <tr><th scope="col">Vehículo</th><th scope="col">Precio</th><th scope="col">Disponibilidad</th><th scope="col">Acciones</th></tr>
+                  <tr><th scope="col">Vehículo</th><th scope="col">Precio</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr>
                 </thead>
                 <tbody id="admin-inventory-list"></tbody>
               </table>
@@ -179,7 +179,7 @@
                 <div class="admin-field"><label for="vehicle-transmission">Transmisión</label><div class="admin-select-wrap"><select id="vehicle-transmission" name="transmision"><option value="">No especificada</option><option>Automática</option><option>Manual</option><option>CVT</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="transmision"></small></div>
                 <div class="admin-field"><label for="vehicle-fuel">Combustible</label><div class="admin-select-wrap"><select id="vehicle-fuel" name="combustible"><option value="">No especificado</option><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="combustible"></small></div>
                 <div class="admin-field"><label for="vehicle-color">Color</label><input id="vehicle-color" name="color" maxlength="40"><small data-error-for="color"></small></div>
-                <div class="admin-field"><label for="vehicle-plate">Placa <span class="admin-label-note">Solo administración</span></label><input id="vehicle-plate" name="placa" maxlength="20" autocomplete="off"><small data-error-for="placa"></small></div>
+                <div class="admin-field"><label for="vehicle-plate">Placa <span class="admin-label-note">No se muestra en el catálogo.</span></label><input id="vehicle-plate" name="placa" maxlength="20" autocomplete="off"><small data-error-for="placa"></small></div>
                 <div class="admin-field"><label for="vehicle-availability">Disponibilidad</label><div class="admin-select-wrap"><select id="vehicle-availability" name="disponibilidad"><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="disponibilidad"></small></div>
               </div>
               <fieldset class="admin-equipment">
