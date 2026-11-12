@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, current_app, g, jsonify, request, session, render_template
 import auth_proveedor
+import politica_v7
 from persistencia import _conectar
 from roles_usuarios import obtener_rol
 
@@ -44,10 +45,17 @@ def repo(nombre, *args):
     return custom[nombre](*args) if custom else globals()[nombre](*args)
 
 
+def solo_lectura():
+    return politica_v7.solo_lectura(current_app.config)
+
+
 @bp.before_request
 def proteger():
-    if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
+    if not politica_v7.habilitada(current_app.config):
         return jsonify(ok=False, mensaje='Cuentas no habilitadas en este entorno.'), 404
+    accion = (request.view_args or {}).get('accion')
+    if request.method == 'POST' and solo_lectura() and accion != 'logout':
+        return jsonify(ok=False, mensaje='Este ambiente permite únicamente consultas; no se pueden abrir cuentas ni sesiones.'), 503
     if request.method == 'POST':
         token=request.headers.get('X-CSRF-Token', '')
         esperado=session.get('csrf_token', '')
@@ -75,6 +83,8 @@ def identidad():
     try:
         user=proveedor().usuario(access)
     except auth_proveedor.ErrorAuth:
+        if solo_lectura():
+            return None  # Renovar tokens también escribe en Auth.
         refresh=request.cookies.get('cuenta_refresh','')
         if not refresh: return None
         tokens=proveedor().renovar(refresh)

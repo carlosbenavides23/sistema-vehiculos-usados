@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from types import SimpleNamespace
 from uuid import uuid4
 os.environ.setdefault('FLASK_SECRET_KEY','fixture')
@@ -67,3 +67,31 @@ class CuentasTest(unittest.TestCase):
     def test_production_no_expone_cuentas(self):
         with patch.dict(os.environ,{'VERCEL_ENV':'production'}):
             self.assertEqual(self.client.get('/cuenta').status_code,404)
+
+    def test_solo_lectura_rechaza_registro_y_login_antes_de_escrituras(self):
+        for entorno, readonly in [('local', True), ('preview', True), ('preview', False)]:
+            with self.subTest(entorno=entorno), patch.dict(os.environ, {'VERCEL_ENV': entorno}):
+                self.app.config['APP_READ_ONLY'] = readonly
+                with patch.object(self.auth, 'registrar', Mock()) as registro, patch.object(self.auth, 'login', Mock()) as login, patch.dict(self.app.config['CUENTA_REPO'], {'guardar_sesion': Mock()}) :
+                    for accion, body in [('registro', {'email':'ficticio@example.test','password':'password-fixture','rol':'comprador'}), ('login', {'email':'ficticio@example.test','password':'password-fixture'})]:
+                        self.assertEqual(self.post(accion,body).status_code,503)
+                    registro.assert_not_called()
+                    login.assert_not_called()
+                    self.app.config['CUENTA_REPO']['guardar_sesion'].assert_not_called()
+                self.assertEqual(self.roles,{})
+                self.assertEqual(self.sesiones,{})
+
+    def test_solo_lectura_permite_revocar_sesion_existente(self):
+        self.registro()
+        self.app.config['APP_READ_ONLY'] = True
+        self.assertEqual(self.post('logout',{}).status_code,200)
+        self.assertEqual(self.sesiones,{})
+        self.assertTrue(self.revocado)
+
+    def test_solo_lectura_no_renueva_tokens(self):
+        self.registro()
+        self.app.config['APP_READ_ONLY'] = True
+        self.client.set_cookie('cuenta_access','expirado')
+        with patch.object(self.auth,'renovar',Mock()) as renovar:
+            self.assertEqual(self.client.get('/api/cuenta').status_code,401)
+            renovar.assert_not_called()

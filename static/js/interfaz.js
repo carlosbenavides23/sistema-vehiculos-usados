@@ -465,7 +465,7 @@
     porId("ficha-cargando").hidden = true;
     porId("ficha-error").hidden = true;
     porId("ficha-contenido").hidden = false;
-    if (document.body.dataset.chatEnabled === "true" && new URLSearchParams(location.search).get("contactar") === "1") {
+    if ((document.body.dataset.chatEnabled === "true" || document.body.dataset.userAuthEnabled === "true") && new URLSearchParams(location.search).get("contactar") === "1") {
       requestAnimationFrame(() => porId("mostrar-chat")?.click());
     }
   }

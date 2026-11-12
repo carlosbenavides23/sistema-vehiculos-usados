@@ -59,6 +59,9 @@ class FakeCursor:
         parametros = tuple(parametros or ())
         consulta = " ".join(sql.split())
         self.db.queries.append((consulta, parametros))
+        # Este fake solo modela el ámbito heredado/público; los ámbitos de
+        # vendedores se verifican contra PostgreSQL real, no se ignoran aquí.
+        consulta = consulta.replace(' AND vendedor_id IS NULL', '').replace(' AND TRUE', '')
         self.resultados = []
 
         if consulta.startswith("LOCK TABLE public.vehiculos"):

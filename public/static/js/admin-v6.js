@@ -6,7 +6,8 @@
   const body = document.body;
   const csrfMeta = one('meta[name="csrf-token"]');
   const csrf = () => csrfMeta?.content || "";
-  const apiRoot = "/api";
+  const sellerPanel = document.body.dataset.sellerPanel === 'true';
+  const apiRoot = sellerPanel ? '/api/vendedor' : '/api';
   const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
   const number = new Intl.NumberFormat("es-NI", { maximumFractionDigits: 0 });
   const readonly = body.dataset.readOnly === "true";
@@ -134,7 +135,10 @@
     init.signal = controller.signal;
     try {
       let response;
-      try { response = await fetch(`${apiRoot}${path}`, init); }
+      let url = `${apiRoot}${path}`;
+      if (!sellerPanel && path.startsWith('/vehiculos') && method === 'GET' && !/^\/vehiculos\/\d/.test(path)) url = `/api/admin${path}`;
+      if (sellerPanel && path === '/admin/logout') url = '/api/cuenta/logout';
+      try { response = await fetch(url, init); }
       catch { throw new Error("No pudimos comunicarnos con el servidor. Revisá la conexión e intentá de nuevo."); }
       let data;
       try { data = await response.json(); }
@@ -167,8 +171,14 @@
       pendingReply = null;
       availabilityUndo = null;
       one("#availability-notice").hidden = true;
+      if (sellerPanel) document.dispatchEvent(new Event("seller-account-session-ended"));
     }
   }
+
+  if (sellerPanel) document.addEventListener("seller-account-session-invalid", () => {
+    setAuthenticated(false);
+    setLoginError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
+  });
 
   function currentView() {
     return one(".admin-view:not([hidden])")?.dataset.adminPanel || "inventory";
@@ -232,6 +242,7 @@
     stopPolling();
     try {
       const result = await request("/admin/logout", { method: "POST", body: {} });
+      if (sellerPanel) { window.CuentaSesion?.changed(); location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
         csrfMeta.content = csrfToken;
@@ -275,7 +286,9 @@
     if (button.hasAttribute("data-new-vehicle")) resetVehicleForm();
     showView(button.dataset.adminView);
     if (cerrarEnMovil && button.dataset.adminView !== "vehicle-form") {
-      const titulo = one(button.dataset.adminView === "conversations" ? "#conversations-title" : "#inventory-title");
+      const tituloSelector = button.dataset.adminView === "conversations" ? "#conversations-title"
+        : button.dataset.adminView === "account-conversations" ? "#seller-chat-title" : "#inventory-title";
+      const titulo = one(tituloSelector);
       titulo?.focus({ preventScroll: true });
     }
   }));

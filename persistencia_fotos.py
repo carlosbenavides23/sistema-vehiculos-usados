@@ -8,6 +8,7 @@ sin referencia pendiente de limpieza, sin perder la foto anterior.
 
 import re
 import uuid
+import propiedad
 
 from persistencia import _conectar
 
@@ -40,7 +41,8 @@ def _bloquear(cursor, vehiculo_id, clave=None):
         # El mismo UUID en dos vehículos no puede reservar dos operaciones.
         bloqueo = uuid.UUID(clave).int & ((1 << 63) - 1)
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", (bloqueo,))
-    cursor.execute("SELECT id FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL FOR UPDATE", (vehiculo_id,))
+    scope, args = propiedad.condicion()
+    cursor.execute(f"SELECT id FROM public.vehiculos WHERE id = %s AND retirado_en IS NULL AND {scope} FOR UPDATE", (vehiculo_id, *args))
     if cursor.fetchone() is None:
         raise LookupError("No se encontró el vehículo.")
 
@@ -114,6 +116,7 @@ def obtener_fotografia(vehiculo_id, fotografia_id):
 def buscar_solicitud(clave, vehiculo_id, foto_id=None, huella_sha256=None):
     with _conectar() as conexion:
         with conexion.cursor() as cursor:
+            _bloquear(cursor, vehiculo_id)
             operacion = _leer_operacion(cursor, _clave(clave))
             if operacion is None:
                 return None
