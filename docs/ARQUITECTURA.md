@@ -22,6 +22,7 @@ flowchart LR
 | `almacenamiento.py` | REST de Storage, URLs públicas, errores seguros y procesamiento de cola. |
 | `app.py` | Flask, contratos HTTP, sesión, CSRF, autorización y modo de consulta. |
 | `persistencia_chat.py` | Sesiones anónimas con hash, ownership de conversaciones, mensajes, idempotencia y límites persistentes. |
+| `persistencia_chat_cuentas.py` | Persistencia privada de conversaciones comprador-vendedor, con alcance por rol/participante, idempotencia y paginación para V7.3.1. |
 | `static/js/chat.js` | Panel comprador/administrador; polling incremental, serializado y pausado en segundo plano. |
 | `static/js/interfaz.js` | Formularios, galería, administración y HTTP; conserva UUID ante resultados inciertos. |
 | `static/js/fotografias.js` | Compresión y vista previa de un archivo por vez en navegador. |
