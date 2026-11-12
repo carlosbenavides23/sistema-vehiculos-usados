@@ -181,9 +181,10 @@ def create_app(configuracion=None):
             return None, (jsonify(respuesta_error("El límite debe estar entre 1 y 100.")), 400)
         return (cursor_id, limite), None
 
-    def respuesta_conversacion_cuenta(conversacion):
+    def respuesta_conversacion_cuenta(conversacion, rol):
         if conversacion is None:
             return None
+        nombre_contacto = conversacion.get("nombre_vendedor" if rol == "comprador" else "nombre_comprador")
         return {
             "id": str(conversacion["id"]),
             "vehiculo_id": conversacion["vehiculo_id"],
@@ -200,6 +201,7 @@ def create_app(configuracion=None):
             "ultimo_remitente": conversacion.get("ultimo_remitente"),
             "ultimo_mensaje_en": conversacion.get("ultimo_mensaje_en"),
             "vehiculo_retirado": bool(conversacion.get("vehiculo_retirado", False)),
+            "nombre_contacto": nombre_contacto or ("Vendedor" if rol == "comprador" else "Comprador"),
         }
 
     def respuesta_mensaje_cuenta(mensaje):
@@ -582,7 +584,7 @@ def create_app(configuracion=None):
             return error_persistencia(error)
         return jsonify({
             "ok": True,
-            "conversaciones": [respuesta_conversacion_cuenta(fila) for fila in filas],
+            "conversaciones": [respuesta_conversacion_cuenta(fila, "comprador") for fila in filas],
             "hay_mas": len(filas) == limite,
             "siguiente_cursor": str(filas[-1]["id"]) if len(filas) == limite else None,
         })
@@ -600,7 +602,7 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("El identificador del vehículo no es válido.")), 400
         except Exception as error:
             return error_persistencia(error)
-        return jsonify({"ok": True, "conversacion": respuesta_conversacion_cuenta(conversacion)})
+        return jsonify({"ok": True, "conversacion": respuesta_conversacion_cuenta(conversacion, "comprador")})
 
     @aplicacion.get("/api/cuenta/chat/comprador/conversaciones/<uuid:conversacion_id>/mensajes")
     def listar_mensajes_comprador_cuenta(conversacion_id):
@@ -653,7 +655,7 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("La publicación no está disponible para iniciar o continuar la conversación.")), 404
         return jsonify({
             "ok": True,
-            "conversacion": respuesta_conversacion_cuenta(resultado["conversacion"]),
+            "conversacion": respuesta_conversacion_cuenta(resultado["conversacion"], "comprador"),
             "mensaje": respuesta_mensaje_cuenta(resultado["mensaje"]),
             "duplicado": resultado["duplicado"],
         }), 200 if resultado["duplicado"] else 201
@@ -677,7 +679,7 @@ def create_app(configuracion=None):
             return error_persistencia(error)
         return jsonify({
             "ok": True,
-            "conversaciones": [respuesta_conversacion_cuenta(fila) for fila in filas],
+            "conversaciones": [respuesta_conversacion_cuenta(fila, "vendedor") for fila in filas],
             "hay_mas": len(filas) == limite,
             "siguiente_cursor": str(filas[-1]["id"]) if len(filas) == limite else None,
         })

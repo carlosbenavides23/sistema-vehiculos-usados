@@ -14,7 +14,7 @@ PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modif
 - Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
 - Límite de acceso persistente en PostgreSQL, compartido entre procesos y resistente a borrar cookies.
 
-Los seis registros iniciales son ficticios. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). Chat, pagos, contacto real, cuentas de compradores/vendedores y certificación mecánica permanecen fuera del alcance confirmado. El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
+Los registros iniciales son ficticios. Las cuentas de compradores y vendedores y el chat privado se desarrollan en V7.1–V7.6; pagos y certificación mecánica permanecen fuera del alcance confirmado. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
 
 ## Instalación local
 
@@ -92,6 +92,12 @@ En Linux sustituye el ejecutable por `./.venv/bin/python`. La primera orden no b
 | `GET /api/admin/session`, `POST /api/admin/login`, `POST /api/admin/logout` | Estado, login `{password}` y logout; mutaciones con CSRF. |
 
 El token CSRF viaja en `X-CSRF-Token`; una alta o carga reintentada conserva su mismo UUID y contenido. Reutilizarlo con datos diferentes devuelve 409. Los formularios envían únicamente un vehículo, nunca la colección completa. Los precios permanecen en USD y PostgreSQL guarda centavos enteros. Las respuestas API y la página con CSRF llevan `Cache-Control: no-store`.
+
+## Cuentas V7.6: nombres visibles
+
+El registro requiere un nombre visible de 2 a 40 caracteres. Supabase Auth transporta ese valor en la solicitud inicial; el trigger de `auth.users` lo valida y lo persiste junto al rol en la misma transacción, también si el proyecto requiere confirmación de correo. La metadata de Auth no se usa como autorización. Los nombres se guardan en `public.perfiles_usuarios`, vinculados por UUID y sin acceso directo desde `PUBLIC`, `anon` o `authenticated`; Flask actualiza únicamente el perfil de la identidad verificada mediante `PATCH /api/cuenta/nombre-visible` con CSRF. El chat entrega a cada participante solo el nombre visible de la otra parte; las cuentas antiguas sin perfil usan “Comprador” o “Vendedor”.
+
+La migración `supabase/migrations/20261112171056_v76_nombres_visibles.sql` debe aplicarse en el entorno objetivo antes de desplegar el código V7.6. No se ejecuta automáticamente ni esta entrega la aplicó en Supabase remoto.
 
 ## Mensajería (implementada, aún desactivada)
 

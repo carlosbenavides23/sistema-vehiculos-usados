@@ -25,6 +25,8 @@ def main():
         "CUENTA_REPO": {
             "leer_sesion": lambda _sid: None,
             "obtener_rol": lambda _uid: None,
+            "obtener_nombre_visible": lambda _uid: None,
+            "establecer_nombre_visible": lambda *_args: None,
             "guardar_sesion": lambda *_args: None,
             "borrar_sesion": lambda *_args: None,
         },

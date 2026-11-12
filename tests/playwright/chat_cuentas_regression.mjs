@@ -24,18 +24,25 @@ try {
   const errors=[];
   async function login(page, name) {
     await page.goto(info.url+'/cuenta');
-    await page.waitForFunction(()=>document.querySelector('#cuenta-estado').textContent.length>0);
+    await page.locator('#enviar-cuenta').waitFor();
     if (await page.locator('#salir-cuenta').isVisible()) await page.locator('#salir-cuenta').click();
     await page.locator('#email').fill(`${name}@example.test`);
     await page.locator('#password').fill('local-fixture-password');
+    const loginResponse = page.waitForResponse(r => r.url().endsWith('/api/cuenta/login'));
     await page.locator('#enviar-cuenta').click();
+    const response = await loginResponse;
+    if (!response.ok()) throw Error(`Login de fixture rechazado (${response.status()}): ${await response.text()}`);
     await page.waitForFunction(()=>document.querySelector('#cuenta-form').hidden);
   }
   async function openBuyer(page) {
     await page.goto(info.url);
     await page.locator('#abrir-chat-cuentas').click();
-    await page.locator('#chat-comprador-lista button').filter({hasText:'Toyota Corolla'}).click();
+    const item = page.locator('#chat-comprador-lista button').filter({hasText:'Toyota Corolla'});
+    await item.waitFor();
+    assert.equal((await item.innerText()).includes('Vendedor: Vendedora Carla'), true);
+    await item.click();
     await page.getByText('Mensaje inicial del comprador A',{exact:true}).waitFor();
+    assert.equal(await page.locator('#chat-comprador-vendedor').innerText(), 'Vendedor: Vendedora Carla');
   }
   async function submit(page, role, text, expected=201) {
     const input=role==='buyer'?'#chat-comprador-texto':'#seller-reply-text';
@@ -88,6 +95,15 @@ try {
     context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));
     const page=await context.newPage();
     await login(page,'buyer_a'); await openBuyer(page);
+    await page.locator('#chat-comprador-volver').click();
+    const unsafeName = '<img src=x onerror=alert(1)>';
+    await page.locator('#chat-comprador-lista button').filter({hasText:'Honda CR-V'}).click();
+    await page.locator('#chat-comprador-vendedor').waitFor();
+    assert.equal(await page.locator('#chat-comprador-vendedor').innerText(), `Vendedor: ${unsafeName}`);
+    assert.equal(await page.locator('#chat-comprador-vendedor img').count(), 0, 'El nombre debe representarse como texto, nunca como HTML.');
+    await page.locator('#chat-comprador-volver').click();
+    await page.locator('#chat-comprador-lista button').filter({hasText:'Toyota Corolla'}).click();
+    checks.push(`V76 ${width}: nombres de vendedores visibles y texto potencialmente hostil no ejecutable`);
     for(let i=0;i<3;i++) await submit(page,'buyer',`Consecutivo ${width} ${i}`);
     checks.push(`A01 existente ${width}: tres envíos consecutivos`);
     await page.locator('#chat-comprador-texto').fill('Borrador Toyota '+width);
@@ -144,7 +160,11 @@ try {
     await sp.goto(info.url+'/vendedor');
     if(width===390) await sp.locator('#admin-mobile-menu').click();
     await sp.locator('#seller-chat-nav').click();
-    await sp.locator(`#seller-chat-list [data-conversation-id="${info.conversations.active_a}"]`).click();
+    const sellerItem = sp.locator(`#seller-chat-list [data-conversation-id="${info.conversations.active_a}"]`);
+    await sellerItem.waitFor();
+    assert.equal((await sellerItem.innerText()).includes('Comprador: Comprador Ana'), true);
+    await sellerItem.click();
+    assert.equal(await sp.locator('#seller-thread-contact').innerText(), 'Comprador: Comprador Ana');
     await lostReply(sp,'seller',width);
     await sp.screenshot({path:path.join(evidence,`vendedor-${width}.png`)});
     const ap=await seller.newPage(); await ap.goto(info.url+'/cuenta');

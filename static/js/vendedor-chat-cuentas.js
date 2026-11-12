@@ -98,13 +98,16 @@
     button.setAttribute("aria-selected", String(String(currentConversation?.id) === String(conversation.id)));
     const title = document.createElement("strong");
     title.textContent = conversationTitle(conversation);
+    const contact = document.createElement("span");
+    contact.className = "admin-chat-contact";
+    contact.textContent = `Comprador: ${conversation.nombre_contacto || "Comprador"}`;
     const time = document.createElement("time");
     time.dateTime = conversation.ultimo_mensaje_en || conversation.updated_at || "";
     time.textContent = formatDate(time.dateTime);
     const excerpt = document.createElement("span");
     const state = conversation.vehiculo_retirado ? "Publicación retirada · solo lectura" : conversation.estado === "atendida" ? "Atendida" : "Pendiente";
     excerpt.textContent = `${state} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
-    button.append(title, time, excerpt);
+    button.append(title, contact, time, excerpt);
     button.addEventListener("click", () => openConversation(conversation));
     button.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
@@ -209,6 +212,7 @@
     messageIds.clear();
     threadMessages.replaceChildren();
     one("seller-thread-title").textContent = conversationTitle(conversation);
+    one("seller-thread-contact").textContent = `Comprador: ${conversation.nombre_contacto || "Comprador"}`;
     one("seller-thread-state").textContent = conversation.estado === "atendida" ? "Atendida" : "Pendiente";
     one("seller-thread-state").dataset.state = conversation.estado === "atendida" ? "atendida" : "abierta";
     const retired = Boolean(conversation.vehiculo_retirado);

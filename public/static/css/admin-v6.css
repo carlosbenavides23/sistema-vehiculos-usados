@@ -58,6 +58,8 @@
 .admin-select-wrap > select { width: 100%; appearance: none; padding-right: 38px; }
 .admin-select-chevron { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: #35574f; }
 .admin-chat-list-heading > .admin-select-wrap { flex: 0 1 auto; min-width: 130px; }
+.admin-chat-contact { margin:3px 0; color:var(--color-text-muted); font-size:12px; line-height:1.4; }
+.admin-chat-item .admin-chat-contact { min-width:0; overflow:visible; overflow-wrap:anywhere; text-overflow:clip; white-space:normal; }
 .admin-v6 textarea { padding: 12px; line-height: 1.5; resize: vertical; }
 .admin-v6 input::placeholder, .admin-v6 textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
 .admin-v6 input:focus, .admin-v6 select:focus, .admin-v6 textarea:focus { border-color: var(--color-focus); }
@@ -108,6 +110,7 @@
 .admin-field textarea { width: 100%; min-height: 116px; }
 .admin-field small { min-height: 0; color: #9e3e39; font-size: 11px; line-height: 1.35; }
 .admin-field small:empty { display: none; }
+.admin-field .admin-auth-footnote { color: var(--color-text-muted); font-size: 12px; }
 .admin-form-message { margin: 0; padding: 10px 12px; border: 1px solid; border-radius: 8px; font-size: 12px; line-height: 1.45; }
 .admin-login-submit { width: 100%; margin-top: 7px; justify-content: flex-start; }
 .admin-password-control { position: relative; min-width: 0; }
@@ -123,6 +126,9 @@
 .admin-auth-confirmation { display: grid; gap: 12px; }
 .admin-auth-confirmation > p { margin: 0; padding: 14px; border: 1px solid #c7d8cf; border-radius: 9px; color: #29453f; background: #eaf1ed; font-size: 14px; line-height: 1.55; }
 .admin-auth-confirmation .admin-button { width: 100%; }
+.account-profile { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e2eae5; }
+.account-profile h2 { margin: 0 0 8px; color: #1b3036; font-size: 18px; line-height: 1.3; }
+.account-profile .admin-auth-footnote { margin: 0 0 16px; font-size: 12px; }
 .admin-auth-footnote { margin: 17px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.45; }
 .admin-readonly-card { padding: 34px; text-align: center; }
 .admin-readonly-card > p { margin-bottom: 20px; }

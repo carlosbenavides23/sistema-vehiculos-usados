@@ -29,6 +29,11 @@
       </div>
 
       <form id="cuenta-form" class="admin-login-form">
+        <div id="nombre-visible-field" class="admin-field" hidden>
+          <label for="nombre-visible">Nombre visible</label>
+          <input id="nombre-visible" name="nombre_visible" type="text" autocomplete="name" minlength="2" maxlength="80" aria-describedby="nombre-visible-ayuda">
+          <small id="nombre-visible-ayuda" class="admin-auth-footnote">Este nombre será visible para las personas con las que converses.</small>
+        </div>
         <div class="admin-field">
           <label for="email">Correo electrónico</label>
           <input id="email" name="email" type="email" autocomplete="username" maxlength="254" required>
@@ -68,6 +73,18 @@
 
       <a id="mis-conversaciones-cuenta" href="/?mensajes=1" class="admin-button admin-button-primary" hidden>Mis conversaciones</a>
       <a id="panel-vendedor" href="/vendedor" class="admin-button admin-button-primary" hidden>Mis publicaciones</a>
+      <section id="cuenta-perfil" class="account-profile" aria-labelledby="cuenta-perfil-titulo" hidden>
+        <h2 id="cuenta-perfil-titulo">Mi nombre visible</h2>
+        <p class="admin-auth-footnote">Este nombre será visible para las personas con las que converses.</p>
+        <form id="nombre-perfil-form" class="admin-login-form">
+          <div class="admin-field">
+            <label for="nombre-perfil">Nombre</label>
+            <input id="nombre-perfil" name="nombre_visible" type="text" autocomplete="name" minlength="2" maxlength="80" required>
+          </div>
+          <p id="nombre-perfil-estado" class="admin-status admin-auth-status" role="status" aria-live="polite" hidden></p>
+          <button id="guardar-nombre" class="admin-button admin-button-secondary" type="submit">Guardar nombre</button>
+        </form>
+      </section>
       <button id="salir-cuenta" class="admin-button admin-button-secondary" type="button" hidden>Cerrar sesión</button>
     </section>
   </main>

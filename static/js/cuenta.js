@@ -5,11 +5,11 @@
   const estado = one("cuenta-estado");
   let registro = false;
 
-  async function api(path, body) {
+  async function api(path, body, method = body ? "POST" : "GET") {
     let response;
     try {
       response = await fetch(path, {
-        method: body ? "POST" : "GET",
+        method,
         credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
@@ -42,6 +42,14 @@
     estado.hidden = !message;
   }
 
+  function normalizeDisplayName(value) {
+    if (/\p{Cc}/u.test(value)) throw new Error("El nombre visible no puede contener caracteres de control.");
+    const normalized = value.trim().replace(/\s+/gu, " ");
+    const length = Array.from(normalized).length;
+    if (length < 2 || length > 40) throw new Error("El nombre visible debe tener entre 2 y 40 caracteres.");
+    return normalized;
+  }
+
   function destinoSiguienteSeguro() {
     const valor = new URLSearchParams(location.search).get("next");
     if (!valor) return "";
@@ -61,6 +69,20 @@
     one("salir-cuenta").hidden = !user;
     one("panel-vendedor").hidden = user?.rol !== "vendedor";
     one("mis-conversaciones-cuenta").hidden = user?.rol !== "comprador";
+    one("cuenta-perfil").hidden = !user;
+    if (user) one("nombre-perfil").value = user.nombre_visible || "";
+    else one("nombre-perfil").value = "";
+    if (user && !user.nombre_visible) {
+      one("nombre-perfil-estado").hidden = false;
+      one("nombre-perfil-estado").dataset.type = "info";
+      one("nombre-perfil-estado").textContent = "Aún no configuraste un nombre visible para tus conversaciones.";
+    } else if (user) {
+      one("nombre-perfil-estado").hidden = true;
+      one("nombre-perfil-estado").textContent = "";
+    } else {
+      one("nombre-perfil-estado").hidden = true;
+      one("nombre-perfil-estado").textContent = "";
+    }
     if (user) feedback(`Sesión iniciada: ${user.email} · ${user.rol}`, "success");
     else if (data.mensaje) feedback(data.mensaje, "success");
   }
@@ -71,6 +93,9 @@
       ? "Regístrate como comprador o vendedor para utilizar la plataforma."
       : "Accede a tu cuenta para continuar.";
     one("rol-field").hidden = !registro;
+    one("nombre-visible-field").hidden = !registro;
+    one("nombre-visible").required = registro;
+    one("nombre-visible").disabled = !registro;
     one("registro-aviso").hidden = !registro;
     one("password").autocomplete = registro ? "new-password" : "current-password";
     one("enviar-cuenta").textContent = registro ? "Crear cuenta" : "Iniciar sesión";
@@ -135,7 +160,17 @@
     feedback("Procesando…", "loading");
     try {
       const body = { email: one("email").value, password: one("password").value };
-      if (esRegistro) body.rol = one("rol").value;
+      if (esRegistro) {
+        body.rol = one("rol").value;
+        try {
+          body.nombre_visible = normalizeDisplayName(one("nombre-visible").value);
+          one("nombre-visible").value = body.nombre_visible;
+        } catch (error) {
+          feedback(error.message, "error");
+          button.disabled = false;
+          return;
+        }
+      }
       const result = await api(`/api/cuenta/${esRegistro ? "registro" : "login"}`, body);
       if (esRegistro && !result.usuario && result.httpStatus === 202) {
         one("password").value = "";
@@ -157,6 +192,31 @@
       if (destino) location.assign(destino);
     } catch (error) {
       feedback(error.message || "Revisá la conexión e intentá nuevamente.", "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  one("nombre-perfil-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = one("guardar-nombre");
+    const status = one("nombre-perfil-estado");
+    button.disabled = true;
+    status.hidden = false;
+    status.dataset.type = "loading";
+    status.textContent = "Guardando…";
+    try {
+      const nombre = normalizeDisplayName(one("nombre-perfil").value);
+      one("nombre-perfil").value = nombre;
+      const result = await api("/api/cuenta/nombre-visible", {
+        nombre_visible: nombre,
+      }, "PATCH");
+      one("nombre-perfil").value = result.usuario.nombre_visible;
+      status.dataset.type = "success";
+      status.textContent = "Tu nombre visible se actualizó.";
+    } catch (error) {
+      status.dataset.type = "error";
+      status.textContent = error.message || "No pudimos guardar el nombre. Intentá nuevamente.";
     } finally {
       button.disabled = false;
     }

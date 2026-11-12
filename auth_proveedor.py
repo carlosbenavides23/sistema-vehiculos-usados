@@ -38,9 +38,14 @@ def solicitar(ruta, datos=None, token=None):
         raise ErrorAuth(status=503) from None
 
 
-def registrar(email, password, rol):
-    # La migración copia el rol validado una sola vez, al crear auth.users.
-    return solicitar("signup", {"email": email, "password": password, "data": {"v71_rol": rol}})
+def registrar(email, password, rol, nombre_visible):
+    # El trigger de PostgreSQL copia ambos datos iniciales en una transacción.
+    # La metadata no se consulta para autorizar ni para cambiar un rol existente.
+    return solicitar("signup", {
+        "email": email,
+        "password": password,
+        "data": {"v71_rol": rol, "v76_nombre_visible": nombre_visible},
+    })
 
 
 def login(email, password):

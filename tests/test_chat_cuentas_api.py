@@ -179,6 +179,8 @@ class ChatCuentasApiTest(unittest.TestCase):
                 "leer_sesion": self.repo.sesiones.get,
                 "borrar_sesion": lambda verificador: self.repo.sesiones.pop(verificador, None),
                 "obtener_rol": self.roles.get,
+                "obtener_nombre_visible": lambda _uid: None,
+                "establecer_nombre_visible": lambda _uid, nombre: nombre,
             },
             "CHAT_CUENTAS_REPOSITORY": {
                 nombre: getattr(self.repo, nombre) for nombre in (
@@ -207,11 +209,13 @@ class ChatCuentasApiTest(unittest.TestCase):
         self.conversaciones[self.conv_a] = {
             "id": self.conv_a, "comprador_id": self.ids["buyer_a"], "vendedor_id": self.ids["seller_a"],
             "vehiculo_id": 1, "marca": "Toyota", "modelo": "Corolla", "anio": 2022,
+            "nombre_vendedor": "Vendedora Carla", "nombre_comprador": "Comprador Ana",
             "estado": "abierta", "created_at": ahora, "updated_at": ahora, "vehiculo_retirado": False,
         }
         self.conversaciones[self.conv_b] = {
             "id": self.conv_b, "comprador_id": self.ids["buyer_b"], "vendedor_id": self.ids["seller_b"],
             "vehiculo_id": 3, "marca": "Ford", "modelo": "Ranger", "anio": 2019,
+            "nombre_vendedor": "Vendedor Diego", "nombre_comprador": "Compradora Beatriz",
             "estado": "atendida", "created_at": ahora, "updated_at": ahora, "vehiculo_retirado": True,
         }
         self.mensajes[self.conv_a] = [{
@@ -267,6 +271,8 @@ class ChatCuentasApiTest(unittest.TestCase):
         self.assertEqual(result.headers["Cache-Control"], "no-store")
         self.assertNotIn("comprador_id", result.json["conversaciones"][0])
         self.assertNotIn("vendedor_id", result.json["conversaciones"][0])
+        self.assertEqual(result.json["conversaciones"][0]["nombre_contacto"], "Vendedora Carla")
+        self.assertNotIn("email", result.json["conversaciones"][0])
         called = [call for call in self.repo.llamadas if call[0] == "listar_comprador"][-1]
         self.assertEqual(called[1], self.ids["buyer_a"])
 
@@ -326,6 +332,8 @@ class ChatCuentasApiTest(unittest.TestCase):
             "/api/cuenta/chat/vendedor/conversaciones",
         )
         self.assertEqual([c["id"] for c in seller_list.json["conversaciones"]], [self.conv_b])
+        self.assertEqual(seller_list.json["conversaciones"][0]["nombre_contacto"], "Compradora Beatriz")
+        self.assertNotIn("nombre_comprador", seller_list.json["conversaciones"][0])
         before = len(self.conversaciones)
         retired_send = self.clientes["buyer_a"].post(
             "/api/cuenta/chat/comprador/vehiculos/3/mensajes",
