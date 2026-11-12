@@ -6,7 +6,7 @@ const motion = await readFile(new URL("../static/css/motion.css", import.meta.ur
 const publicTemplate = await readFile(new URL("../templates/index.html", import.meta.url), "utf8");
 const adminTemplate = await readFile(new URL("../templates/admin_v6.html", import.meta.url), "utf8");
 const publicScript = await readFile(new URL("../static/js/interfaz.js", import.meta.url), "utf8");
-const buyerChat = await readFile(new URL("../static/js/chat.js", import.meta.url), "utf8");
+const buyerChat = await readFile(new URL("../static/js/chat-cuentas.js", import.meta.url), "utf8");
 const adminScript = await readFile(new URL("../static/js/admin-v6.js", import.meta.url), "utf8");
 
 test("define una escala breve de movimiento y no anima layout", () => {
@@ -42,14 +42,6 @@ test("carga el sistema de movimiento tras los estilos V6 públicos y administrat
   assert.match(motion, /#filtros-avanzados\[open\] > \.filtros-avanzados-contenido/);
 });
 
-test("solo marca como entrantes los mensajes nuevos de polling y envíos", () => {
-  assert.match(buyerChat, /idsVistos\.has\(String\(mensaje\.id\)\)/);
-  assert.match(buyerChat, /agregarMensajes\(porId\("chat-comprador-mensajes"\), mensajes, idsComprador, !inicial\)/);
-  assert.match(buyerChat, /agregarMensajes\(porId\("chat-comprador-mensajes"\), \[respuesta\.mensaje\], idsComprador, true\)/);
-  assert.match(adminScript, /\(result\.mensajes \|\| \[\]\)\.forEach\(appendMessage\)/);
-  assert.match(adminScript, /\(result\.mensajes \|\| \[\]\)\.forEach\(\(message\) => appendMessage\(message, true\)\)/);
-  assert.match(adminScript, /appendMessage\(result\.mensaje, true\)/);
-});
 
 test("prepara la foto antes del fundido de entrada y no espera la animación para mostrarla", () => {
   assert.match(publicScript, /function mostrarFotoPreparada\(/);

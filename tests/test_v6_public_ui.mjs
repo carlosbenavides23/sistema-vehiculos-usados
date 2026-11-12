@@ -4,7 +4,7 @@ import test from "node:test";
 
 const template = await readFile(new URL("../templates/index.html", import.meta.url), "utf8");
 const interfaceScript = await readFile(new URL("../static/js/interfaz.js", import.meta.url), "utf8");
-const chatScript = await readFile(new URL("../static/js/chat.js", import.meta.url), "utf8");
+const chatScript = await readFile(new URL("../static/js/chat-cuentas.js", import.meta.url), "utf8");
 const backend = await readFile(new URL("../app.py", import.meta.url), "utf8");
 
 const publicFilterNames = [
@@ -30,21 +30,4 @@ test("la ficha reutiliza fotografías del API y ofrece galería, miniaturas y co
   }
   assert.match(interfaceScript, /vehiculo\.fotografias\s*\|\|\s*\[\]/);
   assert.match(interfaceScript, /\/vehiculo\/\$\{encodeURIComponent\(vehiculo\.id\)\}/);
-  assert.match(chatScript, /\/api\/chat\/vehiculos\/\$\{encodeURIComponent\(vehiculoDestino\)\}\/mensajes/);
-});
-
-test("mensajería del comprador mantiene lista global, hilo y privacidad PostgreSQL sin crear sesión al abrir", () => {
-  for (const id of ["abrir-chat-comprador-global", "chat-comprador-dialogo", "chat-comprador-lista-vista", "chat-comprador-lista", "chat-comprador-hilo", "chat-comprador-form"]) {
-    assert.match(template, new RegExp(`\\bid=["']${id}["']`), `Falta el elemento de mensajería ${id}.`);
-  }
-  assert.match(template, /Mensajes se guardan en el servidor PostgreSQL|mensajes se guardan en el servidor PostgreSQL/i);
-  const globalOpen = chatScript.slice(
-    chatScript.indexOf("async function abrirBandejaCompradorGlobal"),
-    chatScript.indexOf("botonMensajesComprador?.addEventListener"),
-  );
-  assert.ok(globalOpen, "Debe existir la acción global de abrir la bandeja.");
-  assert.match(globalOpen, /cargarListaComprador\(\)/);
-  assert.match(chatScript, /api\("\/api\/chat\/conversaciones"\)/);
-  assert.doesNotMatch(globalOpen, /\/api\/chat\/sesion|prepararComprador/);
-  assert.doesNotMatch(chatScript, /localStorage/);
 });

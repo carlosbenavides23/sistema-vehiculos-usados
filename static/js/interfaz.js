@@ -519,17 +519,6 @@
     }
   }
 
-  async function actualizarAccesoAdministrativo() {
-    const enlace = porId("admin-panel-link");
-    try {
-      const sesion = await solicitar("/api/admin/session");
-      enlace.hidden = sesion.solo_lectura === true;
-    } catch (error) {
-      // La ruta administrativa valida la autorización; un fallo de lectura no debe bloquear el catálogo.
-      enlace.hidden = false;
-    }
-  }
-
   async function inicializar() {
     if (ocupado) return;
     ocupado = true;
@@ -565,7 +554,6 @@
   if (idFicha) inicializarFicha();
   else {
     copiarFiltrosDesdeUrl();
-    actualizarAccesoAdministrativo();
     inicializar();
   }
 })();

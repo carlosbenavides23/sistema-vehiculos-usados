@@ -8,43 +8,6 @@ const adminStyles = await readFile(new URL("../static/css/admin-v6.css", import.
 const fieldValuesScript = await readFile(new URL("../static/js/admin-v6-field-values.js", import.meta.url), "utf8");
 const backend = await readFile(new URL("../app.py", import.meta.url), "utf8");
 
-const apiContracts = new Set([
-  "GET /api/admin/session", "POST /api/admin/login", "POST /api/admin/logout",
-  "POST /api/chat/sesion", "GET /api/chat/conversaciones", "POST /api/chat/vehiculos/<int:identificador>/mensajes",
-  "GET /api/chat/conversaciones/<uuid:conversacion_id>/mensajes",
-  "GET /api/admin/chat/conversaciones", "GET /api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes",
-  "POST /api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes",
-  "PATCH /api/admin/chat/conversaciones/<uuid:conversacion_id>/atendida",
-  "GET /api/cuenta/chat/comprador/conversaciones",
-  "GET /api/cuenta/chat/comprador/conversaciones/<uuid:conversacion_id>/mensajes",
-  "GET /api/cuenta/chat/comprador/vehiculos/<int:identificador>/conversacion",
-  "POST /api/cuenta/chat/comprador/vehiculos/<int:identificador>/mensajes",
-  "GET /api/cuenta/chat/vendedor/conversaciones",
-  "GET /api/cuenta/chat/vendedor/conversaciones/<uuid:conversacion_id>/mensajes",
-  "POST /api/cuenta/chat/vendedor/conversaciones/<uuid:conversacion_id>/mensajes",
-  "GET /api/vehiculos", "GET /api/vehiculos/<int:identificador>", "POST /api/vehiculos",
-  "PUT /api/vehiculos/<int:identificador>", "PATCH /api/vehiculos/<int:identificador>/disponibilidad",
-  "POST /api/vehiculos/<int:identificador>/retirar",
-  "POST /api/vehiculos/<int:identificador>/fotografias",
-  "PUT /api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>",
-  "DELETE /api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>",
-]);
-
-function declaredApiContracts(source) {
-  return new Set([...source.matchAll(/@aplicacion\.(get|post|put|patch|delete)\("(\/api\/[^\"]+)"\)/g)]
-    .map(([, method, path]) => `${method.toUpperCase()} ${path}`));
-}
-
-test("el acceso administrativo usa únicamente la contraseña existente", () => {
-  assert.match(template, /<form\b(?=[^>]*\bid="admin-login-form")[^>]*>/);
-  assert.match(template, /<input\b(?=[^>]*\bname="password")(?=[^>]*\btype="password")/);
-  assert.doesNotMatch(template, /name=["'](?:username|usuario|user|email)["']/i);
-  assert.doesNotMatch(template, /id=["'](?:admin-username|admin-user|admin-email)["']/i);
-  assert.match(adminScript, /\/admin\/login"[^\n]*body:\s*\{\s*password:\s*loginPassword\.value\s*\}/);
-  assert.match(template, /meta name="csrf-token"/);
-  assert.match(adminScript, /X-CSRF-Token/);
-});
-
 test("el panel consulta inventario real y no presenta métricas de ejemplo como datos", () => {
   for (const id of ["admin-workspace", "admin-inventory-filters", "admin-inventory-list", "admin-inventory-mobile", "vehicle-form-title"]) {
     assert.match(template, new RegExp(`\\bid=["']${id}["']`), `Falta la vista administrativa ${id}.`);
@@ -80,18 +43,6 @@ test("la edición V6 serializa transmisión y combustible mediante el guardado h
   assert.match(fieldValuesScript, /select\.value\s*===\s*\(original\s*\?\?\s*""\)/);
 });
 
-test("la bandeja y respuestas admin usan endpoints existentes y el estado real del chat", () => {
-  assert.match(template, /data-admin-panel="conversations"/);
-  assert.match(template, /data-chat-enabled=/);
-  for (const id of ["admin-chat-list", "admin-chat-thread", "admin-reply-form", "admin-thread-resolve"]) {
-    assert.match(template, new RegExp(`\\bid=["']${id}["']`), `Falta el componente de bandeja ${id}.`);
-  }
-  assert.match(adminScript, /\/admin\/chat\/conversaciones/);
-  assert.match(adminScript, /\/mensajes/);
-  assert.match(adminScript, /\/atendida/);
-  assert.match(adminScript, /Idempotency-Key/);
-  assert.doesNotMatch(adminScript, /localStorage/);
-});
 
 test("el selector de estado de la bandeja conserva espacio para sus opciones y la flecha en móvil", () => {
   assert.match(adminStyles, /\.admin-chat-list-heading select\s*\{[^}]*width:\s*134px;[^}]*flex:\s*0 0 134px;[^}]*padding:\s*0 34px 0 8px !important;/);
@@ -110,9 +61,6 @@ test("la navegación móvil administrativa solo se muestra con sesión y sigue e
 });
 
 test("los errores de formulario se asocian a sus controles y los estados se anuncian", () => {
-  assert.match(template, /id="admin-login-status"[^>]*role="status"[^>]*aria-live="polite"/);
-  assert.match(adminScript, /loginForm\.setAttribute\("aria-busy", "true"\)/);
-  assert.match(adminScript, /loginStatus\.textContent = "Verificando acceso/);
   assert.match(adminScript, /field\.setAttribute\("aria-invalid", "true"\)/);
   assert.match(adminScript, /field\.setAttribute\("aria-describedby", descriptions\.join\(" "\)\)/);
   assert.match(adminScript, /field\.removeAttribute\("aria-invalid"\)/);
@@ -131,15 +79,4 @@ test("un error de carga del inventario no se presenta como estado vacío", () =>
   assert.match(renderer, /emptyInventory\.hidden = !empty/);
   assert.match(handler, /catch \(error\)[\s\S]*renderInventory\(\[\]\);\s*emptyInventory\.hidden = true/);
   assert.match(handler, /inventoryFeedback\.textContent = error\.status === 401/);
-});
-
-test("la página administrativa conserva los contratos explícitos y no expone datos en la ruta HTML", () => {
-  assert.match(backend, /@aplicacion\.get\("\/administracion"\)/);
-  const pageRoute = backend.slice(backend.indexOf('@aplicacion.get("/administracion")'), backend.indexOf('@aplicacion.get("/api/admin/session")'));
-  assert.match(pageRoute, /render_template\(/);
-  assert.match(pageRoute, /csrf_token=token_csrf\(\)/);
-  assert.match(pageRoute, /solo_lectura=current_app\.config\["APP_READ_ONLY"\]/);
-  assert.match(pageRoute, /chat_habilitado=chat_publico_habilitado\(\)/);
-  assert.doesNotMatch(pageRoute, /listar_vehiculos|persistencia|password_hash|DATABASE_URL|SUPABASE_/);
-  assert.deepEqual(declaredApiContracts(backend), apiContracts);
 });

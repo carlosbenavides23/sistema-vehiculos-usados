@@ -79,11 +79,19 @@ def main():
         token = propiedad.vendedor.set(identities["seller_a"])
         try: persistencia.retirar_vehiculo(vehicles["retired_a"]["id"], vehicles["retired_a"]["updated_at"])
         finally: propiedad.vendedor.reset(token)
+        archivo = []
+        with persistencia._conectar() as db:
+            for n in range(4):
+                visitante = db.execute('INSERT INTO public.visitantes_anonimos DEFAULT VALUES RETURNING id').fetchone()['id']
+                cid = db.execute('INSERT INTO public.conversaciones(visitante_id,vehiculo_id) VALUES (%s,%s) RETURNING id', (visitante, vehicles['active_a']['id'])).fetchone()['id']
+                db.execute("INSERT INTO public.mensajes_chat(conversacion_id,remitente,contenido,clave_idempotencia,huella_solicitud) VALUES (%s,'comprador','Consulta histórica <script>sin ejecutar</script>',%s,%s)", (cid,str(uuid.uuid4()),'a'*64))
+                archivo.append(str(cid))
         app = create_app({"TESTING": True, "SECRET_KEY": "v733-playwright-isolated-only",
                           "USER_AUTH_ENABLED": True, "APP_READ_ONLY": False, "SESSION_COOKIE_SECURE": False,
                           "CUENTA_AUTH": AuthDoble(tokens)})
         server = make_server("127.0.0.1", 0, app, threaded=True)
         info = {"url": f"http://127.0.0.1:{server.server_port}", "users": {}, "vehicles": {k: v["id"] for k,v in vehicles.items()}, "conversations": seeded}
+        info['archive'] = archivo
         for name in identities:
             info["users"][name] = {"sid": f"qa-session-{name}", "access": f"qa-token-{name}"}
         print("V733_SERVER " + json.dumps(info), flush=True)

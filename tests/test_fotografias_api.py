@@ -3,13 +3,14 @@
 from io import BytesIO
 import os
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 os.environ.setdefault("FLASK_SECRET_KEY", "clave-solo-para-pruebas")
 
 from app import create_app
 import almacenamiento
-from test_api import limite_falso, repositorio_falso
+from test_api import identidad_simulada, repositorio_falso
 from test_imagenes import imagen_bytes
 from test_vehiculos import formulario
 from werkzeug.security import generate_password_hash
@@ -113,16 +114,20 @@ class FotografiasApiTest(unittest.TestCase):
         self.repo["crear_vehiculo"](normalizado)
         self.fotos = RepositorioFotosFalso()
         self.storage = StorageFalso()
-        self.app = create_app({"TESTING": True, "SECRET_KEY": "test", "ADMIN_PASSWORD_HASH": generate_password_hash("clave"), "SESSION_COOKIE_SECURE": False, "APP_READ_ONLY": False, "REPOSITORY": self.repo, "PHOTO_REPOSITORY": self.fotos.interfaz(), "LOGIN_LIMITER": limite_falso(), "STORAGE": self.storage})
+        self.app = create_app({"TESTING": True, "SECRET_KEY": "test", "USER_AUTH_ENABLED": True, "SESSION_COOKIE_SECURE": False, "APP_READ_ONLY": False, "REPOSITORY": self.repo, "PHOTO_REPOSITORY": self.fotos.interfaz(), "STORAGE": self.storage})
+        self.app.config.update(CUENTA_AUTH=object(), CUENTA_REPO={})
+        identidad_patch = patch('cuentas.identidad', side_effect=identidad_simulada)
+        identidad_patch.start()
+        self.addCleanup(identidad_patch.stop)
         self.cliente = self.app.test_client()
         self.cliente.get("/")
         with self.cliente.session_transaction() as sesion:
             token = sesion["csrf_token"]
-        respuesta = self.cliente.post("/api/admin/login", json={"password": "clave"}, headers={"X-CSRF-Token": token})
-        self.token = respuesta.json["csrf_token"]
+        self.cliente.set_cookie('fixture_auth', 'seller')
+        self.token = token
 
     def subir(self, foto_id=None, clave=None, contenido=None):
-        ruta = "/api/vehiculos/1/fotografias" + (f"/{foto_id}" if foto_id is not None else "")
+        ruta = "/api/vendedor/vehiculos/1/fotografias" + (f"/{foto_id}" if foto_id is not None else "")
         return self.cliente.open(ruta, method="PUT" if foto_id is not None else "POST", data={"fotografia": (BytesIO(contenido if contenido is not None else imagen_bytes()), "archivo.png")}, headers={"X-CSRF-Token": self.token, "Idempotency-Key": clave or str(uuid4())})
 
     def test_sube_una_vez_y_repite_sin_duplicar(self):
@@ -161,7 +166,7 @@ class FotografiasApiTest(unittest.TestCase):
         self.assertEqual(self.fotos.fotos[0]["storage_path"], foto["storage_path"])
         self.storage.fallar_subida = False
         self.storage.fallar_borrado = True
-        borrada = self.cliente.delete(f"/api/vehiculos/1/fotografias/{foto['id']}", headers={"X-CSRF-Token": self.token})
+        borrada = self.cliente.delete(f"/api/vendedor/vehiculos/1/fotografias/{foto['id']}", headers={"X-CSRF-Token": self.token})
         self.assertEqual(borrada.status_code, 200)
         self.assertEqual(borrada.json["fotografias"], [])
         self.assertTrue(borrada.json["limpieza_pendiente"])
@@ -180,9 +185,9 @@ class FotografiasApiTest(unittest.TestCase):
 
     def test_autorizacion_csrf_y_limite_de_solicitud(self):
         publico = self.app.test_client()
-        self.assertEqual(publico.post("/api/vehiculos/1/fotografias").status_code, 401)
-        self.assertEqual(self.cliente.delete("/api/vehiculos/1/fotografias/1").status_code, 403)
-        enorme = self.cliente.post("/api/vehiculos/1/fotografias", data=b"x" * 1_100_001, content_type="multipart/form-data; boundary=demo", headers={"X-CSRF-Token": self.token, "Idempotency-Key": str(uuid4())})
+        self.assertEqual(publico.post("/api/vendedor/vehiculos/1/fotografias").status_code, 401)
+        self.assertEqual(self.cliente.delete("/api/vendedor/vehiculos/1/fotografias/1").status_code, 403)
+        enorme = self.cliente.post("/api/vendedor/vehiculos/1/fotografias", data=b"x" * 1_100_001, content_type="multipart/form-data; boundary=demo", headers={"X-CSRF-Token": self.token, "Idempotency-Key": str(uuid4())})
         self.assertEqual(enorme.status_code, 413)
         self.assertEqual(self.storage.subidas, 0)
 

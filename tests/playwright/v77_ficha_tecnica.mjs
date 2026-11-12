@@ -50,9 +50,8 @@ try {
   const partialTechnical = (await page.locator("#ficha-caracteristicas").innerText()).replace(/\s+/g, " ");
   assert.doesNotMatch(partialTechnical, /Versión:|Motor:|Puertas:|Pasajeros:|Cámara de reversa:|Bluetooth:/);
 
-  await page.goto(`${info.url}/administracion`);
-  await page.locator("#admin-password").fill("v77-fixture-password");
-  await page.getByRole("button", { name: "Iniciar sesión" }).click();
+  await context.addCookies([{name:'cuenta_sid',value:info.sid,url:info.url,httpOnly:true}, {name:'cuenta_access',value:info.access,url:info.url,httpOnly:true}]);
+  await page.goto(`${info.url}/vendedor`);
   await page.locator("#admin-workspace:not([hidden])").waitFor();
   if (width < 768) await page.locator("#admin-inventory-mobile .admin-mobile-card").filter({ hasText: "Subaru Legacy Wagon" }).waitFor();
   else await page.locator("#admin-inventory-list tr").filter({ hasText: "Subaru Legacy Wagon" }).waitFor();

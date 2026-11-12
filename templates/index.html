@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/motion.css') }}">
   <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
-  {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script><script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% else %}<script defer src="{{ url_for('static', filename='js/chat.js') }}"></script>{% endif %}
+  {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script><script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% endif %}
 </head>
 <body data-vehiculo-id="{{ vehiculo_id or '' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-user-auth-enabled="{{ 'true' if config.USER_AUTH_ENABLED else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#inventario">Saltar al inventario</a>
@@ -28,8 +28,6 @@
       <div class="header-actions">
         <a class="explore-link" href="/">Explorar vehículos</a>
         {% if config.USER_AUTH_ENABLED %}<a class="button button-secondary" href="/cuenta">Mi cuenta</a><button id="abrir-chat-cuentas" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo">{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis conversaciones</span></button>{% endif %}
-        <button id="abrir-chat-comprador-global" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" {% if not chat_habilitado or config.USER_AUTH_ENABLED %}hidden{% endif %}>{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis mensajes</span></button>
-        <a id="admin-panel-link" class="button button-secondary admin-panel-link" href="/administracion" aria-label="Administrar" hidden><span class="admin-panel-link-label">Administrar</span>{{ lucide_icon('menu', 20, 'admin-panel-link-icon') }}</a>
       </div>
     </div>
   </header>

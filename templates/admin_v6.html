@@ -51,24 +51,14 @@
     <section id="admin-auth" class="admin-auth-card" aria-labelledby="admin-auth-title" {% if solo_lectura %}hidden{% endif %}>
       <span class="admin-brand-mark admin-auth-mark" aria-hidden="true">V.</span>
       <h1 id="admin-auth-title">{{ 'Acceso de vendedor' if vendedor_panel else 'Acceso administrativo' }}</h1>
-      <p class="admin-auth-copy">{% if vendedor_panel %}Ingresá con tu cuenta para gestionar tus publicaciones.{% else %}Ingresá con la contraseña autorizada para administrar las publicaciones.{% endif %}</p>
-      {% if vendedor_panel %}<a class="admin-button admin-button-primary" href="/cuenta">Iniciar sesión con mi cuenta</a>{% endif %}<form {% if vendedor_panel %}hidden{% endif %} id="admin-login-form" class="admin-login-form" novalidate>
-        <div class="admin-field">
-          <label for="admin-password">Contraseña</label>
-          <input id="admin-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required>
-        </div>
-        <p id="admin-login-error" class="admin-form-message" role="alert" tabindex="-1" hidden></p>
-        <p id="admin-login-status" class="admin-inline-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
-        <button class="admin-button admin-button-primary admin-login-submit" type="submit">
-          {{ lucide_icon('lock-keyhole', 20) }}
-          Iniciar sesión
-        </button>
-      </form>
-      <p class="admin-auth-footnote">Solo personal autorizado del sistema.</p>
+      <p class="admin-auth-copy">Ingresá con tu cuenta para gestionar tus publicaciones.</p>
+      <a class="admin-button admin-button-primary" href="/cuenta">Iniciar sesión con mi cuenta</a>
+      <p id="admin-login-error" class="admin-form-message" role="alert" tabindex="-1" hidden></p>
+      <p class="admin-auth-footnote">Acceso exclusivo a tus publicaciones.</p>
     </section>
 
     <section id="admin-workspace" class="admin-workspace" hidden>
-      <aside id="admin-navigation" class="admin-sidebar" aria-label="Navegación administrativa">
+      <aside id="admin-navigation" class="admin-sidebar" aria-label="Navegación del vendedor">
         <p class="admin-nav-heading">{{ 'Mis publicaciones' if vendedor_panel else 'Administración' }}</p>
         <nav class="admin-nav-list">
           <button class="admin-nav-link is-active" type="button" data-admin-view="inventory" aria-current="page">
@@ -79,10 +69,7 @@
             {{ lucide_icon('messages-square', 20) }}
             <span>Conversaciones</span>
           </button>{% endif %}
-          <button class="admin-nav-link" type="button" data-admin-view="conversations" {% if not chat_habilitado %}hidden{% endif %}>
-            {{ lucide_icon('messages-square', 20) }}
-            <span>Conversaciones</span>
-          </button>
+          <a class="admin-nav-link" href="/vendedor/archivo" data-archive-link>{{ lucide_icon('messages-square', 20) }}<span>Archivo histórico</span></a>
           <button class="admin-nav-link" type="button" data-admin-view="vehicle-form" data-new-vehicle>
             {{ lucide_icon('plus', 20) }}
             <span>Registrar vehículo</span>
@@ -237,58 +224,6 @@
               <span>Guardar vehículo</span>
             </button>
             <p>Revisá los campos antes de guardar.</p>
-          </div>
-        </section>
-
-        <section class="admin-view admin-conversations-view" data-admin-panel="conversations" aria-labelledby="conversations-title" hidden>
-          <div class="admin-page-heading">
-            <div>
-              <p class="admin-eyebrow">Consultas</p>
-              <h1 id="conversations-title" tabindex="-1">Conversaciones</h1>
-              <p class="admin-subheading">Respondé las consultas asociadas a cada vehículo.</p>
-            </div>
-          </div>
-          <div id="chat-disabled-note" class="admin-inline-notice" {% if chat_habilitado %}hidden{% endif %}>
-            La mensajería no está habilitada en este ambiente.
-          </div>
-          <div class="admin-chat-workspace" id="admin-chat-workspace" {% if not chat_habilitado %}hidden{% endif %}>
-            <section class="admin-chat-list-pane" aria-labelledby="admin-inbox-title">
-              <header class="admin-chat-list-heading">
-                <div><h2 id="admin-inbox-title">Bandeja</h2><p>Consultas recibidas sobre vehículos</p></div>
-                <label class="visually-hidden" for="admin-chat-status">Filtrar conversaciones</label>
-                <div class="admin-select-wrap"><select id="admin-chat-status"><option value="abierta">Pendientes</option><option value="atendida">Atendidas</option><option value="">Todas</option></select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div>
-              </header>
-              <p id="admin-chat-list-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
-              <div id="admin-chat-list" class="admin-chat-list" role="listbox" aria-label="Conversaciones"></div>
-              <button id="admin-chat-load-more" class="admin-button admin-button-secondary admin-load-more" type="button" hidden>Cargar más conversaciones</button>
-            </section>
-            <section id="admin-chat-thread-pane" class="admin-chat-thread-pane" aria-label="Detalle de conversación">
-              <div id="admin-chat-empty" class="admin-chat-empty">
-                <span class="admin-chat-empty-icon" aria-hidden="true">{{ lucide_icon('message-circle', 24) }}</span>
-                <h2>Seleccioná una conversación</h2>
-                <p>El hilo y las respuestas aparecerán aquí.</p>
-              </div>
-              <div id="admin-chat-thread" class="admin-chat-thread" hidden>
-                <header class="admin-thread-heading">
-                  <button id="admin-chat-back" class="admin-icon-button admin-chat-back" type="button" aria-label="Volver a conversaciones">
-                    {{ lucide_icon('arrow-left', 20) }}
-                  </button>
-                  <div><h2 id="admin-thread-title"></h2><p>Consulta asociada al vehículo</p></div>
-                  <span id="admin-thread-state" class="admin-state-pill"></span>
-                  <button id="admin-thread-resolve" class="admin-button admin-button-secondary" type="button">Marcar atendida</button>
-                </header>
-                <div id="admin-thread-messages" class="admin-thread-messages" aria-live="polite" aria-relevant="additions text"></div>
-                <p id="admin-thread-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
-                <form id="admin-reply-form" class="admin-reply-form">
-                  <label class="visually-hidden" for="admin-reply-text">Escribí una respuesta</label>
-                  <textarea id="admin-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta…" required></textarea>
-                  <button id="admin-reply-submit" class="admin-button admin-button-secondary" type="submit">
-                    {{ lucide_icon('send', 20) }}
-                    Enviar
-                  </button>
-                </form>
-              </div>
-            </section>
           </div>
         </section>
 

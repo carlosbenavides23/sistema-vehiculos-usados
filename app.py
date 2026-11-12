@@ -2,24 +2,21 @@
 
 import hashlib
 import hmac
-import ipaddress
 import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from uuid import UUID
 
 from dotenv import load_dotenv
-from flask import Flask, current_app, jsonify, render_template, request, session, g
+from flask import Flask, current_app, jsonify, render_template, request, session, g, redirect, abort
 from werkzeug.exceptions import BadRequest, HTTPException, UnsupportedMediaType
-from werkzeug.security import check_password_hash
 
 import almacenamiento
 import auth_proveedor
 import imagenes
-import limites_login
 import persistencia
 import persistencia_fotos
-import persistencia_chat
+import archivo_chat
 import persistencia_chat_cuentas
 from cuentas import bp as cuentas_bp
 import cuentas
@@ -30,25 +27,7 @@ from tipos_vehiculo import MAPA_ALIAS_TIPOS_VEHICULO, TIPOS_VEHICULO, etiqueta_t
 
 
 MAX_SOLICITUD = 1_100_000
-MAX_PASSWORD_LENGTH = 1024
-MAX_INTENTOS_LOGIN = 5
-PAUSA_LOGIN_SEGUNDOS = 10 * 60
-DURACION_SESION_CHAT_DIAS = 30
 MAX_LONGITUD_MENSAJE_CHAT = 2000
-
-
-def _direccion_cliente_para_limites():
-    """Devuelve origen confiable para cuotas: cabecera sobrescrita por Vercel o peer local."""
-    if os.environ.get("VERCEL"):
-        origen_vercel = request.headers.get("x-vercel-forwarded-for", "").strip()
-        try:
-            # Vercel documenta esta cabecera como la IP pública del cliente. No
-            # se aceptan listas ni valores arbitrarios; el proxy de plataforma
-            # sustituye el valor recibido antes de invocar la Function.
-            return str(ipaddress.ip_address(origen_vercel))
-        except ValueError:
-            pass
-    return request.remote_addr or "sin-direccion"
 
 
 def _cargar_dotenv():
@@ -65,7 +44,6 @@ def create_app(configuracion=None):
     aplicacion.json.ensure_ascii = False
     aplicacion.config.update(
         SECRET_KEY=os.environ.get("FLASK_SECRET_KEY"),
-        ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=(
@@ -77,11 +55,8 @@ def create_app(configuracion=None):
         MAX_FORM_MEMORY_SIZE=MAX_SOLICITUD,
         MAX_FORM_PARTS=3,
         APP_READ_ONLY=_solo_lectura_desde_entorno(),
-        CHAT_ENABLED=os.environ.get("CHAT_ENABLED", "false").lower() == "true",
         REPOSITORY=None,
         PHOTO_REPOSITORY=None,
-        LOGIN_LIMITER=None,
-        CHAT_REPOSITORY=None,
         CHAT_CUENTAS_REPOSITORY=None,
         STORAGE=None,
         USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true",
@@ -95,17 +70,16 @@ def create_app(configuracion=None):
     if os.environ.get("VERCEL_ENV", "").lower() in ("preview", "production") or os.environ.get("VERCEL"):
         aplicacion.config["SESSION_COOKIE_SECURE"] = True
     aplicacion.register_blueprint(cuentas_bp)
-    # La función pública no se puede habilitar desde Preview ni en un entorno
-    # configurado como solo lectura, aunque alguien solicite CHAT_ENABLED.
-    if os.environ.get("VERCEL_ENV") == "preview" or aplicacion.config["APP_READ_ONLY"]:
-        aplicacion.config["CHAT_ENABLED"] = False
     if not aplicacion.config.get("SECRET_KEY"):
         raise RuntimeError("Configura FLASK_SECRET_KEY antes de iniciar Flask.")
 
     @aplicacion.after_request
     def evitar_cache_api(respuesta):
-        if request.path.startswith("/api/") or request.path == "/" or request.path.startswith("/vehiculo/"):
+        if request.path.startswith(("/api/", "/vendedor")) or request.path in ("/", "/administracion") or request.path.startswith("/vehiculo/"):
             respuesta.headers["Cache-Control"] = "no-store"
+        for cookie in ('chat_session', '__Host-chat_session'):
+            if cookie in request.cookies:
+                respuesta.delete_cookie(cookie, secure=cookie.startswith('__Host-'), httponly=True, samesite='Lax')
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
         return respuesta
 
@@ -121,39 +95,14 @@ def create_app(configuracion=None):
         recibido = request.headers.get("X-CSRF-Token", "")
         return bool(esperado and recibido and hmac.compare_digest(esperado, recibido))
 
-    def exigir_admin_y_csrf():
+    def exigir_vendedor_y_csrf():
         if current_app.config["APP_READ_ONLY"]:
             return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
-        if not session.get("admin_authenticated") and not getattr(g, 'cuenta_vendedor', None):
-            return jsonify(respuesta_error("Inicia sesión como administrador para continuar.")), 401
+        if not getattr(g, 'cuenta_vendedor', None):
+            return jsonify(respuesta_error("Inicia sesión con tu cuenta vendedora para continuar.")), 401
         if not csrf_valido():
             return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
         return None
-
-    def exigir_admin_sin_csrf():
-        if current_app.config["APP_READ_ONLY"]:
-            return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
-        if not session.get("admin_authenticated") and not getattr(g, 'cuenta_vendedor', None):
-            return jsonify(respuesta_error("Inicia sesión como administrador para continuar.")), 401
-        return None
-
-    def chat_publico_habilitado():
-        return bool(
-            current_app.config.get("CHAT_ENABLED")
-            and not current_app.config.get("APP_READ_ONLY")
-            and os.environ.get("VERCEL_ENV") != "preview"
-        )
-
-    def exigir_chat_habilitado():
-        if not chat_publico_habilitado():
-            return jsonify(respuesta_error("El chat no está habilitado en este ambiente.")), 503
-        return None
-
-    def chat_repositorio(nombre, *argumentos):
-        personalizado = current_app.config.get("CHAT_REPOSITORY")
-        if personalizado is not None:
-            return personalizado[nombre](*argumentos)
-        return getattr(persistencia_chat, nombre)(*argumentos)
 
     def chat_cuentas_repositorio(nombre, *argumentos):
         personalizado = current_app.config.get("CHAT_CUENTAS_REPOSITORY")
@@ -214,39 +163,6 @@ def create_app(configuracion=None):
             "created_at": mensaje.get("created_at"),
         }
 
-    def nombre_cookie_chat():
-        nombre = current_app.config.get("CHAT_SESSION_COOKIE_NAME")
-        if nombre:
-            return nombre
-        return "__Host-chat_session" if current_app.config["SESSION_COOKIE_SECURE"] else "chat_session"
-
-    def csrf_chat(token):
-        secreto = current_app.secret_key
-        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        return hmac.new(secreto, b"chat-csrf-v1:" + token.encode(), hashlib.sha256).hexdigest()
-
-    def visitante_chat():
-        token = request.cookies.get(nombre_cookie_chat(), "")
-        if not token or len(token) > 128:
-            return None
-        verificador = hashlib.sha256(token.encode()).hexdigest()
-        visitante = chat_repositorio("resolver_visitante", verificador)
-        if visitante is None:
-            return None
-        return {"token": token, "verificador": verificador, "datos": visitante}
-
-    def csrf_chat_valido(token):
-        recibido = request.headers.get("X-CSRF-Token", "")
-        return bool(recibido and hmac.compare_digest(csrf_chat(token), recibido))
-
-    def exigir_visitante_chat(csrf=False):
-        visitante = visitante_chat()
-        if visitante is None:
-            return None, (jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión.")), 401)
-        if csrf and not csrf_chat_valido(visitante["token"]):
-            return None, (jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403)
-        return visitante, None
-
     def mensaje_chat_desde_solicitud():
         cuerpo, fallo = leer_json({"contenido"})
         if fallo:
@@ -277,12 +193,6 @@ def create_app(configuracion=None):
             return personalizado[nombre](*argumentos)
         return getattr(persistencia_fotos, nombre)(*argumentos)
 
-    def limitar_login(nombre, *argumentos):
-        personalizado = current_app.config.get("LOGIN_LIMITER")
-        if personalizado is not None:
-            return personalizado[nombre](*argumentos)
-        return getattr(limites_login, nombre)(*argumentos)
-
     def storage():
         return current_app.config.get("STORAGE") or almacenamiento
 
@@ -293,7 +203,7 @@ def create_app(configuracion=None):
         salida = dict(vehiculo)
         owner = salida.pop('vendedor_id', None)
         vendedor = getattr(g, 'cuenta_vendedor', None)
-        privado = (vendedor and str(owner) == vendedor['id']) or (session.get('admin_authenticated') and owner is None)
+        privado = vendedor and str(owner) == vendedor['id']
         if not privado:
             salida.pop("placa", None)
         salida["tipo_vehiculo_etiqueta"] = etiqueta_tipo_vehiculo(salida.get("tipo_vehiculo")) if salida.get("tipo_vehiculo") else None
@@ -333,242 +243,20 @@ def create_app(configuracion=None):
 
     @aplicacion.get("/")
     def inicio():
-        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None, chat_habilitado=chat_publico_habilitado(), tipos_vehiculo=TIPOS_VEHICULO, mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO)
+        return render_template("index.html", csrf_token=token_csrf(), vehiculo_id=None, chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO, mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO)
 
     @aplicacion.get("/vehiculo/<int:identificador>")
     def pagina_vehiculo(identificador):
         # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
         return render_template(
             "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
-            chat_habilitado=chat_publico_habilitado(), tipos_vehiculo=TIPOS_VEHICULO,
+            chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
             mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
         )
 
     @aplicacion.get("/administracion")
     def pagina_administracion():
-        # La ruta solo entrega el shell. El cliente consulta el estado de sesión
-        # y obtiene datos exclusivamente desde los endpoints existentes.
-        respuesta = aplicacion.make_response(render_template(
-            "admin_v6.html",
-            csrf_token=token_csrf(),
-            solo_lectura=current_app.config["APP_READ_ONLY"],
-            chat_habilitado=chat_publico_habilitado(),
-            max_year=datetime.now().year + 1,
-            tipos_vehiculo=TIPOS_VEHICULO,
-            mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
-        ))
-        respuesta.headers["Cache-Control"] = "no-store"
-        return respuesta
-
-    @aplicacion.get("/api/admin/session")
-    def sesion_admin():
-        return jsonify({"ok": True, "autenticado": bool(session.get("admin_authenticated")), "solo_lectura": current_app.config["APP_READ_ONLY"]})
-
-    @aplicacion.post("/api/admin/login")
-    def iniciar_sesion_admin():
-        if current_app.config["APP_READ_ONLY"]:
-            return jsonify(respuesta_error("Este ambiente permite únicamente consultar el catálogo.")), 503
-        if not csrf_valido():
-            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
-        cuerpo, fallo = leer_json({"password"})
-        if fallo:
-            return fallo
-        password = cuerpo["password"]
-        password_hash = current_app.config.get("ADMIN_PASSWORD_HASH")
-        if not password_hash:
-            return jsonify(respuesta_error("El acceso administrativo no está configurado.")), 503
-        if not isinstance(password, str) or not password:
-            return jsonify(respuesta_error(
-                "La solicitud de acceso no es válida.",
-                {"password": "Ingresa una contraseña válida."},
-            )), 400
-        if len(password) > MAX_PASSWORD_LENGTH:
-            return jsonify(respuesta_error(
-                "La solicitud de acceso no es válida.",
-                {"password": f"La contraseña no puede superar {MAX_PASSWORD_LENGTH} caracteres."},
-            )), 400
-
-        secreto = current_app.secret_key
-        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        # Vercel reemplaza x-vercel-forwarded-for con la IP pública de origen;
-        # en cualquier otro entorno se ignoran cabeceras de proxy del cliente.
-        origen_cliente = _direccion_cliente_para_limites().encode("utf-8")
-        clave_cliente = hmac.new(secreto, origen_cliente, hashlib.sha256).hexdigest()
-        try:
-            restante = limitar_login("reservar_intento_login", clave_cliente, MAX_INTENTOS_LOGIN, PAUSA_LOGIN_SEGUNDOS)
-        except Exception as error:
-            return error_persistencia(error)
-        if restante:
-            respuesta = jsonify(respuesta_error("Demasiados intentos. Espera antes de volver a intentar."))
-            respuesta.headers["Retry-After"] = str(restante)
-            return respuesta, 429
-
-        try:
-            correcta = check_password_hash(password_hash, password)
-        except (ValueError, TypeError):
-            return jsonify(respuesta_error("El acceso administrativo no está configurado correctamente.")), 503
-        if not correcta:
-            return jsonify(respuesta_error("La contraseña no es correcta.")), 401
-
-        try:
-            limitar_login("reiniciar_intentos_login", clave_cliente)
-        except Exception as error:
-            return error_persistencia(error)
-        # La sesión va firmada y el límite compartido queda en PostgreSQL.
-        session.clear()
-        session["admin_authenticated"] = True
-        session["csrf_token"] = secrets.token_urlsafe(32)
-        return jsonify({"ok": True, "autenticado": True, "csrf_token": session["csrf_token"]})
-
-    @aplicacion.post("/api/admin/logout")
-    def cerrar_sesion_admin():
-        if not csrf_valido():
-            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
-        session.clear()
-        session["csrf_token"] = secrets.token_urlsafe(32)
-        return jsonify({"ok": True, "autenticado": False, "csrf_token": session["csrf_token"]})
-
-    @aplicacion.post("/api/chat/sesion")
-    def iniciar_sesion_chat():
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        if not csrf_valido():
-            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
-        nombre_cookie = nombre_cookie_chat()
-        token_existente = request.cookies.get(nombre_cookie, "")
-        if token_existente:
-            try:
-                visitante = visitante_chat()
-            except Exception as error:
-                return error_persistencia(error)
-            if visitante is None:
-                respuesta = jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión."))
-                respuesta.set_cookie(
-                    nombre_cookie, "", max_age=0, path="/", secure=current_app.config["SESSION_COOKIE_SECURE"],
-                    httponly=True, samesite="Lax",
-                )
-                return respuesta, 401
-            return jsonify({"ok": True, "csrf_token": csrf_chat(visitante["token"])})
-
-        # La dirección solo aporta una clave seudónima al límite compartido;
-        # no se usa como identidad, no se persiste en claro y no se confía XFF.
-        secreto = current_app.secret_key
-        secreto = secreto if isinstance(secreto, bytes) else secreto.encode()
-        direccion = _direccion_cliente_para_limites().encode("utf-8")
-        clave_limite = hmac.new(
-            secreto, b"chat-session-init-rate-limit-v1\0" + direccion, hashlib.sha256,
-        ).hexdigest()
-        try:
-            espera = chat_repositorio("reservar_inicio_sesion_chat", clave_limite)
-        except Exception as error:
-            if isinstance(error, persistencia_chat.LimiteInicioSesionChat):
-                respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
-                respuesta.headers["Retry-After"] = str(max(1, int(error.retry_after)))
-                return respuesta, 429
-            return error_persistencia(error)
-        if espera:
-            respuesta = jsonify(respuesta_error("Se iniciaron demasiadas sesiones de chat. Intenta más tarde."))
-            respuesta.headers["Retry-After"] = str(max(1, int(espera)))
-            return respuesta, 429
-
-        # La credencial solo se emite aquí, en el servidor. PostgreSQL recibe
-        # únicamente su verificador hash; el valor claro viaja solo en cookie.
-        token = secrets.token_urlsafe(32)
-        verificador = hashlib.sha256(token.encode()).hexdigest()
-        vence = datetime.now(timezone.utc) + timedelta(days=DURACION_SESION_CHAT_DIAS)
-        try:
-            chat_repositorio("crear_visitante_y_sesion", verificador, vence)
-        except Exception as error:
-            return error_persistencia(error)
-        respuesta = jsonify({"ok": True, "csrf_token": csrf_chat(token)})
-        respuesta.set_cookie(
-            nombre_cookie, token, max_age=DURACION_SESION_CHAT_DIAS * 24 * 60 * 60,
-            path="/", secure=current_app.config["SESSION_COOKIE_SECURE"],
-            httponly=True, samesite="Lax",
-        )
-        return respuesta, 201
-
-    @aplicacion.get("/api/chat/conversaciones")
-    def listar_conversaciones_chat():
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        try:
-            visitante = visitante_chat()
-            if visitante is None:
-                return jsonify(respuesta_error("La sesión de chat venció o no está disponible. Inicia una nueva sesión.")), 401
-            conversaciones = chat_repositorio("listar_conversaciones_visitante", visitante["datos"]["visitante_id"])
-        except Exception as error:
-            return error_persistencia(error)
-        return jsonify({
-            "ok": True,
-            "conversaciones": conversaciones,
-            # Permite abrir la bandeja global con una sesión existente sin
-            # llamar al POST de emisión, que podría crear una identidad nueva.
-            "csrf_token": csrf_chat(visitante["token"]),
-        })
-
-    @aplicacion.post("/api/chat/vehiculos/<int:identificador>/mensajes")
-    def enviar_primer_mensaje_chat(identificador):
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        visitante, fallo = exigir_visitante_chat(csrf=True)
-        if fallo:
-            return fallo
-        clave, fallo = clave_idempotencia()
-        if fallo:
-            return fallo
-        contenido, fallo = mensaje_chat_desde_solicitud()
-        if fallo:
-            return fallo
-        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
-        try:
-            resultado = chat_repositorio(
-                "enviar_mensaje_comprador", visitante["datos"]["visitante_id"],
-                identificador, clave, huella, contenido,
-            )
-        except LookupError:
-            return jsonify(respuesta_error("El vehículo no está disponible. Podés seguir consultando el historial.")), 404
-        except ValueError:
-            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
-        except Exception as error:
-            if isinstance(error, persistencia_chat.LimiteMensajesChat):
-                respuesta = jsonify(respuesta_error("Enviaste mensajes demasiado rápido. Espera un momento."))
-                respuesta.headers["Retry-After"] = str(max(1, int(getattr(error, "retry_after", 30))))
-                return respuesta, 429
-            return error_persistencia(error)
-        if resultado is None:
-            return jsonify(respuesta_error("El vehículo no está disponible. Podés seguir consultando el historial.")), 404
-        return jsonify({
-            "ok": True, "conversacion": resultado["conversacion"],
-            "mensaje": resultado["mensaje"], "duplicado": resultado["duplicado"],
-        }), 200 if resultado["duplicado"] else 201
-
-    @aplicacion.get("/api/chat/conversaciones/<uuid:conversacion_id>/mensajes")
-    def listar_mensajes_chat(conversacion_id):
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        visitante, fallo = exigir_visitante_chat()
-        if fallo:
-            return fallo
-        despues_de_id, fallo = cursor_mensajes()
-        if fallo:
-            return fallo
-        try:
-            mensajes = chat_repositorio(
-                "listar_mensajes", str(conversacion_id), despues_de_id,
-                visitante["datos"]["visitante_id"], False,
-            )
-        except Exception as error:
-            return error_persistencia(error)
-        # El repositorio aplica ownership en SQL: no se revela si la charla
-        # existe cuando no pertenece a la sesión actual.
-        if mensajes is None:
-            return jsonify(respuesta_error("No se encontró la conversación.")), 404
-        return jsonify({"ok": True, "mensajes": mensajes})
+        return redirect("/cuenta", code=302)
 
     @aplicacion.get("/api/cuenta/chat/comprador/conversaciones")
     def listar_conversaciones_comprador_cuenta():
@@ -748,99 +436,6 @@ def create_app(configuracion=None):
             "duplicado": resultado["duplicado"],
         }), 200 if resultado["duplicado"] else 201
 
-    @aplicacion.get("/api/admin/chat/conversaciones")
-    def listar_conversaciones_admin():
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        rechazo = exigir_admin_sin_csrf()
-        if rechazo:
-            return rechazo
-        estado = request.args.get("estado")
-        if estado not in (None, "abierta", "atendida"):
-            return jsonify(respuesta_error("El estado solicitado no es válido.")), 400
-        cursor_id = request.args.get("cursor_id")
-        if cursor_id:
-            try:
-                cursor_id = str(UUID(cursor_id))
-            except (ValueError, TypeError, AttributeError):
-                return jsonify(respuesta_error("El cursor solicitado no es válido.")), 400
-        try:
-            pagina = chat_repositorio("listar_conversaciones_admin", estado, cursor_id, 51)
-        except Exception as error:
-            return error_persistencia(error)
-        hay_mas = len(pagina) > 50
-        conversaciones = pagina[:50]
-        siguiente_cursor = conversaciones[-1]["id"] if hay_mas and conversaciones else None
-        return jsonify({
-            "ok": True,
-            "conversaciones": conversaciones,
-            "hay_mas": hay_mas,
-            "siguiente_cursor": siguiente_cursor,
-        })
-
-    @aplicacion.get("/api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes")
-    def listar_mensajes_chat_admin(conversacion_id):
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        rechazo = exigir_admin_sin_csrf()
-        if rechazo:
-            return rechazo
-        despues_de_id, fallo = cursor_mensajes()
-        if fallo:
-            return fallo
-        try:
-            mensajes = chat_repositorio("listar_mensajes", str(conversacion_id), despues_de_id, None, True)
-        except Exception as error:
-            return error_persistencia(error)
-        if mensajes is None:
-            return jsonify(respuesta_error("No se encontró la conversación.")), 404
-        return jsonify({"ok": True, "mensajes": mensajes})
-
-    @aplicacion.post("/api/admin/chat/conversaciones/<uuid:conversacion_id>/mensajes")
-    def responder_conversacion_admin(conversacion_id):
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        rechazo = exigir_admin_y_csrf()
-        if rechazo:
-            return rechazo
-        clave, fallo = clave_idempotencia()
-        if fallo:
-            return fallo
-        contenido, fallo = mensaje_chat_desde_solicitud()
-        if fallo:
-            return fallo
-        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
-        try:
-            resultado = chat_repositorio("responder_admin", str(conversacion_id), clave, huella, contenido)
-        except LookupError:
-            return jsonify(respuesta_error("No se encontró la conversación.")), 404
-        except ValueError:
-            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
-        except Exception as error:
-            return error_persistencia(error)
-        if resultado is None:
-            return jsonify(respuesta_error("No se encontró la conversación.")), 404
-        return jsonify({"ok": True, "mensaje": resultado["mensaje"], "duplicado": resultado["duplicado"]}), 200 if resultado["duplicado"] else 201
-
-    @aplicacion.patch("/api/admin/chat/conversaciones/<uuid:conversacion_id>/atendida")
-    def marcar_conversacion_atendida(conversacion_id):
-        rechazo = exigir_chat_habilitado()
-        if rechazo:
-            return rechazo
-        rechazo = exigir_admin_y_csrf()
-        if rechazo:
-            return rechazo
-        try:
-            conversacion = chat_repositorio("marcar_atendida", str(conversacion_id))
-        except Exception as error:
-            return error_persistencia(error)
-        if conversacion is None:
-            return jsonify(respuesta_error("No se encontró la conversación.")), 404
-        return jsonify({"ok": True, "conversacion": conversacion})
-
     @aplicacion.get("/api/vehiculos")
     def listar_vehiculos():
         filtros, errores = validar_filtros_busqueda(request.args)
@@ -874,9 +469,8 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
         return jsonify({"ok": True, "vehiculo": salida})
 
-    @aplicacion.post("/api/vehiculos")
     def registrar_vehiculo():
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         clave, fallo = clave_idempotencia()
@@ -899,9 +493,8 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("Se alcanzó el límite de vehículos permitido.", {"vehiculo": "Se permiten hasta 500 vehículos."})), 422
         return jsonify({"ok": True, "vehiculo": salida}), 201
 
-    @aplicacion.put("/api/vehiculos/<int:identificador>")
     def editar_vehiculo(identificador):
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         cuerpo, fallo = leer_json({"vehiculo"})
@@ -925,9 +518,8 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
         return jsonify({"ok": True, "vehiculo": salida})
 
-    @aplicacion.patch("/api/vehiculos/<int:identificador>/disponibilidad")
     def cambiar_disponibilidad(identificador):
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         cuerpo, fallo = leer_json({"disponibilidad"}, {"version_esperada"})
@@ -963,9 +555,8 @@ def create_app(configuracion=None):
             return jsonify(respuesta_error("No se encontró el vehículo.", {"id": "El identificador solicitado no existe."})), 404
         return jsonify({"ok": True, "vehiculo": salida})
 
-    @aplicacion.post("/api/vehiculos/<int:identificador>/retirar")
     def retirar_publicacion(identificador):
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         if not 1 <= identificador <= 9007199254740991:
@@ -1025,7 +616,7 @@ def create_app(configuracion=None):
             current_app.logger.warning("Reserva de fotografía pendiente (%s).", type(error).__name__)
 
     def guardar_fotografia(identificador, fotografia_id=None):
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         clave, fallo = clave_idempotencia()
@@ -1076,17 +667,14 @@ def create_app(configuracion=None):
             return error_persistencia(error)
         return jsonify(resultado), 201 if fotografia_id is None else 200
 
-    @aplicacion.post("/api/vehiculos/<int:identificador>/fotografias")
     def agregar_fotografia(identificador):
         return guardar_fotografia(identificador)
 
-    @aplicacion.put("/api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>")
     def sustituir_fotografia(identificador, fotografia_id):
         return guardar_fotografia(identificador, fotografia_id)
 
-    @aplicacion.delete("/api/vehiculos/<int:identificador>/fotografias/<int:fotografia_id>")
     def eliminar_fotografia(identificador, fotografia_id):
-        rechazo = exigir_admin_y_csrf()
+        rechazo = exigir_vendedor_y_csrf()
         if rechazo:
             return rechazo
         try:
@@ -1129,8 +717,8 @@ def create_app(configuracion=None):
 
     @aplicacion.before_request
     def contexto_vendedor():
-        es_vendedor = request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
-        es_legacy = request.path == '/api/admin/vehiculos'
+        session.pop('admin_authenticated', None)  # Una cookie V6 ya no otorga privilegios.
+        es_vendedor = request.path == '/vendedor' or request.path.startswith('/vendedor/') or request.path.startswith('/api/vendedor/')
         es_chat_cuenta = request.path.startswith('/api/cuenta/chat/')
         solo_lectura_actual = politica_v7.solo_lectura(current_app.config)
         if es_chat_cuenta:
@@ -1149,7 +737,7 @@ def create_app(configuracion=None):
                 return jsonify(respuesta_error('Inicia sesión para continuar.')), 401
             g.cuenta_chat = usuario
             return None
-        if not es_vendedor and not es_legacy:
+        if not es_vendedor:
             return None
         owner = None
         if es_vendedor:
@@ -1157,14 +745,17 @@ def create_app(configuracion=None):
                 return jsonify(respuesta_error('Panel no habilitado.')), 404
             if solo_lectura_actual and request.method not in ('GET', 'HEAD', 'OPTIONS'):
                 return jsonify(respuesta_error('Este ambiente permite únicamente consultas; no se pueden modificar publicaciones.')), 503
-            user = cuentas.identidad()
+            try:
+                user = cuentas.identidad()
+            except auth_proveedor.ErrorAuth as error:
+                if error.status == 401:
+                    g.cuenta_clear = True
+                    return jsonify(respuesta_error('Tu sesión venció. Inicia sesión de nuevo.')), 401
+                return jsonify(respuesta_error('No se pudo verificar tu sesión.')), 503
             if not user: return jsonify(respuesta_error('Iniciá sesión para continuar.')), 401
             if user['rol'] != 'vendedor': return jsonify(respuesta_error('Se requiere una cuenta vendedora.')), 403
             g.cuenta_vendedor = user
             owner = user['id']
-        else:
-            rechazo = exigir_admin_sin_csrf()
-            if rechazo: return rechazo
         g.propiedad_tokens = (propiedad.vendedor.set(owner), propiedad.privado.set(True))
 
     @aplicacion.teardown_request
@@ -1176,7 +767,7 @@ def create_app(configuracion=None):
 
     @aplicacion.after_request
     def cookies_vendedor(response):
-        if (request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
+        if (request.path == '/vendedor' or request.path.startswith('/vendedor/') or request.path.startswith('/api/vendedor/')
                 or request.path.startswith('/api/cuenta/chat/')):
             return cuentas.cookies(response)
         return response
@@ -1185,11 +776,32 @@ def create_app(configuracion=None):
     def panel_vendedor():
         return render_template('admin_v6.html', csrf_token=token_csrf(), solo_lectura=current_app.config['APP_READ_ONLY'], chat_habilitado=False, max_year=datetime.now().year+1, vendedor_panel=True, tipos_vehiculo=TIPOS_VEHICULO, mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO)
 
-    @aplicacion.get('/api/vendedor/admin/session')
+    @aplicacion.get('/api/vendedor/session')
     def sesion_vendedor():
         return jsonify(ok=True, autenticado=True, solo_lectura=current_app.config['APP_READ_ONLY'])
 
-    aplicacion.add_url_rule('/api/admin/vehiculos', 'inventario_legacy', listar_vehiculos, methods=['GET'])
+    @aplicacion.get('/vendedor/archivo')
+    @aplicacion.get('/vendedor/archivo/<uuid:conversacion_id>')
+    def archivo_historico(conversacion_id=None):
+        try:
+            if conversacion_id:
+                despues = request.args.get('despues', '0')
+                if not despues.isdecimal() or len(despues) > 18:
+                    abort(400)
+                conversacion, mensajes, siguiente = archivo_chat.detalle(g.cuenta_vendedor['id'], conversacion_id, int(despues))
+                if conversacion is None:
+                    abort(404)
+                filas = []
+            else:
+                filas, siguiente = archivo_chat.listar(g.cuenta_vendedor['id'], request.args.get('cursor'))
+                conversacion, mensajes = None, []
+        except ValueError:
+            abort(400)
+        respuesta = aplicacion.make_response(render_template('archivo_chat.html',
+            conversaciones=filas, conversacion=conversacion, mensajes=mensajes, siguiente=siguiente))
+        respuesta.headers['Cache-Control'] = 'no-store'
+        return respuesta
+
     for ruta, funcion, metodos in (
         ('', listar_vehiculos, ['GET']), ('', registrar_vehiculo, ['POST']),
         ('/<int:identificador>', consultar_vehiculo, ['GET']), ('/<int:identificador>', editar_vehiculo, ['PUT']),

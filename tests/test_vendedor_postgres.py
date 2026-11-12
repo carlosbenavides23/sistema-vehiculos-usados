@@ -102,12 +102,11 @@ class VendedorPostgresTest(unittest.TestCase):
             legacy=app.test_client();legacy.get('/')
             with legacy.session_transaction() as s:s['admin_authenticated']=True;csrf=s['csrf_token']
             lh={'X-CSRF-Token':csrf}
-            self.assertEqual(legacy.put(f'/api/vehiculos/{ia}',json={'vehiculo':formulario()},headers=lh).status_code,404)
+            self.assertEqual(legacy.put(f'/api/vehiculos/{ia}',json={'vehiculo':formulario()},headers=lh).status_code,405)
             self.assertEqual(legacy.patch(f'/api/vehiculos/{ia}/disponibilidad',json={'disponibilidad':'vendido'},headers=lh).status_code,404)
             self.assertEqual(legacy.post(f'/api/vehiculos/{ia}/retirar',json={'version_esperada':va['updated_at']},headers=lh).status_code,404)
             self.assertEqual(legacy.post(f'/api/vehiculos/{ib}/fotografias',data={'fotografia':(io.BytesIO(img.getvalue()),'fixture.png')},headers={**lh,'Idempotency-Key':str(uuid4())}).status_code,404)
-            self.assertNotIn(ia,[v['id'] for v in legacy.get('/api/admin/vehiculos').json['vehiculos']])
-            self.assertTrue(legacy.get('/api/admin/vehiculos').json['vehiculos'])
+            self.assertEqual(legacy.get('/api/admin/vehiculos').status_code,404)
             self.assertEqual(a.post(f'{ruta}/{ia}/retirar',json={'version_esperada':va['updated_at']},headers=ha).status_code,200)
             self.assertEqual(a.get(ruta).json['vehiculos'],[])
             self.assertEqual(propiedad.vendedor.get(),None)
