@@ -21,7 +21,7 @@ class CuentasTest(unittest.TestCase):
             if password!='password-fixture': raise ErrorAuth()
             return {'access_token':'access','refresh_token':'refresh'}
         self.auth=SimpleNamespace(registrar=signup,login=login,usuario=lambda t: {'id':self.uid,'email':'ficticio@example.test'} if t=='access' else self.invalid(),renovar=lambda t: {'access_token':'access','refresh_token':'refresh2'} if t=='refresh' else self.invalid(),salir=lambda t:setattr(self,'revocado',True))
-        self.app=create_app({'TESTING':True,'SECRET_KEY':'fixture','USER_AUTH_ENABLED':True,'SESSION_COOKIE_SECURE':False,'CUENTA_AUTH':self.auth,'CUENTA_REPO':{'guardar_sesion':lambda u,s:self.sesiones.update({s:u}),'leer_sesion':self.sesiones.get,'borrar_sesion':lambda s:self.sesiones.pop(s,None),'obtener_rol':self.roles.get,'obtener_nombre_visible':self.nombres.get,'establecer_nombre_visible':lambda u,n:self.nombres.__setitem__(u,n) or n}})
+        self.app=create_app({'TESTING':True,'SECRET_KEY':'fixture','USER_AUTH_ENABLED':True,'SESSION_COOKIE_SECURE':False,'CUENTA_AUTH':self.auth,'CUENTA_REPO':{'guardar_sesion':lambda u,s:self.sesiones.update({s:u}),'leer_sesion':self.sesiones.get,'borrar_sesion':lambda s:self.sesiones.pop(s,None),'obtener_rol':self.roles.get,'obtener_nombre_visible':self.nombres.get}})
         self.client=self.app.test_client();self.client.get('/cuenta')
         with self.client.session_transaction() as s:self.csrf=s['csrf_token']
     def invalid(self): raise ErrorAuth()
@@ -55,22 +55,18 @@ class CuentasTest(unittest.TestCase):
             self.assertEqual(self.registro(nombre=nombre).status_code,422)
         self.assertEqual(self.roles,{})
 
-    def test_nombre_visible_normaliza_valida_y_requiere_csrf(self):
-        self.assertEqual(self.registro(nombre='  María   López  ').status_code,200)
+    def test_nombre_fijo_no_tiene_endpoint_de_edicion(self):
+        self.assertEqual(self.registro(nombre='  María   López  ').status_code, 200)
         self.assertEqual(self.nombres[self.uid], 'María López')
-        respuesta=self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'  Ana   Pérez  '},headers={'X-CSRF-Token':self.csrf})
-        self.assertEqual(respuesta.status_code,200)
-        self.assertEqual(respuesta.json['usuario']['nombre_visible'],'Ana Pérez')
-        self.assertEqual(self.client.get('/api/cuenta').json['usuario']['nombre_visible'],'Ana Pérez')
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'X'},headers={'X-CSRF-Token':self.csrf}).status_code,422)
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'A'*41},headers={'X-CSRF-Token':self.csrf}).status_code,422)
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'Ana\nPérez'},headers={'X-CSRF-Token':self.csrf}).status_code,422)
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'Otra','usuario_id':str(uuid4())},headers={'X-CSRF-Token':self.csrf}).status_code,400)
-        self.assertEqual(self.nombres[self.uid], 'Ana Pérez')
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'Roberto'}).status_code,403)
-
-    def test_nombre_visible_sin_sesion_y_sesion_vencida(self):
-        self.assertEqual(self.client.patch('/api/cuenta/nombre-visible',json={'nombre_visible':'Nombre válido'},headers={'X-CSRF-Token':self.csrf}).status_code,401)
+        respuesta = self.client.patch('/api/cuenta/nombre-visible', json={'nombre_visible':'Ana Pérez'}, headers={'X-CSRF-Token':self.csrf})
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertEqual(self.client.get('/api/cuenta').json['usuario']['nombre_visible'], 'María López')
+        self.assertEqual(self.nombres[self.uid], 'María López')
+        pagina = self.client.get('/cuenta')
+        self.assertEqual(pagina.status_code, 200)
+        self.assertIn(b'nombre-perfil-lectura', pagina.data)
+        self.assertNotIn(b'nombre-perfil-form', pagina.data)
+        self.assertNotIn(b'guardar-nombre', pagina.data)
 
     def test_registro_pendiente_guarda_nombre_sin_crear_sesion_local(self):
         def signup_pendiente(email,password,rol,nombre):
