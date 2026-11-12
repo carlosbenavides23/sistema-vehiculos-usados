@@ -27,6 +27,7 @@
       </a>
       <div class="header-actions">
         <a class="explore-link" href="/">Explorar vehículos</a>
+        {% if config.USER_AUTH_ENABLED %}<a class="button button-secondary" href="/cuenta">Mi cuenta</a>{% endif %}
         <button id="abrir-chat-comprador-global" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" {% if not chat_habilitado %}hidden{% endif %}>{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis mensajes</span></button>
         <a id="admin-panel-link" class="button button-secondary admin-panel-link" href="/administracion" aria-label="Administrar" hidden><span class="admin-panel-link-label">Administrar</span>{{ lucide_icon('menu', 20, 'admin-panel-link-icon') }}</a>
       </div>

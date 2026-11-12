@@ -19,6 +19,7 @@ import limites_login
 import persistencia
 import persistencia_fotos
 import persistencia_chat
+from cuentas import bp as cuentas_bp
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
@@ -75,9 +76,11 @@ def create_app(configuracion=None):
         LOGIN_LIMITER=None,
         CHAT_REPOSITORY=None,
         STORAGE=None,
+        USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true" and os.environ.get("VERCEL_ENV") != "production",
     )
     if configuracion:
         aplicacion.config.update(configuracion)
+    aplicacion.register_blueprint(cuentas_bp)
     # La función pública no se puede habilitar desde Preview ni en un entorno
     # configurado como solo lectura, aunque alguien solicite CHAT_ENABLED.
     if os.environ.get("VERCEL_ENV") == "preview" or aplicacion.config["APP_READ_ONLY"]:
