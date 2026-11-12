@@ -14,14 +14,17 @@ from werkzeug.exceptions import BadRequest, HTTPException, UnsupportedMediaType
 from werkzeug.security import check_password_hash
 
 import almacenamiento
+import auth_proveedor
 import imagenes
 import limites_login
 import persistencia
 import persistencia_fotos
 import persistencia_chat
+import persistencia_chat_cuentas
 from cuentas import bp as cuentas_bp
 import cuentas
 import propiedad
+import politica_v7
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 
 
@@ -52,10 +55,7 @@ def _cargar_dotenv():
 
 
 def _solo_lectura_desde_entorno():
-    valor = os.environ.get("APP_READ_ONLY", "").lower()
-    # Esta entrega permite Preview únicamente de consulta. Ninguna cadena de
-    # conexión ni APP_READ_ONLY=false habilitan escrituras en ese ambiente.
-    return os.environ.get("VERCEL_ENV") == "preview" or valor not in ("", "false")
+    return politica_v7.solo_lectura({"APP_READ_ONLY": os.environ.get("APP_READ_ONLY")})
 
 
 def create_app(configuracion=None):
@@ -67,7 +67,11 @@ def create_app(configuracion=None):
         ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=bool(os.environ.get("VERCEL")) or os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true",
+        SESSION_COOKIE_SECURE=(
+            bool(os.environ.get("VERCEL"))
+            or os.environ.get("VERCEL_ENV", "").lower() in ("preview", "production")
+            or os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+        ),
         MAX_CONTENT_LENGTH=MAX_SOLICITUD,
         MAX_FORM_MEMORY_SIZE=MAX_SOLICITUD,
         MAX_FORM_PARTS=3,
@@ -77,11 +81,18 @@ def create_app(configuracion=None):
         PHOTO_REPOSITORY=None,
         LOGIN_LIMITER=None,
         CHAT_REPOSITORY=None,
+        CHAT_CUENTAS_REPOSITORY=None,
         STORAGE=None,
-        USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true" and os.environ.get("VERCEL_ENV") != "production",
+        USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true",
+        V7_PRODUCTION_ENABLED=os.environ.get("V7_PRODUCTION_ENABLED", "false").lower() == "true",
     )
     if configuracion:
         aplicacion.config.update(configuracion)
+    # La protección de Preview no puede ser desactivada mediante valores de
+    # configuración inyectados o por APP_READ_ONLY=false.
+    aplicacion.config["APP_READ_ONLY"] = politica_v7.solo_lectura(aplicacion.config)
+    if os.environ.get("VERCEL_ENV", "").lower() in ("preview", "production") or os.environ.get("VERCEL"):
+        aplicacion.config["SESSION_COOKIE_SECURE"] = True
     aplicacion.register_blueprint(cuentas_bp)
     # La función pública no se puede habilitar desde Preview ni en un entorno
     # configurado como solo lectura, aunque alguien solicite CHAT_ENABLED.
@@ -142,6 +153,63 @@ def create_app(configuracion=None):
         if personalizado is not None:
             return personalizado[nombre](*argumentos)
         return getattr(persistencia_chat, nombre)(*argumentos)
+
+    def chat_cuentas_repositorio(nombre, *argumentos):
+        personalizado = current_app.config.get("CHAT_CUENTAS_REPOSITORY")
+        if personalizado is not None:
+            return personalizado[nombre](*argumentos)
+        return getattr(persistencia_chat_cuentas, nombre)(*argumentos)
+
+    def exigir_cuenta_chat(rol):
+        usuario = getattr(g, "cuenta_chat", None)
+        if usuario is None:
+            return None, (jsonify(respuesta_error("Inicia sesión para continuar.")), 401)
+        if usuario.get("rol") != rol:
+            mensaje = "Se requiere una cuenta compradora." if rol == "comprador" else "Se requiere una cuenta vendedora."
+            return None, (jsonify(respuesta_error(mensaje)), 403)
+        return usuario, None
+
+    def cursor_conversaciones_cuenta():
+        cursor_id = request.args.get("cursor_id")
+        if cursor_id == "":
+            return None, (jsonify(respuesta_error("El cursor de conversaciones no es válido.")), 400)
+        texto_limite = request.args.get("limite", "50")
+        if not texto_limite.isdecimal() or len(texto_limite) > 3:
+            return None, (jsonify(respuesta_error("El límite de conversaciones no es válido.")), 400)
+        limite = int(texto_limite)
+        if not 1 <= limite <= 100:
+            return None, (jsonify(respuesta_error("El límite debe estar entre 1 y 100.")), 400)
+        return (cursor_id, limite), None
+
+    def respuesta_conversacion_cuenta(conversacion):
+        if conversacion is None:
+            return None
+        return {
+            "id": str(conversacion["id"]),
+            "vehiculo_id": conversacion["vehiculo_id"],
+            "vehiculo": {
+                "id": conversacion["vehiculo_id"],
+                "marca": conversacion.get("marca"),
+                "modelo": conversacion.get("modelo"),
+                "anio": conversacion.get("anio"),
+            },
+            "estado": conversacion["estado"],
+            "created_at": conversacion.get("created_at"),
+            "updated_at": conversacion.get("updated_at"),
+            "ultimo_mensaje": conversacion.get("ultimo_mensaje"),
+            "ultimo_remitente": conversacion.get("ultimo_remitente"),
+            "ultimo_mensaje_en": conversacion.get("ultimo_mensaje_en"),
+            "vehiculo_retirado": bool(conversacion.get("vehiculo_retirado", False)),
+        }
+
+    def respuesta_mensaje_cuenta(mensaje):
+        return {
+            "id": mensaje["id"],
+            "conversacion_id": str(mensaje["conversacion_id"]),
+            "remitente": mensaje["remitente"],
+            "contenido": mensaje["contenido"],
+            "created_at": mensaje.get("created_at"),
+        }
 
     def nombre_cookie_chat():
         nombre = current_app.config.get("CHAT_SESSION_COOKIE_NAME")
@@ -494,6 +562,184 @@ def create_app(configuracion=None):
         if mensajes is None:
             return jsonify(respuesta_error("No se encontró la conversación.")), 404
         return jsonify({"ok": True, "mensajes": mensajes})
+
+    @aplicacion.get("/api/cuenta/chat/comprador/conversaciones")
+    def listar_conversaciones_comprador_cuenta():
+        usuario, fallo = exigir_cuenta_chat("comprador")
+        if fallo:
+            return fallo
+        paginacion, fallo = cursor_conversaciones_cuenta()
+        if fallo:
+            return fallo
+        cursor_id, limite = paginacion
+        try:
+            filas = chat_cuentas_repositorio(
+                "listar_conversaciones_comprador", usuario["id"], cursor_id, limite,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("El cursor de conversaciones no es válido.")), 400
+        except Exception as error:
+            return error_persistencia(error)
+        return jsonify({
+            "ok": True,
+            "conversaciones": [respuesta_conversacion_cuenta(fila) for fila in filas],
+            "hay_mas": len(filas) == limite,
+            "siguiente_cursor": str(filas[-1]["id"]) if len(filas) == limite else None,
+        })
+
+    @aplicacion.get("/api/cuenta/chat/comprador/vehiculos/<int:identificador>/conversacion")
+    def obtener_conversacion_comprador_vehiculo(identificador):
+        usuario, fallo = exigir_cuenta_chat("comprador")
+        if fallo:
+            return fallo
+        try:
+            conversacion = chat_cuentas_repositorio(
+                "obtener_conversacion_vehiculo_comprador", usuario["id"], identificador,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("El identificador del vehículo no es válido.")), 400
+        except Exception as error:
+            return error_persistencia(error)
+        return jsonify({"ok": True, "conversacion": respuesta_conversacion_cuenta(conversacion)})
+
+    @aplicacion.get("/api/cuenta/chat/comprador/conversaciones/<uuid:conversacion_id>/mensajes")
+    def listar_mensajes_comprador_cuenta(conversacion_id):
+        usuario, fallo = exigir_cuenta_chat("comprador")
+        if fallo:
+            return fallo
+        despues_de_id, fallo = cursor_mensajes()
+        if fallo:
+            return fallo
+        try:
+            mensajes = chat_cuentas_repositorio(
+                "listar_mensajes_comprador", str(conversacion_id), usuario["id"], despues_de_id,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("El cursor de mensajes no es válido.")), 400
+        except Exception as error:
+            return error_persistencia(error)
+        if mensajes is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "mensajes": [respuesta_mensaje_cuenta(m) for m in mensajes]})
+
+    @aplicacion.post("/api/cuenta/chat/comprador/vehiculos/<int:identificador>/mensajes")
+    def enviar_mensaje_comprador_cuenta(identificador):
+        usuario, fallo = exigir_cuenta_chat("comprador")
+        if fallo:
+            return fallo
+        if not csrf_valido():
+            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
+        clave, fallo = clave_idempotencia()
+        if fallo:
+            return fallo
+        contenido, fallo = mensaje_chat_desde_solicitud()
+        if fallo:
+            return fallo
+        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+        try:
+            resultado = chat_cuentas_repositorio(
+                "enviar_mensaje_comprador", usuario["id"], identificador,
+                clave, huella, contenido,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
+        except Exception as error:
+            if isinstance(error, persistencia_chat_cuentas.LimiteMensajesChat):
+                respuesta = jsonify(respuesta_error("Enviaste mensajes demasiado rápido. Espera un momento."))
+                respuesta.headers["Retry-After"] = str(max(1, int(getattr(error, "retry_after", 30))))
+                return respuesta, 429
+            return error_persistencia(error)
+        if resultado is None:
+            return jsonify(respuesta_error("La publicación no está disponible para iniciar o continuar la conversación.")), 404
+        return jsonify({
+            "ok": True,
+            "conversacion": respuesta_conversacion_cuenta(resultado["conversacion"]),
+            "mensaje": respuesta_mensaje_cuenta(resultado["mensaje"]),
+            "duplicado": resultado["duplicado"],
+        }), 200 if resultado["duplicado"] else 201
+
+    @aplicacion.get("/api/cuenta/chat/vendedor/conversaciones")
+    def listar_conversaciones_vendedor_cuenta():
+        usuario, fallo = exigir_cuenta_chat("vendedor")
+        if fallo:
+            return fallo
+        paginacion, fallo = cursor_conversaciones_cuenta()
+        if fallo:
+            return fallo
+        cursor_id, limite = paginacion
+        try:
+            filas = chat_cuentas_repositorio(
+                "listar_conversaciones_vendedor", usuario["id"], cursor_id, limite,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("El cursor de conversaciones no es válido.")), 400
+        except Exception as error:
+            return error_persistencia(error)
+        return jsonify({
+            "ok": True,
+            "conversaciones": [respuesta_conversacion_cuenta(fila) for fila in filas],
+            "hay_mas": len(filas) == limite,
+            "siguiente_cursor": str(filas[-1]["id"]) if len(filas) == limite else None,
+        })
+
+    @aplicacion.get("/api/cuenta/chat/vendedor/conversaciones/<uuid:conversacion_id>/mensajes")
+    def listar_mensajes_vendedor_cuenta(conversacion_id):
+        usuario, fallo = exigir_cuenta_chat("vendedor")
+        if fallo:
+            return fallo
+        despues_de_id, fallo = cursor_mensajes()
+        if fallo:
+            return fallo
+        try:
+            mensajes = chat_cuentas_repositorio(
+                "listar_mensajes_vendedor", str(conversacion_id), usuario["id"], despues_de_id,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("El cursor de mensajes no es válido.")), 400
+        except Exception as error:
+            return error_persistencia(error)
+        if mensajes is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        return jsonify({"ok": True, "mensajes": [respuesta_mensaje_cuenta(m) for m in mensajes]})
+
+    @aplicacion.post("/api/cuenta/chat/vendedor/conversaciones/<uuid:conversacion_id>/mensajes")
+    def responder_mensaje_vendedor_cuenta(conversacion_id):
+        usuario, fallo = exigir_cuenta_chat("vendedor")
+        if fallo:
+            return fallo
+        if not csrf_valido():
+            return jsonify(respuesta_error("La solicitud de seguridad expiró. Recarga la página.")), 403
+        clave, fallo = clave_idempotencia()
+        if fallo:
+            return fallo
+        contenido, fallo = mensaje_chat_desde_solicitud()
+        if fallo:
+            return fallo
+        try:
+            conversacion = chat_cuentas_repositorio(
+                "obtener_conversacion_vendedor", str(conversacion_id), usuario["id"],
+            )
+        except Exception as error:
+            return error_persistencia(error)
+        if conversacion is None:
+            return jsonify(respuesta_error("No se encontró la conversación.")), 404
+        huella = hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+        try:
+            resultado = chat_cuentas_repositorio(
+                "responder_vendedor", usuario["id"], str(conversacion_id),
+                clave, huella, contenido,
+            )
+        except ValueError:
+            return jsonify(respuesta_error("La solicitud ya fue enviada con otro contenido.")), 409
+        except Exception as error:
+            return error_persistencia(error)
+        if resultado is None:
+            return jsonify(respuesta_error("La conversación o publicación ya no está disponible para responder.")), 409
+        return jsonify({
+            "ok": True,
+            "mensaje": respuesta_mensaje_cuenta(resultado["mensaje"]),
+            "duplicado": resultado["duplicado"],
+        }), 200 if resultado["duplicado"] else 201
 
     @aplicacion.get("/api/admin/chat/conversaciones")
     def listar_conversaciones_admin():
@@ -850,10 +1096,15 @@ def create_app(configuracion=None):
                     "La solicitud supera el tamaño permitido.",
                     {"solicitud": "Envía cada fotografía optimizada por separado, con un máximo de 1.000.000 bytes."},
                 )), 413
-            return jsonify(respuesta_error(
+            respuesta = jsonify(respuesta_error(
                 "La solicitud no pudo completarse.",
                 {"solicitud": "Revisa la ruta y el método de la solicitud."},
-            )), error.code
+            ))
+            if error.code == 405:
+                allow = error.get_response().headers.get("Allow")
+                if allow:
+                    respuesta.headers["Allow"] = allow
+            return respuesta, error.code
         return error
 
     @aplicacion.errorhandler(Exception)
@@ -867,12 +1118,32 @@ def create_app(configuracion=None):
     def contexto_vendedor():
         es_vendedor = request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
         es_legacy = request.path == '/api/admin/vehiculos'
+        es_chat_cuenta = request.path.startswith('/api/cuenta/chat/')
+        solo_lectura_actual = politica_v7.solo_lectura(current_app.config)
+        if es_chat_cuenta:
+            if not politica_v7.habilitada(current_app.config):
+                return jsonify(respuesta_error('Mensajería de cuentas no habilitada.')), 404
+            if solo_lectura_actual and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                return jsonify(respuesta_error('Este ambiente permite únicamente consultas; no se pueden modificar conversaciones.')), 503
+            try:
+                usuario = cuentas.identidad()
+            except auth_proveedor.ErrorAuth as error:
+                if error.status == 401:
+                    g.cuenta_clear = True
+                    return jsonify(respuesta_error("Tu sesión venció. Inicia sesión de nuevo.")), 401
+                return jsonify(respuesta_error("No se pudo verificar tu sesión. Intenta de nuevo.")), 503
+            if not usuario:
+                return jsonify(respuesta_error('Inicia sesión para continuar.')), 401
+            g.cuenta_chat = usuario
+            return None
         if not es_vendedor and not es_legacy:
             return None
         owner = None
         if es_vendedor:
-            if not current_app.config.get('USER_AUTH_ENABLED') or os.environ.get('VERCEL_ENV') == 'production':
+            if not politica_v7.habilitada(current_app.config):
                 return jsonify(respuesta_error('Panel no habilitado.')), 404
+            if solo_lectura_actual and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                return jsonify(respuesta_error('Este ambiente permite únicamente consultas; no se pueden modificar publicaciones.')), 503
             user = cuentas.identidad()
             if not user: return jsonify(respuesta_error('Iniciá sesión para continuar.')), 401
             if user['rol'] != 'vendedor': return jsonify(respuesta_error('Se requiere una cuenta vendedora.')), 403
@@ -892,7 +1163,8 @@ def create_app(configuracion=None):
 
     @aplicacion.after_request
     def cookies_vendedor(response):
-        if request.path == '/vendedor' or request.path.startswith('/api/vendedor/'):
+        if (request.path == '/vendedor' or request.path.startswith('/api/vendedor/')
+                or request.path.startswith('/api/cuenta/chat/')):
             return cuentas.cookies(response)
         return response
 

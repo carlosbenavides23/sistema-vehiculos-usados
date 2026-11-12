@@ -171,8 +171,14 @@
       pendingReply = null;
       availabilityUndo = null;
       one("#availability-notice").hidden = true;
+      if (sellerPanel) document.dispatchEvent(new Event("seller-account-session-ended"));
     }
   }
+
+  if (sellerPanel) document.addEventListener("seller-account-session-invalid", () => {
+    setAuthenticated(false);
+    setLoginError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
+  });
 
   function currentView() {
     return one(".admin-view:not([hidden])")?.dataset.adminPanel || "inventory";
@@ -236,7 +242,7 @@
     stopPolling();
     try {
       const result = await request("/admin/logout", { method: "POST", body: {} });
-      if (sellerPanel) { location.assign('/cuenta'); return; }
+      if (sellerPanel) { window.CuentaSesion?.changed(); location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
         csrfMeta.content = csrfToken;
@@ -280,7 +286,9 @@
     if (button.hasAttribute("data-new-vehicle")) resetVehicleForm();
     showView(button.dataset.adminView);
     if (cerrarEnMovil && button.dataset.adminView !== "vehicle-form") {
-      const titulo = one(button.dataset.adminView === "conversations" ? "#conversations-title" : "#inventory-title");
+      const tituloSelector = button.dataset.adminView === "conversations" ? "#conversations-title"
+        : button.dataset.adminView === "account-conversations" ? "#seller-chat-title" : "#inventory-title";
+      const titulo = one(tituloSelector);
       titulo?.focus({ preventScroll: true });
     }
   }));
