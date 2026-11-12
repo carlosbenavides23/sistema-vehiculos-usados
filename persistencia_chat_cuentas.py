@@ -47,9 +47,13 @@ def _rol_valido(cursor, usuario_id, rol, bloqueo="KEY SHARE"):
 def _conversacion(cursor, conversacion_id):
     cursor.execute(
         """SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio,
-                  (v.retirado_en IS NOT NULL) AS vehiculo_retirado
+                  (v.retirado_en IS NOT NULL) AS vehiculo_retirado,
+                  COALESCE(pv.nombre_visible, 'Vendedor') AS nombre_vendedor,
+                  COALESCE(pc.nombre_visible, 'Comprador') AS nombre_comprador
            FROM public.conversaciones_cuentas AS c
            JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
+           LEFT JOIN public.perfiles_usuarios AS pv ON pv.usuario_id = v.vendedor_id
+           LEFT JOIN public.perfiles_usuarios AS pc ON pc.usuario_id = c.comprador_id
            WHERE c.id = %s""",
         (conversacion_id,),
     )
@@ -142,10 +146,14 @@ def _listar(usuario_id, rol, cursor_id=None, limite=50):
                            c.estado, c.created_at, c.updated_at,
                            (v.retirado_en IS NOT NULL) AS vehiculo_retirado,
                            v.marca, v.modelo, v.anio,
+                           COALESCE(pv.nombre_visible, 'Vendedor') AS nombre_vendedor,
+                           COALESCE(pc.nombre_visible, 'Comprador') AS nombre_comprador,
                            m.contenido AS ultimo_mensaje, m.remitente AS ultimo_remitente,
                            m.created_at AS ultimo_mensaje_en
                     FROM public.conversaciones_cuentas AS c
                     JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
+                    LEFT JOIN public.perfiles_usuarios AS pv ON pv.usuario_id = v.vendedor_id
+                    LEFT JOIN public.perfiles_usuarios AS pc ON pc.usuario_id = c.comprador_id
                     LEFT JOIN LATERAL (
                         SELECT contenido, remitente, created_at
                         FROM public.mensajes_chat_cuentas
@@ -174,9 +182,13 @@ def _obtener(conversacion_id, usuario_id, rol):
         with conexion.cursor() as cursor:
             cursor.execute(
                 f"""SELECT c.*, v.vendedor_id, v.marca, v.modelo, v.anio,
-                           (v.retirado_en IS NOT NULL) AS vehiculo_retirado
+                           (v.retirado_en IS NOT NULL) AS vehiculo_retirado,
+                           COALESCE(pv.nombre_visible, 'Vendedor') AS nombre_vendedor,
+                           COALESCE(pc.nombre_visible, 'Comprador') AS nombre_comprador
                     FROM public.conversaciones_cuentas AS c
                     JOIN public.vehiculos AS v ON v.id = c.vehiculo_id
+                    LEFT JOIN public.perfiles_usuarios AS pv ON pv.usuario_id = v.vendedor_id
+                    LEFT JOIN public.perfiles_usuarios AS pc ON pc.usuario_id = c.comprador_id
                     WHERE c.id = %s AND {alcance}""",
                 (conversacion_id, usuario_id),
             )

@@ -30,7 +30,7 @@ SEMILLA = next((RAIZ / "supabase/migrations").glob("*_seed_demo_vehicles.sql")).
 
 
 @contextmanager
-def base_aislada():
+def base_aislada(preparar_auth=False):
     """Fixture reutilizable por pruebas HTTP: conserva intacta la base configurada."""
     dsn_base = os.environ.get("TEST_DATABASE_URL", "")
     parametros = conninfo_to_dict(dsn_base)
@@ -50,6 +50,8 @@ def base_aislada():
                     control.execute(sql.SQL("CREATE ROLE {} NOLOGIN").format(sql.Identifier(rol)))
             prueba = {**parametros, "dbname": nombre}
             with psycopg.connect(**prueba, autocommit=True) as conexion:
+                if preparar_auth:
+                    conexion.execute("CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY, raw_user_meta_data jsonb NOT NULL)")
                 for archivo in sorted((RAIZ / "supabase/migrations").glob("*.sql")):
                     conexion.execute(archivo.read_text(encoding="utf-8-sig"))
             dsn = make_conninfo(**prueba)

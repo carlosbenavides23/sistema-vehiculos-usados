@@ -128,6 +128,7 @@
     one("chat-comprador-ficha-no-disponible").hidden = true;
     fichaButton.hidden = true;
     one("chat-comprador-vehiculo").textContent = "";
+    one("chat-comprador-vendedor").textContent = "Vendedor";
     one("chat-comprador-estado").textContent = "";
     threadStatus.textContent = "";
     stopPolling();
@@ -190,13 +191,16 @@
     button.setAttribute("aria-current", String(String(currentConversation?.id) === String(conversation.id)));
     const title = document.createElement("strong");
     title.textContent = titleOf(conversation);
+    const contact = document.createElement("span");
+    contact.className = "chat-conversation-contact";
+    contact.textContent = `Vendedor: ${conversation.nombre_contacto || "Vendedor"}`;
     const preview = document.createElement("span");
     const status = conversation.vehiculo_retirado ? "Publicación retirada · historial" : conversation.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
     preview.textContent = `${status} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
     const time = document.createElement("time");
     time.dateTime = conversation.ultimo_mensaje_en || conversation.updated_at || "";
     time.textContent = formatDate(time.dateTime);
-    button.append(title, preview, time);
+    button.append(title, contact, preview, time);
     button.addEventListener("click", () => openConversation(conversation));
     button.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
@@ -312,6 +316,7 @@
     messageIds.clear();
     messages.replaceChildren();
     one("chat-comprador-vehiculo").textContent = titleOf(conversation);
+    one("chat-comprador-vendedor").textContent = `Vendedor: ${conversation.nombre_contacto || "Vendedor"}`;
     one("chat-comprador-estado").textContent = conversation.vehiculo_retirado ? "Historial de publicación retirada" : conversation.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
     updateVehicleLink(conversation);
     form.hidden = Boolean(conversation.vehiculo_retirado);
@@ -336,6 +341,7 @@
     messageIds.clear();
     messages.replaceChildren();
     one("chat-comprador-vehiculo").textContent = heading;
+    one("chat-comprador-vendedor").textContent = "Vendedor";
     one("chat-comprador-estado").textContent = "Nueva consulta";
     updateVehicleLink({ vehiculo_id: Number(vehicleId) });
     form.hidden = false;
@@ -436,6 +442,7 @@
       if (threadScope === scope && textarea.value.trim() === content) textarea.value = "";
       if (requestGeneration !== generation || !dialog.open) return;
       currentConversation = result.conversacion;
+      one("chat-comprador-vendedor").textContent = `Vendedor: ${result.conversacion.nombre_contacto || "Vendedor"}`;
       currentVehicle = { id: result.conversacion.vehiculo_id, vehiculo_retirado: Boolean(result.conversacion.vehiculo_retirado) };
       if (textarea.value.trim() === content) textarea.value = "";
       appendMessage(result.mensaje, true);

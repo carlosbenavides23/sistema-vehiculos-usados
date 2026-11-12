@@ -43,6 +43,10 @@ class ChatCuentasPostgresTest(unittest.TestCase):
             (self.vendedor_a, "vendedor"), (self.vendedor_b, "vendedor"),
         ):
             roles_usuarios.asignar_rol_inicial(uid, rol)
+        for uid, nombre in (
+            (self.comprador_a, "Compradora Ana"), (self.vendedor_a, "Vendedora Carla"),
+        ):
+            roles_usuarios.establecer_nombre_visible(uid, nombre)
         self.vehiculo_a = self._vehiculo(self.vendedor_a, 731)
         self.vehiculo_b = self._vehiculo(self.vendedor_b, 732)
         self.vehiculo_retirado = self._vehiculo(self.vendedor_b, 734)
@@ -95,6 +99,15 @@ class ChatCuentasPostgresTest(unittest.TestCase):
         self.assertIsNone(chat.listar_mensajes_vendedor(conv_a, self.vendedor_b))
         self.assertEqual(chat.listar_mensajes_comprador(conv_a, self.comprador_a)[0]["contenido"], "Comprador A")
         self.assertEqual(chat.listar_mensajes_vendedor(conv_a, self.vendedor_a)[0]["contenido"], "Comprador A")
+        self.assertEqual(chat.obtener_conversacion_comprador(conv_a, self.comprador_a)["nombre_vendedor"], "Vendedora Carla")
+        self.assertEqual(chat.obtener_conversacion_vendedor(conv_a, self.vendedor_a)["nombre_comprador"], "Compradora Ana")
+        self.assertEqual(chat.obtener_conversacion_comprador(conv_a, self.comprador_b), None)
+        self.assertEqual(chat.listar_conversaciones_comprador(self.comprador_a)[0]["nombre_vendedor"], "Vendedora Carla")
+        lista_vendedora_a = chat.listar_conversaciones_vendedor(self.vendedor_a)
+        self.assertEqual(next(x for x in lista_vendedora_a if x["id"] == envio_a["conversacion"]["id"])["nombre_comprador"], "Compradora Ana")
+        lista_comprador_b = chat.listar_conversaciones_comprador(self.comprador_b)
+        self.assertEqual(next(x for x in lista_comprador_b if x["vehiculo_id"] == self.vehiculo_b["id"])["nombre_vendedor"], "Vendedor")
+        self.assertEqual(chat.listar_conversaciones_vendedor(self.vendedor_b)[0]["nombre_comprador"], "Comprador")
         self.assertEqual(
             chat.obtener_conversacion_vehiculo_comprador(self.comprador_a, self.vehiculo_a["id"])["id"],
             conv_a,

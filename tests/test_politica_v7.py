@@ -73,6 +73,7 @@ class PoliticaV7Test(unittest.TestCase):
                 csrf = flask_session["csrf_token"]
             registro = client.post("/api/cuenta/registro", json={
                 "email": "v7-preview@example.test", "password": "correct-horse-fixture", "rol": "comprador",
+                "nombre_visible": "Comprador Demo",
             }, headers={"X-CSRF-Token": csrf})
             self.assertEqual(registro.status_code, 503)
             auth.registrar.assert_not_called()

@@ -35,6 +35,10 @@ class AuthDoble:
 
 
 def main():
+    os.environ.pop("VERCEL_ENV", None)
+    os.environ.pop("VERCEL", None)
+    os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    os.environ["APP_READ_ONLY"] = "false"
     identities = {name: str(uuid.uuid5(uuid.NAMESPACE_URL, f"v733-qa-{name}"))
                   for name in ("buyer_a", "buyer_b", "seller_a", "seller_b")}
     tokens = {f"qa-token-{name}": {"id": user_id, "email": f"{name}@example.test"}
@@ -43,6 +47,10 @@ def main():
         for name, role in (("buyer_a", "comprador"), ("buyer_b", "comprador"),
                            ("seller_a", "vendedor"), ("seller_b", "vendedor")):
             roles_usuarios.asignar_rol_inicial(identities[name], role)
+            roles_usuarios.establecer_nombre_visible(identities[name], {
+                "buyer_a": "Comprador Ana", "buyer_b": "Compradora Bea",
+                "seller_a": "Vendedora Carla", "seller_b": "<img src=x onerror=alert(1)>",
+            }[name])
             cuentas.guardar_sesion(identities[name], cuentas.digest(f"qa-session-{name}"))
         vehicles = {}
         for name, model, seller in (("active_a", "Corolla", "seller_a"),
@@ -71,7 +79,7 @@ def main():
         token = propiedad.vendedor.set(identities["seller_a"])
         try: persistencia.retirar_vehiculo(vehicles["retired_a"]["id"], vehicles["retired_a"]["updated_at"])
         finally: propiedad.vendedor.reset(token)
-        app = create_app({"TESTING": False, "SECRET_KEY": "v733-playwright-isolated-only",
+        app = create_app({"TESTING": True, "SECRET_KEY": "v733-playwright-isolated-only",
                           "USER_AUTH_ENABLED": True, "APP_READ_ONLY": False, "SESSION_COOKIE_SECURE": False,
                           "CUENTA_AUTH": AuthDoble(tokens)})
         server = make_server("127.0.0.1", 0, app, threaded=True)

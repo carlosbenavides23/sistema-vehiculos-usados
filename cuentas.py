@@ -9,7 +9,8 @@ from flask import Blueprint, current_app, g, jsonify, request, session, render_t
 import auth_proveedor
 import politica_v7
 from persistencia import _conectar
-from roles_usuarios import obtener_rol
+from roles_usuarios import obtener_rol, obtener_nombre_visible, establecer_nombre_visible
+from nombres_usuarios import normalizar_nombre_visible
 
 bp = Blueprint('cuentas', __name__)
 COOKIES = ('cuenta_sid', 'cuenta_access', 'cuenta_refresh')
@@ -54,9 +55,9 @@ def proteger():
     if not politica_v7.habilitada(current_app.config):
         return jsonify(ok=False, mensaje='Cuentas no habilitadas en este entorno.'), 404
     accion = (request.view_args or {}).get('accion')
-    if request.method == 'POST' and solo_lectura() and accion != 'logout':
+    if request.method in ('POST', 'PATCH', 'PUT', 'DELETE') and solo_lectura() and accion != 'logout':
         return jsonify(ok=False, mensaje='Este ambiente permite únicamente consultas; no se pueden abrir cuentas ni sesiones.'), 503
-    if request.method == 'POST':
+    if request.method in ('POST', 'PATCH', 'PUT', 'DELETE'):
         token=request.headers.get('X-CSRF-Token', '')
         esperado=session.get('csrf_token', '')
         if not esperado or not hmac.compare_digest(token, esperado):
@@ -96,7 +97,8 @@ def identidad():
         return None
     rol=repo('obtener_rol',usuario)
     if rol not in ('comprador','vendedor'): return None
-    return {'id':usuario,'email':user.get('email'),'rol':rol}
+    nombre=repo('obtener_nombre_visible',usuario)
+    return {'id':usuario,'email':user.get('email'),'rol':rol,'nombre_visible':nombre}
 
 
 @bp.errorhandler(Exception)
@@ -112,10 +114,11 @@ def establecer(tokens):
     user=proveedor().usuario(access)
     rol=repo('obtener_rol',user['id'])
     if rol not in ('comprador','vendedor'): raise auth_proveedor.ErrorAuth()
+    nombre=repo('obtener_nombre_visible',user['id'])
     sid=secrets.token_urlsafe(32)
     repo('guardar_sesion',user['id'],digest(sid))
     g.cuenta_cookies=dict(zip(COOKIES,(sid,access,tokens['refresh_token'])))
-    return jsonify(ok=True,usuario={'id':user['id'],'email':user.get('email'),'rol':rol})
+    return jsonify(ok=True,usuario={'id':user['id'],'email':user.get('email'),'rol':rol,'nombre_visible':nombre})
 
 
 @bp.post('/api/cuenta/<accion>')
@@ -130,14 +133,18 @@ def acceso(accion):
             return jsonify(ok=True,mensaje='Sesión local cerrada; no se pudo confirmar la revocación remota.'),200
         return jsonify(ok=True,mensaje='Sesión cerrada.')
     body=request.get_json(silent=True)
-    keys={'email','password','rol'} if accion=='registro' else {'email','password'}
+    keys={'email','password','rol','nombre_visible'} if accion=='registro' else {'email','password'}
     if not isinstance(body,dict) or set(body)!=keys: return jsonify(ok=False,mensaje='Revisá los campos.'),400
     email=body['email']; password=body['password']
     if not isinstance(email,str) or len(email)>254 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email) or not isinstance(password,str) or not 8<=len(password)<=128:
         return jsonify(ok=False,mensaje='Ingresá un correo válido y una contraseña de 8 a 128 caracteres.'),422
     if accion=='registro':
         if body['rol'] not in ('comprador','vendedor'): return jsonify(ok=False,mensaje='Elegí comprador o vendedor.'),422
-        return establecer(proveedor().registrar(email,password,body['rol']))
+        try:
+            nombre=normalizar_nombre_visible(body['nombre_visible'])
+        except ValueError as error:
+            return jsonify(ok=False,mensaje=str(error)),422
+        return establecer(proveedor().registrar(email,password,body['rol'],nombre))
     return establecer(proveedor().login(email,password))
 
 
@@ -145,6 +152,24 @@ def acceso(accion):
 def estado():
     user=identidad()
     return (jsonify(ok=True,usuario=user),200) if user else (jsonify(ok=False,mensaje='Iniciá sesión para continuar.'),401)
+
+
+@bp.patch('/api/cuenta/nombre-visible')
+def actualizar_nombre_visible():
+    body=request.get_json(silent=True)
+    if not isinstance(body,dict) or set(body)!={'nombre_visible'}:
+        return jsonify(ok=False,mensaje='Revisá el nombre ingresado.'),400
+    try:
+        nombre=normalizar_nombre_visible(body['nombre_visible'])
+    except ValueError as error:
+        return jsonify(ok=False,mensaje=str(error)),422
+    user=identidad()
+    if not user:
+        return jsonify(ok=False,mensaje='Iniciá sesión para cambiar tu nombre visible.'),401
+    actualizado=repo('establecer_nombre_visible',user['id'],nombre)
+    if actualizado is None:
+        return jsonify(ok=False,mensaje='No se pudo actualizar el nombre de esta cuenta.'),409
+    return jsonify(ok=True,usuario={'id':user['id'],'rol':user['rol'],'nombre_visible':actualizado})
 
 
 @bp.get('/cuenta')
