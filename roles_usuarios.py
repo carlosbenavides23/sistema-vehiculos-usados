@@ -3,7 +3,6 @@
 from uuid import UUID
 
 from persistencia import _conectar
-from nombres_usuarios import normalizar_nombre_visible
 
 ROLES = frozenset(("comprador", "vendedor"))
 
@@ -30,23 +29,6 @@ def obtener_nombre_visible(usuario_id):
         fila = cursor.fetchone()
         return fila["nombre_visible"] if fila else None
 
-
-def establecer_nombre_visible(usuario_id, nombre_visible):
-    """Guarda el nombre del usuario verificado; el ID nunca viene del formulario."""
-    identificador = _identificador(usuario_id)
-    nombre = normalizar_nombre_visible(nombre_visible)
-    with _conectar() as conexion, conexion.cursor() as cursor:
-        cursor.execute(
-            """INSERT INTO public.perfiles_usuarios (usuario_id, nombre_visible)
-               SELECT usuario_id, %s FROM public.roles_usuarios
-               WHERE usuario_id = %s AND rol IN ('comprador', 'vendedor')
-               ON CONFLICT (usuario_id) DO UPDATE
-                 SET nombre_visible = EXCLUDED.nombre_visible, updated_at = now()
-               RETURNING nombre_visible""",
-            (nombre, identificador),
-        )
-        fila = cursor.fetchone()
-        return fila["nombre_visible"] if fila else None
 
 
 def asignar_rol_inicial(usuario_id, rol):
