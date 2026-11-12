@@ -70,19 +70,7 @@
     one("panel-vendedor").hidden = user?.rol !== "vendedor";
     one("mis-conversaciones-cuenta").hidden = user?.rol !== "comprador";
     one("cuenta-perfil").hidden = !user;
-    if (user) one("nombre-perfil").value = user.nombre_visible || "";
-    else one("nombre-perfil").value = "";
-    if (user && !user.nombre_visible) {
-      one("nombre-perfil-estado").hidden = false;
-      one("nombre-perfil-estado").dataset.type = "info";
-      one("nombre-perfil-estado").textContent = "Aún no configuraste un nombre visible para tus conversaciones.";
-    } else if (user) {
-      one("nombre-perfil-estado").hidden = true;
-      one("nombre-perfil-estado").textContent = "";
-    } else {
-      one("nombre-perfil-estado").hidden = true;
-      one("nombre-perfil-estado").textContent = "";
-    }
+    one("nombre-perfil-lectura").textContent = user?.nombre_visible || "Sin nombre visible registrado";
     if (user) feedback(`Sesión iniciada: ${user.email} · ${user.rol}`, "success");
     else if (data.mensaje) feedback(data.mensaje, "success");
   }
@@ -192,31 +180,6 @@
       if (destino) location.assign(destino);
     } catch (error) {
       feedback(error.message || "Revisá la conexión e intentá nuevamente.", "error");
-    } finally {
-      button.disabled = false;
-    }
-  });
-
-  one("nombre-perfil-form").addEventListener("submit", async event => {
-    event.preventDefault();
-    const button = one("guardar-nombre");
-    const status = one("nombre-perfil-estado");
-    button.disabled = true;
-    status.hidden = false;
-    status.dataset.type = "loading";
-    status.textContent = "Guardando…";
-    try {
-      const nombre = normalizeDisplayName(one("nombre-perfil").value);
-      one("nombre-perfil").value = nombre;
-      const result = await api("/api/cuenta/nombre-visible", {
-        nombre_visible: nombre,
-      }, "PATCH");
-      one("nombre-perfil").value = result.usuario.nombre_visible;
-      status.dataset.type = "success";
-      status.textContent = "Tu nombre visible se actualizó.";
-    } catch (error) {
-      status.dataset.type = "error";
-      status.textContent = error.message || "No pudimos guardar el nombre. Intentá nuevamente.";
     } finally {
       button.disabled = false;
     }

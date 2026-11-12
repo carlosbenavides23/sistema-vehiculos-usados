@@ -180,7 +180,6 @@ class ChatCuentasApiTest(unittest.TestCase):
                 "borrar_sesion": lambda verificador: self.repo.sesiones.pop(verificador, None),
                 "obtener_rol": self.roles.get,
                 "obtener_nombre_visible": lambda _uid: None,
-                "establecer_nombre_visible": lambda _uid, nombre: nombre,
             },
             "CHAT_CUENTAS_REPOSITORY": {
                 nombre: getattr(self.repo, nombre) for nombre in (

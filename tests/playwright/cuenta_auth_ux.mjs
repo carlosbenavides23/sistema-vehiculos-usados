@@ -19,6 +19,7 @@ const server = spawn(python, ["tests/fixture_cuenta_auth_ui.py"], {
 const checks = [];
 const jsErrors = [];
 const registrationNames = [];
+const nameUpdateRequests = [];
 let browser;
 
 try {
@@ -53,7 +54,8 @@ try {
       const path = new URL(request.url()).pathname;
       const body = JSON.parse(request.postData() || "{}");
       if (request.method() === "PATCH" && path.endsWith("/nombre-visible")) {
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, usuario: { id: "fixture-user", rol: "vendedor", nombre_visible: body.nombre_visible } }) });
+        nameUpdateRequests.push(body);
+        return route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ ok: false }) });
       }
       if (path.endsWith("/registro")) {
         registrationNames.push(body.nombre_visible);
@@ -122,7 +124,8 @@ try {
     assert.equal(await page.locator("#cuenta-descripcion").innerText(), "Regístrate como comprador o vendedor para utilizar la plataforma.");
     assert.equal(await page.locator("#rol-field").isVisible(), true);
     assert.equal(await page.locator("#nombre-visible-field").isVisible(), true);
-    assert.equal(await page.locator("#nombre-visible-ayuda").innerText(), "Este nombre será visible para las personas con las que converses.");
+    assert.equal(await page.locator("#nombre-visible").getAttribute("required"), "");
+    assert.equal(await page.locator("#nombre-visible-ayuda").innerText(), "Este nombre se mostrará en tus conversaciones y no podrá modificarse después del registro.");
     await page.locator("#nombre-visible").fill("  María   López  ");
     assert.equal(await page.locator("#registro-aviso").innerText(), "Te enviaremos un correo de confirmación para activar tu cuenta.");
     assert.equal(await page.locator("#enviar-cuenta").innerText(), "Crear cuenta");
@@ -170,6 +173,8 @@ try {
     await page.getByText("Sesión iniciada: pending@example.test · comprador", { exact: true }).waitFor();
     assert.equal(await page.locator("#cuenta-form").isVisible(), false);
     assert.equal(await page.locator("#registro-confirmacion").isVisible(), false, "El login no debe mostrar confirmación de correo.");
+    assert.equal(await page.locator("#nombre-perfil-lectura").innerText(), "María López");
+    assert.equal(await page.locator("#nombre-perfil-form").count(), 0);
     checks.push(`login exitoso y credenciales incorrectas sin perder estado (${width}px)`);
     await context.close();
 
@@ -184,17 +189,16 @@ try {
     assert.equal(await immediate.page.locator("#registro-confirmacion").isVisible(), false, "La sesión inmediata no debe mostrar confirmación pendiente.");
     assert.equal(await immediate.page.locator("#panel-vendedor").isVisible(), true);
     assert.equal(await immediate.page.locator("#mis-conversaciones-cuenta").isVisible(), false);
-    assert.equal(await immediate.page.locator("#nombre-perfil").inputValue(), "Vendedora Demo");
-    await immediate.page.locator("#nombre-perfil").fill("  Vendedora   Demo  ");
-    await immediate.page.locator("#guardar-nombre").click();
-    await immediate.page.getByText("Tu nombre visible se actualizó.", { exact: true }).waitFor();
-    assert.equal(await immediate.page.locator("#nombre-perfil").inputValue(), "Vendedora Demo");
+    assert.equal(await immediate.page.locator("#nombre-perfil-lectura").innerText(), "Vendedora Demo");
+    assert.equal(await immediate.page.locator("#nombre-perfil-form").count(), 0);
+    assert.equal(await immediate.page.locator("#guardar-nombre").count(), 0);
     assert.deepEqual(registrationNames.slice(-1), ["Vendedora Demo"]);
     checks.push(`registro con sesión inmediata sin estado de confirmación (${width}px)`);
     await immediate.context.close();
   }
 
   assert.deepEqual(jsErrors, [], `No deben aparecer errores JavaScript: ${jsErrors.join(" | ")}`);
+  assert.deepEqual(nameUpdateRequests, [], "La interfaz ya no debe emitir solicitudes para cambiar el nombre visible.");
   console.log(JSON.stringify({ checks, jsErrors, evidence }, null, 2));
 } finally {
   if (browser) await browser.close();

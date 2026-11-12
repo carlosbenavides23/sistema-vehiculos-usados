@@ -47,10 +47,14 @@ def main():
         for name, role in (("buyer_a", "comprador"), ("buyer_b", "comprador"),
                            ("seller_a", "vendedor"), ("seller_b", "vendedor")):
             roles_usuarios.asignar_rol_inicial(identities[name], role)
-            roles_usuarios.establecer_nombre_visible(identities[name], {
-                "buyer_a": "Comprador Ana", "buyer_b": "Compradora Bea",
-                "seller_a": "Vendedora Carla", "seller_b": "<img src=x onerror=alert(1)>",
-            }[name])
+            with persistencia._conectar() as db:
+                db.execute(
+                    "INSERT INTO public.perfiles_usuarios (usuario_id, nombre_visible) VALUES (%s, %s)",
+                    (identities[name], {
+                        "buyer_a": "Comprador Ana", "buyer_b": "Compradora Bea",
+                        "seller_a": "Vendedora Carla", "seller_b": "<img src=x onerror=alert(1)>",
+                    }[name]),
+                )
             cuentas.guardar_sesion(identities[name], cuentas.digest(f"qa-session-{name}"))
         vehicles = {}
         for name, model, seller in (("active_a", "Corolla", "seller_a"),

@@ -46,7 +46,11 @@ class ChatCuentasPostgresTest(unittest.TestCase):
         for uid, nombre in (
             (self.comprador_a, "Compradora Ana"), (self.vendedor_a, "Vendedora Carla"),
         ):
-            roles_usuarios.establecer_nombre_visible(uid, nombre)
+            with psycopg.connect(self.dsn) as conexion:
+                conexion.execute(
+                    "INSERT INTO public.perfiles_usuarios (usuario_id, nombre_visible) VALUES (%s, %s)",
+                    (uid, nombre),
+                )
         self.vehiculo_a = self._vehiculo(self.vendedor_a, 731)
         self.vehiculo_b = self._vehiculo(self.vendedor_b, 732)
         self.vehiculo_retirado = self._vehiculo(self.vendedor_b, 734)
