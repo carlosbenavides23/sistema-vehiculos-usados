@@ -1258,6 +1258,7 @@ body.dialog-open {
 .chat-messages { display:flex; min-height:120px; max-height:360px; flex:1; flex-direction:column; gap:.6rem; overflow-y:auto; padding:.8rem 0; }
 .chat-message { max-width:min(88%,38rem); padding:.65rem .8rem; color:var(--ink); background:#f1f5f3; border-radius:.75rem .75rem .75rem .2rem; overflow-wrap:anywhere; }
 .chat-message[data-remitente="admin"] { align-self:flex-end; background:#e6f1ed; border-radius:.75rem .75rem .2rem .75rem; }
+.chat-message[data-own="true"] { align-self:flex-end; background:#e6f1ed; border-radius:.75rem .75rem .2rem .75rem; }
 .chat-message p { margin:0; white-space:pre-wrap; }
 .chat-message time { display:block; margin-top:.3rem; color:var(--muted); font-size:.72rem; }
 .chat-feedback { min-height:1.25em; margin:.2rem 0; color:var(--muted); font-size:.84rem; }
@@ -1266,6 +1267,7 @@ body.dialog-open {
 .chat-compose label { font-size:.88rem; font-weight:650; }
 .chat-compose textarea { width:100%; min-width:0; resize:vertical; }
 .chat-compose-footer { align-items:center; }
+.chat-conversation-list #chat-comprador-cargar-mas { width:100%; margin-top:.75rem; }
 
 @media(max-width:650px) {
   .chat-conversation-list { max-height:12rem; overflow-y:auto; }

@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       if(url.pathname==='/api/admin/session')data={ok:true,autenticado:auth,solo_lectura:false};
       else if(url.pathname==='/api/admin/login')auth=true;
       else if(url.pathname==='/api/admin/logout')auth=false;
-      else if(url.pathname==='/api/vehiculos')data={ok:true,vehiculos:[vehicle]};
+      else if(url.pathname==='/api/admin/vehiculos')data={ok:true,vehiculos:[vehicle]};
       else if(url.pathname==='/api/vehiculos/2/disponibilidad'){
         requests++;
         const body=req.postDataJSON();

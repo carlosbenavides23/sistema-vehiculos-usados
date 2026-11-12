@@ -200,6 +200,11 @@
 .admin-reply-form { min-height: 68px; padding: 10px 13px; display: flex; align-items: flex-end; gap: 9px; border-top: 1px solid #e2eae5; }
 .admin-reply-form textarea { min-height: 44px; max-height: 116px; flex: 1; resize: vertical; }
 .admin-reply-form .admin-button { min-height: 42px; }
+.seller-thread-vehicle { min-width: 0; flex: 1; }
+.seller-thread-vehicle h2 { margin-bottom: 3px; overflow-wrap: anywhere; white-space: normal; text-overflow: initial; }
+.seller-thread-vehicle > a { color: #35574f; font-size: 11px; font-weight: 600; }
+.seller-retired-note { display: block; margin-top: 4px; color: #862f26; font-size: 10px; line-height: 1.35; font-weight: 650; }
+.admin-message[data-own="true"] { align-self: flex-end; background: #eaf1ed; }
 
 @media (max-width: 1050px) {
   .admin-main, .admin-topbar-inner { width: min(100% - 36px, 1288px); }

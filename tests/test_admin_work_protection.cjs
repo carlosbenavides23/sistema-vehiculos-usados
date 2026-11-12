@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
  await page.route('**/*',async route=>{const req=route.request(),url=new URL(req.url()),path=url.pathname; if(url.origin!==origin)return route.abort(); if(!path.startsWith('/api/'))return route.continue(); let data={ok:true,csrf_token:'fixture'},status=200;
  if(path==='/api/admin/session')data={ok:true,autenticado:auth,solo_lectura:false};
  else if(path==='/api/admin/login')auth=true; else if(path==='/api/admin/logout')auth=false;
- else if(path==='/api/vehiculos')data={ok:true,vehiculos:[vehicle]};
+ else if(path==='/api/admin/vehiculos')data={ok:true,vehiculos:[vehicle]};
  else if(path==='/api/vehiculos/2'&&req.method()==='PUT'){if(failSave){status=400;data={ok:false,mensaje:'Error ficticio'};} else {Object.assign(vehicle,req.postDataJSON().vehiculo);data={ok:true,vehiculo:vehicle};}}
  else if(path==='/api/admin/chat/conversaciones')data={ok:true,conversaciones:conversations,hay_mas:false};
  else if(path.includes('/admin/chat/conversaciones/')&&path.endsWith('/mensajes')){if(req.method()==='POST'&&failReply){status=503;data={ok:false,mensaje:'Error ficticio'};}else data=req.method()==='GET'?{ok:true,mensajes:[]}:{ok:true,mensaje:{id:55,remitente:'administrador',contenido:req.postDataJSON().contenido}};}

@@ -22,6 +22,7 @@ flowchart LR
 | `almacenamiento.py` | REST de Storage, URLs públicas, errores seguros y procesamiento de cola. |
 | `app.py` | Flask, contratos HTTP, sesión, CSRF, autorización y modo de consulta. |
 | `persistencia_chat.py` | Sesiones anónimas con hash, ownership de conversaciones, mensajes, idempotencia y límites persistentes. |
+| `persistencia_chat_cuentas.py` | Persistencia privada de conversaciones comprador-vendedor, con alcance por rol/participante, idempotencia y paginación para V7.3.1. |
 | `static/js/chat.js` | Panel comprador/administrador; polling incremental, serializado y pausado en segundo plano. |
 | `static/js/interfaz.js` | Formularios, galería, administración y HTTP; conserva UUID ante resultados inciertos. |
 | `static/js/fotografias.js` | Compresión y vista previa de un archivo por vez en navegador. |
@@ -77,7 +78,7 @@ El navegador acepta originales de hasta 10 MB y prepara WebP ≤1600 px, calidad
 
 ## Ambientes y Vercel
 
-El chat está deshabilitado por defecto con `CHAT_ENABLED=false`; Preview y modo de solo lectura lo fuerzan apagado. La migración está preparada, no ejecutada en Supabase. Definir la retención y el borrado de mensajes es requisito para habilitarlo públicamente.
+El chat anónimo V6 está deshabilitado por defecto con `CHAT_ENABLED=false`; Preview y modo de solo lectura lo fuerzan apagado. La habilitación V7 de cuentas usa `USER_AUTH_ENABLED`, una segunda autorización `V7_PRODUCTION_ENABLED` solo en Production y validación sintáctica de Auth/PostgreSQL/sesión. Preview sigue siendo de solo lectura aunque `APP_READ_ONLY=false`. La migración V7 está preparada, no ejecutada en Supabase. Definir la retención y el borrado de mensajes es requisito para habilitar públicamente el chat anónimo.
 
 Desarrollo usa `.env` ignorado. PostgreSQL remoto siempre requiere TLS, con prepared statements desactivados para Transaction Pooler. La excepción sin TLS exige opt-in y loopback fijo; rechaza redirecciones hostaddr/service del destino local.
 
