@@ -69,7 +69,7 @@
             {{ lucide_icon('messages-square', 20) }}
             <span>Conversaciones</span>
           </button>{% endif %}
-          <a class="admin-nav-link" href="/vendedor/archivo" data-archive-link>{{ lucide_icon('messages-square', 20) }}<span>Archivo histórico</span></a>
+          {% if config["SHOW_ARCHIVE_NAV"] %}<a class="admin-nav-link" href="/vendedor/archivo" data-archive-link>{{ lucide_icon('messages-square', 20) }}<span>Archivo histórico</span></a>{% endif %}
           <button class="admin-nav-link" type="button" data-admin-view="vehicle-form" data-new-vehicle>
             {{ lucide_icon('plus', 20) }}
             <span>Registrar vehículo</span>

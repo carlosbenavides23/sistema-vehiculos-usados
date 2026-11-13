@@ -61,6 +61,7 @@ def create_app(configuracion=None):
         STORAGE=None,
         USER_AUTH_ENABLED=os.environ.get("USER_AUTH_ENABLED", "false").lower() == "true",
         V7_PRODUCTION_ENABLED=os.environ.get("V7_PRODUCTION_ENABLED", "false").lower() == "true",
+        SHOW_ARCHIVE_NAV=os.environ.get("VERCEL_ENV", "").lower() != "production",
     )
     if configuracion:
         aplicacion.config.update(configuracion)
