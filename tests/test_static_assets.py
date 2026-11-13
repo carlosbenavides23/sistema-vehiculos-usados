@@ -68,6 +68,20 @@ class PreparacionRecursosVercelTest(unittest.TestCase):
                             f"https://imagenes.example.invalid/{fotos[registro['id']][0]['storage_path']}",
                         )
 
+    def test_enlace_archivo_historico_oculto_solo_en_production(self):
+        from flask import render_template
+        # El enlace se omite en el HTML, no se esconde únicamente mediante CSS.
+        for production, expected in ((True, False), (False, True)):
+            with self.subTest(production=production):
+                app = create_app({"TESTING": True, "SECRET_KEY": "clave-solo-para-pruebas",
+                                  "SHOW_ARCHIVE_NAV": not production})
+                with app.test_request_context("/vendedor"):
+                    html = render_template("admin_v6.html", csrf_token="fixture",
+                        solo_lectura=False, chat_habilitado=False, max_year=2026,
+                        vendedor_panel=True, tipos_vehiculo=[], mapa_alias_tipos_vehiculo={})
+                self.assertEqual('data-archive-link' in html, expected)
+                self.assertEqual('Archivo histórico' in html, expected)
+
     def test_rutas_de_flask_responden_con_mime_de_recurso_y_no_html(self):
         aplicacion = create_app({"TESTING": True, "SECRET_KEY": "clave-solo-para-pruebas"})
         recursos = {
