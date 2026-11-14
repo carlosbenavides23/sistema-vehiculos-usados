@@ -66,7 +66,10 @@
     </section>
 
     <section id="ficha-vehiculo" class="vehicle-detail" aria-labelledby="ficha-titulo" aria-busy="true" hidden>
+      <nav class="detail-return-links" aria-label="Volver">
+      {% if volver_publicaciones %}<a class="back-link" href="/vendedor">{{ lucide_icon('arrow-left', 20) }}<span>Volver a mis publicaciones</span></a>{% endif %}
       <a id="volver-catalogo" class="back-link" href="/">{{ lucide_icon('arrow-left', 20) }}<span>Volver al catálogo</span></a>
+      </nav>
       <div id="ficha-cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando información del vehículo…</div>
       <div id="ficha-error" class="empty-state blocked-state" role="alert" hidden>{{ lucide_icon('circle-alert', 24, 'empty-icon empty-icon-error') }}<h2>No pudimos cargar este vehículo</h2><p id="ficha-error-detalle"></p><a class="button button-secondary" href="/">Volver al catálogo</a></div>
       <article id="ficha-contenido" class="detail-card" hidden>
@@ -100,7 +103,7 @@
         <div id="chat-comprador-mensajes" class="chat-messages" role="log" aria-label="Mensajes de la conversación" aria-live="polite" aria-relevant="additions"></div>
         <p id="chat-comprador-feedback" class="chat-feedback" role="status" aria-live="polite"></p>
         <form id="chat-comprador-form" class="chat-compose" hidden>
-          <label for="chat-comprador-texto">Escribe tu mensaje</label>
+          <label for="chat-comprador-texto">Escribe tu mensaje</label><small>Enter para enviar · Shift+Enter para nueva línea</small>
           <textarea id="chat-comprador-texto" name="mensaje" rows="2" maxlength="2000" placeholder="Consulta sobre este vehículo…" required></textarea>
           <div class="chat-compose-footer"><small>Máximo 2,000 caracteres</small><button id="chat-comprador-enviar" class="button button-primary" type="submit">Enviar</button></div>
         </form>

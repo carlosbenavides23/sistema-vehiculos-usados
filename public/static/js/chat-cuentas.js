@@ -91,7 +91,9 @@
 
   function setLoginPrompt(text) {
     const link = document.createElement("a");
-    link.href = `/cuenta?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+    const destino = new URL(location.href);
+    if (/^\/vehiculo\/[1-9]\d*$/.test(destino.pathname)) destino.searchParams.set("contactar", "1");
+    link.href = `/cuenta?next=${encodeURIComponent(`${destino.pathname}${destino.search}`)}`;
     link.textContent = "Iniciar sesión";
     link.className = "chat-account-link";
     listStatus.replaceChildren(document.createTextNode(`${text} `), link);
@@ -373,6 +375,10 @@
   }
 
   async function openInbox() {
+    try {
+      const user = await verifyAccount();
+      if (user.rol === "vendedor") { location.assign("/vendedor#conversaciones"); return; }
+    } catch (error) { if (error.stale) return; }
     openDialog(trigger, "list");
     saveDraft();
     switchView("list");
@@ -485,6 +491,11 @@
     body.classList.remove("dialog-open");
   });
   form.addEventListener("submit", sendMessage);
+  textarea.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    if (!sendBusy && textarea.value.trim()) form.requestSubmit();
+  });
   textarea.addEventListener("input", saveDraft);
   one("chat-comprador-cargar-mas")?.addEventListener("click", () => loadConversations({ append: true }));
   fichaButton.addEventListener("click", () => {

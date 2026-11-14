@@ -249,11 +249,26 @@ def create_app(configuracion=None):
     @aplicacion.get("/vehiculo/<int:identificador>")
     def pagina_vehiculo(identificador):
         # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
-        return render_template(
+        volver_publicaciones = False
+        contextual = request.args.get('desde') == 'inventario'
+        if contextual and politica_v7.habilitada(current_app.config):
+            try:
+                usuario = cuentas.identidad()
+                if usuario and usuario['rol'] == 'vendedor':
+                    vehiculo = repositorio('obtener_vehiculo', identificador)
+                    volver_publicaciones = bool(vehiculo and str(vehiculo.get('vendedor_id')) == usuario['id'])
+            except auth_proveedor.ErrorAuth:
+                pass  # El catálogo público sigue disponible sin privilegios.
+        respuesta = current_app.make_response(render_template(
             "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
             chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
             mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
-        )
+            volver_publicaciones=volver_publicaciones,
+        ))
+        if contextual:
+            respuesta.headers['Cache-Control'] = 'private, no-store'
+            return cuentas.cookies(respuesta)
+        return respuesta
 
     @aplicacion.get("/administracion")
     def pagina_administracion():
