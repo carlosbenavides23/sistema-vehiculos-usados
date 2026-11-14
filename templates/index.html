@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/redesign.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/redesign-public-v6.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/motion.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/filtros-v712.css') }}">
   <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
   {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script><script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% endif %}
@@ -50,8 +51,11 @@
             <div class="field"><label for="filtro-tipo">Tipo de vehículo</label><select id="filtro-tipo" name="tipo_vehiculo"><option value="">Todos los tipos</option>{% for tipo in tipos_vehiculo %}<option value="{{ tipo.codigo }}">{{ tipo.etiqueta }}</option>{% endfor %}</select></div>
             <div class="field"><label for="filtro-orden">Ordenar por</label><select id="filtro-orden" name="orden"><option value="">Predeterminado</option><option value="precio_asc">Precio: menor a mayor</option><option value="precio_desc">Precio: mayor a menor</option><option value="anio_desc">Año: más reciente</option><option value="anio_asc">Año: más antiguo</option></select></div>
           </div>
+          <button class="button button-primary filtros-aplicar" type="submit">Aplicar filtros</button>
         </details>
         <p id="filtros-avanzados-activos" class="filter-advanced-active" role="status" hidden>Hay filtros avanzados aplicados.</p>
+        <div id="filtros-error" class="filter-errors" role="alert" hidden></div>
+        <div id="filtros-seleccionados" class="filter-selected" aria-label="Filtros aplicados" hidden></div>
       </form>
       <div class="section-heading"><div><p class="catalog-breadcrumb">Inicio / Vehículos usados</p><h1 id="titulo-inventario">Vehículos publicados</h1><p id="resumen-listado" aria-live="polite">Preparando el catálogo…</p></div></div>
       <div id="cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando vehículos…</div>
