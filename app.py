@@ -21,6 +21,7 @@ import persistencia_chat_cuentas
 from cuentas import bp as cuentas_bp
 import cuentas
 import propiedad
+import perfiles_publicos
 import politica_v7
 from vehiculos import filtrar_vehiculos, respuesta_error, validar_filtros_busqueda, validar_vehiculo
 from tipos_vehiculo import MAPA_ALIAS_TIPOS_VEHICULO, TIPOS_VEHICULO, etiqueta_tipo_vehiculo
@@ -203,6 +204,9 @@ def create_app(configuracion=None):
     def respuesta_vehiculo(vehiculo, fotografias=None):
         salida = dict(vehiculo)
         owner = salida.pop('vendedor_id', None)
+        if not hasattr(g, 'vendedores_publicos'):
+            g.vendedores_publicos = perfiles_publicos.vendedores([owner])
+        salida['vendedor'] = g.vendedores_publicos.get(str(owner))
         vendedor = getattr(g, 'cuenta_vendedor', None)
         privado = vendedor and str(owner) == vendedor['id']
         if not privado:
@@ -273,6 +277,36 @@ def create_app(configuracion=None):
     @aplicacion.get("/administracion")
     def pagina_administracion():
         return redirect("/cuenta", code=302)
+
+    @aplicacion.get('/vendedores/<uuid:identificador>')
+    def pagina_vendedor_publico(identificador):
+        perfil = perfiles_publicos.obtener(identificador)
+        if perfil is None:
+            abort(404)
+        propio = False
+        if politica_v7.habilitada(current_app.config):
+            try:
+                user = cuentas.identidad()
+                propio = bool(user and user['rol'] == 'vendedor' and user['id'] == str(identificador))
+            except auth_proveedor.ErrorAuth:
+                pass
+        response = current_app.make_response(render_template('index.html', csrf_token=token_csrf(),
+            vehiculo_id=None, chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
+            mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
+            perfil_vendedor=dict(id=str(identificador), **perfil), perfil_propio=propio))
+        response.headers['Cache-Control'] = 'private, no-store'
+        return cuentas.cookies(response)
+
+    @aplicacion.get('/api/vendedores/<uuid:identificador>')
+    def consultar_vendedor_publico(identificador):
+        perfil = perfiles_publicos.obtener(identificador)
+        if perfil is None:
+            return jsonify(respuesta_error('No se encontró el vendedor.')), 404
+        vehiculos = perfiles_publicos.publicaciones(identificador)
+        g.vendedores_publicos = {str(identificador): perfil}
+        fotos = fotos_repositorio('listar_por_vehiculos', [v['id'] for v in vehiculos])
+        return jsonify(ok=True, vendedor=perfil,
+            vehiculos=[respuesta_vehiculo(v, fotos.get(v['id'], [])) for v in vehiculos])
 
     @aplicacion.get("/api/cuenta/chat/comprador/conversaciones")
     def listar_conversaciones_comprador_cuenta():
@@ -469,6 +503,7 @@ def create_app(configuracion=None):
                 # Mantiene compatibilidad con repositorios falsos pequeños en pruebas.
                 vehiculos = filtrar_vehiculos(repositorio("listar_vehiculos"), filtros)
             fotos = fotos_repositorio("listar_por_vehiculos", [v["id"] for v in vehiculos])
+            g.vendedores_publicos = perfiles_publicos.vendedores([v.get('vendedor_id') for v in vehiculos])
             salida = [respuesta_vehiculo(v, fotos.get(v["id"], [])) for v in vehiculos]
         except Exception as error:
             return error_persistencia(error)
