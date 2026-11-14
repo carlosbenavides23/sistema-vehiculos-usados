@@ -410,7 +410,7 @@
     return article;
   }
 
-  function renderInventory(list) {
+  function renderInventory(list, hasFilters = false) {
     inventoryList.replaceChildren();
     inventoryCards.replaceChildren();
     list.forEach((vehicle) => {
@@ -419,6 +419,10 @@
     });
     const empty = list.length === 0;
     emptyInventory.hidden = !empty;
+    emptyInventory.querySelector("h3").textContent = hasFilters ? "No encontramos publicaciones" : "Todavía no tenés publicaciones";
+    emptyInventory.querySelector("p").textContent = hasFilters ? "Probá cambiar la búsqueda o limpiar los filtros." : "Registrá tu primer vehículo para publicarlo en el catálogo.";
+    one("#admin-clear-filters").hidden = !hasFilters;
+    one("#admin-first-vehicle").hidden = hasFilters;
     inventoryFeedback.textContent = empty ? "" : "";
     one("#inventory-result-label").textContent = `${list.length} ${list.length === 1 ? "publicación" : "publicaciones"} encontradas`;
   }
@@ -487,7 +491,7 @@
       if (generation !== inventoryGeneration || !authenticated) return;
       vehicles = Array.isArray(result.vehiculos) ? result.vehiculos : [];
       inventoryLoading = false;
-      renderInventory(vehicles);
+      renderInventory(vehicles, [...params.values()].some(value => value.trim() !== ""));
       const recovery = inventoryFocus;
       if (recovery && (document.activeElement === recovery.element || document.activeElement === body)) {
         const selector = `[data-vehicle-id="${CSS.escape(recovery.id)}"]`;

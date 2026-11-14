@@ -15,6 +15,85 @@
   let parametrosCatalogoActivos = new URLSearchParams();
   const generacionesFoto = new WeakMap();
   const animacionesFoto = new WeakMap();
+  const clavePosicion = "catalogo-retorno-v712";
+
+  function guardarPosicion(id) {
+    try { sessionStorage.setItem(clavePosicion, JSON.stringify({ id: String(id), query: location.search, offset: window.scrollY })); } catch (_) { /* Navegación disponible sin almacenamiento. */ }
+  }
+
+  function descartarPosicion() {
+    try { sessionStorage.removeItem(clavePosicion); } catch (_) { /* Almacenamiento deshabilitado. */ }
+  }
+
+  function restaurarPosicion() {
+    let estado;
+    try { estado = JSON.parse(sessionStorage.getItem(clavePosicion)); } catch (_) { return; }
+    if (!estado || estado.query !== location.search) { descartarPosicion(); return; }
+    const tarjeta = [...porId("lista-vehiculos").querySelectorAll("article")].find(item => item.dataset.vehiculoId === estado.id);
+    descartarPosicion();
+    if (!tarjeta) return;
+    requestAnimationFrame(() => tarjeta.scrollIntoView({ block: "start", behavior: "instant" }));
+  }
+
+  function limpiarErrorFiltro(campo) {
+    const error = campo.parentElement.querySelector(".filter-field-error");
+    if (error) error.remove();
+    campo.removeAttribute("aria-invalid");
+    const ids = (campo.getAttribute("aria-describedby") || "").split(/\s+/).filter(id => id && id !== `error-${campo.name}`);
+    if (ids.length) campo.setAttribute("aria-describedby", ids.join(" ")); else campo.removeAttribute("aria-describedby");
+  }
+
+  function limpiarErroresFiltros() {
+    filtrosCatalogo.querySelectorAll("[aria-invalid=true]").forEach(limpiarErrorFiltro);
+    const resumen = porId("filtros-error");
+    resumen.hidden = true;
+    resumen.textContent = "";
+  }
+
+  function mostrarErroresFiltros(error) {
+    limpiarErroresFiltros();
+    let primero;
+    for (const [nombre, texto] of Object.entries(error.errores || {})) {
+      const campo = filtrosCatalogo.elements.namedItem(nombre);
+      if (!campo || typeof campo.setAttribute !== "function") continue;
+      if (nombresFiltrosAvanzados.includes(nombre)) detallesFiltros.open = true;
+      const ayuda = document.createElement("small");
+      ayuda.id = `error-${nombre}`;
+      ayuda.className = "filter-field-error";
+      ayuda.textContent = texto;
+      campo.parentElement.append(ayuda);
+      campo.setAttribute("aria-invalid", "true");
+      campo.setAttribute("aria-describedby", [campo.getAttribute("aria-describedby"), ayuda.id].filter(Boolean).join(" "));
+      primero ||= campo;
+    }
+    const resumen = porId("filtros-error");
+    resumen.textContent = primero ? "Revisá los filtros señalados." : error.message;
+    resumen.hidden = false;
+    porId("cargando").hidden = true;
+    porId("estado-bloqueado").hidden = true;
+    return primero;
+  }
+
+  function actualizarChips() {
+    const contenedor = porId("filtros-seleccionados");
+    if (!contenedor) return;
+    contenedor.replaceChildren();
+    const etiquetas = {q:"Búsqueda", disponibilidad:"Disponibilidad", precio_min:"Precio mínimo", precio_max:"Precio máximo", anio_min:"Año desde", anio_max:"Año hasta", tipo_vehiculo:"Tipo", orden:"Orden"};
+    for (const [nombre, valor] of parametrosCatalogoActivos) {
+      if (!etiquetas[nombre]) continue;
+      const campo = filtrosCatalogo.elements.namedItem(nombre);
+      const opcion = campo?.tagName === "SELECT" ? [...campo.options].find(item => item.value === valor) : null;
+      const dato = opcion ? opcion.textContent.trim() : nombre.startsWith("precio_") && Number.isFinite(Number(valor)) ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(valor))}` : valor;
+      const texto = `${etiquetas[nombre]}: ${dato}`;
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.textContent = `${texto} ×`;
+      boton.setAttribute("aria-label", `Quitar filtro ${texto}`);
+      boton.addEventListener("click", () => { if (campo) campo.value = ""; buscarConFiltros(); });
+      contenedor.append(boton);
+    }
+    contenedor.hidden = !contenedor.childElementCount;
+  }
 
   function duracionMovimiento(nombre, predeterminado) {
     const valor = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
@@ -248,12 +327,15 @@
       const parteDecimal = String(vehiculo.precio_centavos % 100).padStart(2, "0");
       tarjeta.querySelector(".vehicle-price").textContent = `$${parteEntera}${parteDecimal === "00" ? "" : `.${parteDecimal}`}`;
       const enlaceFicha = tarjeta.querySelector(".detail-link");
-      const retorno = `${location.pathname}${location.search}`;
+      const queryRetorno = parametrosCatalogoActivos.toString();
+      const retorno = `${location.pathname}${queryRetorno ? `?${queryRetorno}` : ""}`;
       enlaceFicha.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?retorno=${encodeURIComponent(retorno)}`;
+      enlaceFicha.addEventListener("click", () => guardarPosicion(vehiculo.id));
       enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
       const enlaceContacto = tarjeta.querySelector(".detail-contact-link");
       if (enlaceContacto) {
         enlaceContacto.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?${new URLSearchParams({ retorno, contactar: "1" })}`;
+        enlaceContacto.addEventListener("click", () => guardarPosicion(vehiculo.id));
         enlaceContacto.setAttribute("aria-label", `Contactar al vendedor de ${nombre}`);
       }
       const insignia = tarjeta.querySelector(".vehicle-badge");
@@ -280,6 +362,7 @@
   function copiarFiltrosDesdeUrl() {
     const parametros = new URLSearchParams(location.search);
     for (const campo of filtrosCatalogo.elements) {
+      if (campo.name && !parametros.has(campo.name)) campo.value = "";
       if (!campo.name || !parametros.has(campo.name)) continue;
       const valor = parametros.get(campo.name);
       if (campo.name === "tipo_vehiculo" && valor && campo.options && typeof campo.options[Symbol.iterator] === "function") {
@@ -300,6 +383,7 @@
     }
     parametrosCatalogoActivos = leerParametrosCatalogo();
     actualizarFiltrosAvanzados(true);
+    actualizarChips();
   }
 
   function actualizarFiltrosAvanzados(abrirSiActivos = false) {
@@ -329,27 +413,43 @@
 
   async function buscarConFiltros(actualizarHistorial = true) {
     if (ocupado || idFicha) return;
+    const anteriores = parametrosCatalogoActivos;
     parametrosCatalogoActivos = leerParametrosCatalogo();
-    actualizarFiltrosAvanzados();
     const query = parametrosCatalogoActivos.toString();
-    if (actualizarHistorial) {
-      history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
-    }
+    limpiarErroresFiltros();
     ocupado = true;
     porId("cargando").hidden = false;
     porId("estado-vacio").hidden = true;
     porId("estado-sin-resultados").hidden = true;
     porId("estado-bloqueado").hidden = true;
-    porId("lista-vehiculos").replaceChildren();
     actualizarControles();
+    let focoError;
     try {
       await cargarCatalogo();
+      if (actualizarHistorial) {
+        if (query !== anteriores.toString()) descartarPosicion();
+        history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+      }
+      actualizarFiltrosAvanzados();
+      actualizarChips();
       mensaje("");
     } catch (error) {
-      bloquear("No pudimos actualizar el catálogo", error.message);
+      if (error.status === 400 && Object.keys(error.errores || {}).length) {
+        parametrosCatalogoActivos = anteriores;
+        focoError = mostrarErroresFiltros(error);
+      } else {
+        if (actualizarHistorial) {
+          if (query !== anteriores.toString()) descartarPosicion();
+          history.pushState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+        }
+        actualizarFiltrosAvanzados();
+        actualizarChips();
+        bloquear("No pudimos actualizar el catálogo", error.message);
+      }
     } finally {
       ocupado = false;
       actualizarControles();
+      focoError?.focus();
     }
   }
 
@@ -529,8 +629,14 @@
     actualizarControles();
     try {
       await cargarCatalogo();
+      restaurarPosicion();
     } catch (error) {
-      bloquear("No pudimos abrir el catálogo", error.message);
+      if (error.status === 400 && Object.keys(error.errores || {}).length) {
+        const campo = mostrarErroresFiltros(error);
+        ocupado = false;
+        actualizarControles();
+        campo?.focus();
+      } else bloquear("No pudimos abrir el catálogo", error.message);
     } finally {
       ocupado = false;
       actualizarControles();
@@ -543,7 +649,21 @@
     buscarConFiltros();
   });
   filtrosCatalogo.addEventListener("reset", () => {
+    limpiarErroresFiltros();
     setTimeout(() => buscarConFiltros(), 0);
+  });
+  filtrosCatalogo.addEventListener("input", (evento) => {
+    if (evento.target.matches("input, select")) {
+      limpiarErrorFiltro(evento.target);
+      const asociado = { precio_max: "precio_min", anio_max: "anio_min" }[evento.target.name];
+      const campoAsociado = asociado && filtrosCatalogo.elements.namedItem(asociado);
+      const textoAsociado = campoAsociado?.parentElement.querySelector(".filter-field-error")?.textContent || "";
+      if (campoAsociado && /mínimo no puede superar el máximo/.test(textoAsociado)) limpiarErrorFiltro(campoAsociado);
+      if (!filtrosCatalogo.querySelector('[aria-invalid="true"]')) {
+        porId("filtros-error").hidden = true;
+        porId("filtros-error").textContent = "";
+      }
+    }
   });
   porId("limpiar-desde-vacio").addEventListener("click", () => filtrosCatalogo.reset());
   window.addEventListener("popstate", () => {

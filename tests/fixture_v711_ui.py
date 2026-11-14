@@ -42,20 +42,22 @@ class StorageLocal:
 
 def main():
     with base_aislada():
-        ids = {name: str(uuid4()) for name in ('seller_a', 'seller_b', 'buyer_a', 'buyer_b')}
-        names = dict(seller_a='Vendedora Carla', seller_b='Vendedor B',
+        ids = {name: str(uuid4()) for name in ('seller_a', 'seller_b', 'seller_empty', 'buyer_a', 'buyer_b')}
+        names = dict(seller_a='Vendedora Carla', seller_b='Vendedor B', seller_empty='Vendedora sin publicaciones',
                      buyer_a='Ana María Rodríguez Benavides del Norte', buyer_b='Compradora Bea')
         for name, uid in ids.items():
             roles_usuarios.asignar_rol_inicial(uid, 'vendedor' if name.startswith('seller') else 'comprador')
             with persistencia._conectar() as db:
                 db.execute('INSERT INTO public.perfiles_usuarios(usuario_id,nombre_visible) VALUES (%s,%s)', (uid, names[name]))
         vehicles = []
-        for n in range(16):
+        for n in range(80 if os.environ.get('V711_LARGE_CATALOG') == '1' else 16):
             token = propiedad.vendedor.set(ids['seller_a' if n < 15 else 'seller_b'])
             try:
                 row = datos(n)
                 row.update(marca='Toyota' if n == 0 else 'Nissan', modelo='Corolla' if n == 0 else f'Sentra {n}',
                            disponibilidad='vendido' if n == 3 else 'disponible')
+                if os.environ.get('V711_LARGE_CATALOG') == '1':
+                    row.update(anio=2008 + n % 18, precio_centavos=(9000 + n * 500) * 100)
                 vehicles.append(persistencia.crear_vehiculo(row))
             finally:
                 propiedad.vendedor.reset(token)
