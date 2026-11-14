@@ -18,6 +18,7 @@
   {% if vendedor_panel %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script>{% endif %}
   <script defer src="{{ url_for('static', filename='js/admin-v6.js') }}"></script>
   {% if vendedor_panel %}<script defer src="{{ url_for('static', filename='js/vendedor-chat-cuentas.js') }}"></script>{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/legibilidad-v715.css') }}">
 </head>
 <body class="admin-v6" data-seller-panel="{{ 'true' if vendedor_panel else 'false' }}" data-read-only="{{ 'true' if solo_lectura else 'false' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
   <a class="skip-link" href="#admin-main">Saltar al panel</a>
@@ -148,7 +149,7 @@
               </button>
               <p class="admin-eyebrow">Inventario / Publicación</p>
               <h1 id="vehicle-form-title" tabindex="-1">Registrar vehículo</h1>
-              <p id="vehicle-form-subtitle" class="admin-subheading">Completá los datos para registrar un vehículo.</p>
+              <p id="vehicle-form-subtitle" class="admin-subheading">1. Completá los datos · 2. Guardá el vehículo · 3. Añadí y guardá sus fotografías.</p>
             </div>
             <button class="admin-button admin-button-primary admin-desktop-save" type="submit" form="admin-vehicle-form">
               {{ lucide_icon('check', 20) }}
@@ -159,21 +160,21 @@
           <form id="admin-vehicle-form" class="admin-vehicle-form" novalidate>
             <div id="vehicle-form-error" class="admin-form-message" role="alert" tabindex="-1" hidden></div>
             <section class="admin-form-card" aria-labelledby="vehicle-basic-title">
-              <div class="admin-form-card-heading"><h2 id="vehicle-basic-title">Datos principales</h2><p>Identificá el vehículo y su precio de publicación.</p></div>
+              <div class="admin-form-card-heading"><h2 id="vehicle-basic-title">Datos principales</h2><p>Los campos con * son obligatorios. Completá los datos, guardá y después añadí fotografías.</p></div>
               <div class="admin-form-grid">
                 <div class="admin-field"><label for="vehicle-brand">Marca <span aria-hidden="true">*</span></label><input id="vehicle-brand" name="marca" maxlength="60" required autocomplete="off"><small data-error-for="marca"></small></div>
                 <div class="admin-field"><label for="vehicle-model">Modelo <span aria-hidden="true">*</span></label><input id="vehicle-model" name="modelo" maxlength="60" required autocomplete="off"><small data-error-for="modelo"></small></div>
                 <div class="admin-field"><label for="vehicle-year">Año <span aria-hidden="true">*</span></label><input id="vehicle-year" name="anio" type="number" min="1900" max="{{ max_year }}" step="1" inputmode="numeric" required><small data-error-for="anio"></small></div>
-                <div class="admin-field"><label for="vehicle-type">Tipo de vehículo</label><div class="admin-select-wrap"><select id="vehicle-type" name="tipo_vehiculo"><option value="">No especificado</option>{% for tipo in tipos_vehiculo %}<option value="{{ tipo.codigo }}">{{ tipo.etiqueta }}</option>{% endfor %}</select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="tipo_vehiculo"></small></div>
+                <div class="admin-field"><label for="vehicle-mileage">Kilometraje <span aria-hidden="true">*</span></label><div class="admin-input-suffix"><input id="vehicle-mileage" name="kilometraje" type="number" min="0" step="1" inputmode="numeric" required><span>km</span></div><small data-error-for="kilometraje"></small></div>
                 <div class="admin-field"><label for="vehicle-price">Precio (USD) <span aria-hidden="true">*</span></label><div class="admin-input-prefix"><span aria-hidden="true">$</span><input id="vehicle-price" name="precio_venta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div><small data-error-for="precio_venta"></small></div>
                 <div class="admin-field"><label for="vehicle-location">Ubicación <span aria-hidden="true">*</span></label><input id="vehicle-location" name="ubicacion" maxlength="100" placeholder="Managua" required><small data-error-for="ubicacion"></small></div>
               </div>
             </section>
 
             <section class="admin-form-card" aria-labelledby="vehicle-tech-title">
-              <div class="admin-form-card-heading"><h2 id="vehicle-tech-title">Características técnicas</h2><p>Dejá los campos vacíos cuando la información no esté disponible.</p></div>
+              <div class="admin-form-card-heading"><h2 id="vehicle-tech-title">Características adicionales</h2><p>Estos datos son opcionales. Dejalos vacíos o en «No especificado» si no los conocés.</p></div>
               <div class="admin-form-grid">
-                <div class="admin-field"><label for="vehicle-mileage">Kilometraje <span aria-hidden="true">*</span></label><div class="admin-input-suffix"><input id="vehicle-mileage" name="kilometraje" type="number" min="0" step="1" inputmode="numeric" required><span>km</span></div><small data-error-for="kilometraje"></small></div>
+                <div class="admin-field"><label for="vehicle-type">Tipo de vehículo</label><div class="admin-select-wrap"><select id="vehicle-type" name="tipo_vehiculo"><option value="">No especificado</option>{% for tipo in tipos_vehiculo %}<option value="{{ tipo.codigo }}">{{ tipo.etiqueta }}</option>{% endfor %}</select>{{ lucide_icon('chevron-down', 16, 'admin-select-chevron') }}</div><small data-error-for="tipo_vehiculo"></small></div>
                 <div class="admin-field"><label for="vehicle-version">Versión</label><input id="vehicle-version" name="version" maxlength="40" placeholder="Ej. Limited"><small data-error-for="version"></small></div>
                 <div class="admin-field"><label for="vehicle-engine">Motor</label><input id="vehicle-engine" name="motor" maxlength="60" placeholder="Ej. 2.0 L, 4 cilindros"><small data-error-for="motor"></small></div>
                 <div class="admin-field"><label for="vehicle-doors">Número de puertas</label><input id="vehicle-doors" name="numero_puertas" type="number" min="1" max="10" step="1" inputmode="numeric" placeholder="No especificado"><small data-error-for="numero_puertas"></small></div>
@@ -201,12 +202,19 @@
               <div class="admin-field"><label for="vehicle-description">Descripción <span aria-hidden="true">*</span></label><textarea id="vehicle-description" name="descripcion" minlength="10" maxlength="1000" rows="5" required placeholder="Descripción general del vehículo y sus características destacadas…"></textarea><div class="admin-description-meta"><small data-error-for="descripcion"></small><span id="vehicle-description-count">0 / 1000</span></div></div>
             </section>
           </form>
+          <nav id="vehicle-next-actions" class="publication-next-actions" aria-label="Siguientes pasos de la publicación" hidden>
+            <p>Vehículo guardado. Podés añadir fotografías o comprobar tu anuncio.</p>
+            <button id="vehicle-next-photos" class="admin-button admin-button-secondary" type="button">Añadir fotografías</button>
+            <a id="vehicle-public-link" class="admin-button admin-button-secondary">Ver ficha pública</a>
+            <button class="admin-button admin-button-secondary" type="button" data-admin-view="inventory">Volver al inventario</button>
+          </nav>
 
           <section class="admin-form-card admin-photo-card" aria-labelledby="vehicle-photos-title">
-            <div class="admin-form-card-heading"><h2 id="vehicle-photos-title">Fotografías</h2><p>Primero guardá el vehículo. Después podrás añadir hasta cinco fotos.</p></div>
+            <div class="admin-form-card-heading"><h2 id="vehicle-photos-title" tabindex="-1">Fotografías</h2><p>Primero guardá el vehículo. Después podrás añadir hasta cinco fotos.</p></div>
             <div id="vehicle-photo-list" class="admin-photo-list"></div>
             <div id="vehicle-photo-empty" class="admin-photo-empty" hidden>{{ lucide_icon('image', 20) }}<span>Todavía no hay fotografías.</span></div>
             <div id="vehicle-photo-pending" class="admin-photo-pending" hidden>
+              <p class="photo-preview-state">Vista previa sin guardar. Confirmá con «Guardar fotografía».</p>
               <img id="vehicle-photo-preview" alt="Vista previa de la fotografía seleccionada">
               <div><strong id="vehicle-photo-pending-name"></strong><p id="vehicle-photo-pending-detail"></p></div>
               <button id="vehicle-photo-upload-confirm" class="admin-button admin-button-primary" type="button">Guardar fotografía</button>
@@ -220,10 +228,10 @@
             <p id="vehicle-photo-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
           </section>
 
-          <div class="admin-mobile-form-actions">
+          <div class="admin-mobile-form-actions publication-save-actions">
             <button class="admin-button admin-button-primary" type="submit" form="admin-vehicle-form">
               {{ lucide_icon('check', 20) }}
-              <span>Guardar vehículo</span>
+              <span>Publicar vehículo</span>
             </button>
             <p>Revisá los campos antes de guardar.</p>
           </div>

@@ -1,0 +1,73 @@
+/* Pulido localizado de componentes existentes; no cambia la escala de títulos. */
+.publication-next-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 18px; margin: 16px 0; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface, #fff); }
+.publication-next-actions[hidden] { display: none; }
+.publication-next-actions p { flex-basis: 100%; margin: 0; }
+.admin-photo-pending .photo-preview-state { grid-column: 1 / -1; color: var(--color-text-primary); }
+@media (min-width: 1200px) {
+  :root { --reading-primary: 16px; --reading-secondary: 14px; }
+  body[data-user-auth-enabled] .header-actions .button,
+  body[data-user-auth-enabled] .filter-actions .button,
+  body[data-user-auth-enabled] .buyer-chat .button,
+  body[data-user-auth-enabled] .buyer-chat-drawer .button,
+  body[data-user-auth-enabled] .explore-link,
+  body[data-user-auth-enabled] .back-link,
+  body[data-user-auth-enabled] .vehicle-attribute,
+  body[data-user-auth-enabled] .vehicle-description,
+  body[data-user-auth-enabled] .vehicle-location,
+  body[data-user-auth-enabled] .vehicle-seller,
+  body[data-user-auth-enabled] .field label { font-size: 15px; }
+  body[data-user-auth-enabled] .detail-link,
+  body[data-user-auth-enabled] .detail-contact-link,
+  body[data-user-auth-enabled] .detail-purchase-specs dd,
+  body[data-user-auth-enabled] .feature-value,
+  body[data-user-auth-enabled] .detail-description p { font-size: var(--reading-primary); }
+  body[data-user-auth-enabled] #resumen-listado,
+  body[data-user-auth-enabled] .vehicle-badge,
+  body[data-user-auth-enabled] .vehicle-price-label,
+  body[data-user-auth-enabled] .detail-price-label,
+  body[data-user-auth-enabled] .detail-year,
+  body[data-user-auth-enabled] .detail-seller,
+  body[data-user-auth-enabled] .detail-contact-note p,
+  body[data-user-auth-enabled] .detail-purchase-specs dt,
+  body[data-user-auth-enabled] .feature-label,
+  body[data-user-auth-enabled] .chat-privacy-note { font-size: var(--reading-secondary); }
+  body[data-user-auth-enabled] .detail-price { font-size: 34px; }
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-message,
+  body[data-user-auth-enabled] .buyer-chat-drawer textarea { font-size: var(--reading-primary); }
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-muted,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-compose label,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-state,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-feedback,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-compose small,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-contact-name,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-message time,
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-conversation-button span { font-size: var(--reading-secondary); }
+  .admin-v6 .admin-nav-link, .admin-v6 .admin-topbar-label,
+  .admin-v6 .admin-vehicle-name, .admin-v6 .admin-price,
+  .admin-v6 .admin-field input, .admin-v6 .admin-field select,
+  .admin-v6 .admin-field textarea, .admin-v6 .admin-message,
+  .admin-v6 .admin-reply-form textarea { font-size: var(--reading-primary); }
+  .admin-v6 .admin-button, .admin-v6 .admin-field > label,
+  .admin-v6 .admin-auth-copy, .admin-v6 .admin-empty-state p,
+  .admin-v6 .admin-status, .admin-v6 .admin-subheading { font-size: 15px; }
+  .admin-v6 .admin-field small, .admin-v6 .admin-form-card-heading p,
+  .admin-v6 .admin-form-message, .admin-v6 .admin-inline-feedback,
+  .admin-v6 .admin-vehicle-meta, .admin-v6 .admin-result-label,
+  .admin-v6 .admin-state-pill, .admin-v6 .admin-auth-footnote,
+  .admin-v6 .admin-auth-info, .admin-v6 .admin-auth-switch,
+  .admin-v6 .admin-auth-switch-button,
+  .admin-v6 .admin-chat-contact, .admin-v6 .admin-label-note,
+  .admin-v6 .admin-message time, .admin-v6 .admin-chat-item span,
+  .admin-v6 .admin-chat-item time, .admin-v6 .admin-chat-list-heading p,
+  .admin-v6 .admin-thread-heading p, .admin-v6 .seller-thread-vehicle > a,
+  .admin-v6 .admin-photo-upload, .admin-v6 .admin-photo-upload small,
+  .admin-v6 .admin-photo-pending strong, .admin-v6 .admin-photo-pending p,
+  .admin-v6 .admin-photo-item figcaption, .admin-v6 .admin-photo-item button { font-size: var(--reading-secondary); }
+  .admin-v6 .admin-description-meta, .admin-v6 .admin-equipment legend,
+  .admin-v6 .admin-chat-empty p, .admin-v6 .admin-photo-empty,
+  .admin-v6 .admin-reply-form small, .admin-v6 .seller-retired-note { font-size: var(--reading-secondary); }
+  .admin-v6 .admin-inventory-table th { font-size: 13px; }
+  .admin-v6 .admin-form-grid, .admin-v6 .admin-equipment-grid { row-gap: 20px; }
+  .admin-v6 .publication-save-actions { display: flex; align-items: center; gap: 16px; margin: 18px 0; }
+  .admin-v6 .publication-save-actions p { margin: 0; font-size: var(--reading-secondary); }
+}
