@@ -6,6 +6,9 @@
   const detallesFiltros = porId("filtros-avanzados");
   const indicadorFiltrosAvanzados = porId("filtros-avanzados-activos");
   const nombresFiltrosAvanzados = ["precio_min", "precio_max", "anio_min", "anio_max", "tipo_vehiculo", "orden"];
+  const idPerfil = document.body.dataset.perfilVendedor || "";
+  const rutaCatalogo = /^\/vendedores\/[0-9a-f-]+$/i;
+  const urlPerfilSeguro = (valor) => { try { const u = new URL(valor, location.origin); return u.origin === location.origin && rutaCatalogo.test(u.pathname) ? u.pathname : null; } catch { return null; } };
   const idFicha = document.body.dataset.vehiculoId || "";
   const aliasTipos = JSON.parse(porId("vehicle-type-aliases")?.textContent || "{}");
   const dolaresEnteros = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -18,7 +21,7 @@
   const clavePosicion = "catalogo-retorno-v712";
 
   function guardarPosicion(id) {
-    try { sessionStorage.setItem(clavePosicion, JSON.stringify({ id: String(id), query: location.search, offset: window.scrollY })); } catch (_) { /* Navegación disponible sin almacenamiento. */ }
+    try { sessionStorage.setItem(clavePosicion, JSON.stringify({ id: String(id), path: location.pathname, query: location.search, offset: window.scrollY })); } catch (_) { /* Navegación disponible sin almacenamiento. */ }
   }
 
   function descartarPosicion() {
@@ -28,7 +31,7 @@
   function restaurarPosicion() {
     let estado;
     try { estado = JSON.parse(sessionStorage.getItem(clavePosicion)); } catch (_) { return; }
-    if (!estado || estado.query !== location.search) { descartarPosicion(); return; }
+    if (!estado || estado.path !== location.pathname || estado.query !== location.search) { descartarPosicion(); return; }
     const tarjeta = [...porId("lista-vehiculos").querySelectorAll("article")].find(item => item.dataset.vehiculoId === estado.id);
     descartarPosicion();
     if (!tarjeta) return;
@@ -170,7 +173,7 @@
 
   async function cargarCatalogo() {
     const query = parametrosCatalogoActivos.toString();
-    const ruta = query ? `/api/vehiculos?${query}` : "/api/vehiculos";
+    const ruta = idPerfil ? `/api/vendedores/${encodeURIComponent(idPerfil)}` : query ? `/api/vehiculos?${query}` : "/api/vehiculos";
     const resultado = await solicitar(ruta);
     if (!Array.isArray(resultado.vehiculos)) throw new Error("El servidor no devolvió una lista de vehículos válida.");
     vehiculos = resultado.vehiculos.map(datosPublicos);
@@ -311,6 +314,8 @@
       const disponible = vehiculo.disponibilidad === "disponible";
       const nombre = `${vehiculo.marca} ${vehiculo.modelo}`;
       tarjeta.querySelector("h3").textContent = nombre;
+      const perfil = vehiculo.vendedor && urlPerfilSeguro(vehiculo.vendedor.url);
+      if (perfil && !idPerfil) { const enlace = document.createElement("a"); enlace.className = "vehicle-seller"; enlace.href = perfil; enlace.textContent = `Vendedor: ${vehiculo.vendedor.nombre}`; tarjeta.querySelector(".vehicle-title-row").append(enlace); }
       tarjeta.querySelector(".vehicle-year").textContent = vehiculo.anio;
       tarjeta.querySelector(".vehicle-location-text").textContent = vehiculo.ubicacion;
       tarjeta.querySelector(".vehicle-description").textContent = vehiculo.descripcion;
@@ -539,6 +544,10 @@
     porId("ficha-ubicacion-valor").textContent = vehiculo.ubicacion || "Ubicación no especificada";
     porId("ficha-anio-valor").textContent = `Año ${vehiculo.anio}`;
     porId("ficha-precio").textContent = precioLegible(vehiculo.precio_centavos);
+    const perfil = vehiculo.vendedor && urlPerfilSeguro(vehiculo.vendedor.url);
+    const vendedor = porId("ficha-vendedor"); vendedor.hidden = !perfil;
+    porId("ficha-vendedor-neutral").hidden = Boolean(perfil);
+    if (perfil) { vendedor.href = perfil; vendedor.textContent = vehiculo.vendedor.nombre; }
     porId("ficha-kilometraje").textContent = `${entero.format(vehiculo.kilometraje)} km recorridos`;
     const estadoCompra = porId("ficha-estado-compra");
     estadoCompra.textContent = disponible ? "Disponible" : "Vendido";
@@ -605,8 +614,10 @@
     if (retorno) {
       try {
         const url = new URL(retorno, location.origin);
-        if (url.origin === location.origin && url.pathname === "/") {
-          porId("volver-catalogo").href = `${url.pathname}${url.search}`;
+        if (url.origin === location.origin && (url.pathname === "/" || rutaCatalogo.test(url.pathname))) {
+          if (rutaCatalogo.test(url.pathname)) {
+            const enlace = document.createElement("a"); enlace.className = "back-link"; enlace.href = url.pathname; enlace.textContent = "Volver al perfil del vendedor"; porId("volver-catalogo").before(enlace);
+          } else porId("volver-catalogo").href = `${url.pathname}${url.search}`;
         }
       } catch (error) { /* Se conserva el enlace seguro al catálogo. */ }
     }
