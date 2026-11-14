@@ -64,6 +64,13 @@
 
   function mostrar(data) {
     const user = data.usuario;
+    if (user) {
+      one("cuenta-titulo").textContent = "Mi cuenta";
+      one("cuenta-descripcion").textContent = "Gestioná tu cuenta y accedé a tus actividades.";
+    } else {
+      registro = false;
+      actualizarModo();
+    }
     form.hidden = Boolean(user);
     one("registro-confirmacion").hidden = true;
     one("salir-cuenta").hidden = !user;

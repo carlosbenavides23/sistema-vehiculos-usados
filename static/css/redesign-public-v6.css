@@ -43,7 +43,7 @@
   font-size: 13px;
 }
 
-#abrir-chat-comprador-global > .lucide-icon,
+#abrir-chat-cuentas > .lucide-icon,
 .search-control > .lucide-icon,
 .filtros-avanzados > summary > .lucide-icon {
   display: block;
@@ -52,7 +52,7 @@
   height: 20px;
 }
 
-#abrir-chat-comprador-global {
+#abrir-chat-cuentas {
   min-width: 167px;
   color: var(--color-brand-action);
   border-color: var(--color-border-subtle);
@@ -995,7 +995,7 @@
     display: none !important;
   }
 
-  #abrir-chat-comprador-global{
+  #abrir-chat-cuentas{
     display: inline-flex;
     flex: 0 0 44px;
     width: 44px;
@@ -1008,7 +1008,7 @@
     box-shadow: none;
   }
 
-  #abrir-chat-comprador-global .header-button-label {
+  #abrir-chat-cuentas .header-button-label {
     position: absolute;
     width: 1px;
     height: 1px;

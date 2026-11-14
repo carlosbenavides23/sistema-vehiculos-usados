@@ -1,0 +1,8 @@
+.filter-selected { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .5rem; }
+.filter-selected[hidden], .filter-errors[hidden] { display: none; }
+.filter-selected button { min-height: 44px; border: 1px solid var(--color-border-subtle, #ccd9d3); border-radius: 8px; padding: .5rem .75rem; color: var(--color-brand-action, #35574f); background: #eaf1ed; cursor: pointer; }
+.filter-errors { grid-column: 1 / -1; color: #862f26; }
+.filter-field-error { display: block; color: #862f26; font-size: .85rem; margin-top: .3rem; }
+.field [aria-invalid="true"] { border-color: #a23a30; }
+.filtros-aplicar { display: none; }
+@media (max-width: 1024px) { .filtros-avanzados .filtros-aplicar { display: inline-flex; margin-top: 1rem; } }

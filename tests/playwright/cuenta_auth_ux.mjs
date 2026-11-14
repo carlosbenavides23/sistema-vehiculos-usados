@@ -127,7 +127,7 @@ try {
     assert.equal(await page.locator("#nombre-visible").getAttribute("required"), "");
     assert.equal(await page.locator("#nombre-visible-ayuda").innerText(), "Este nombre se mostrará en tus conversaciones y no podrá modificarse después del registro.");
     await page.locator("#nombre-visible").fill("  María   López  ");
-    assert.equal(await page.locator("#registro-aviso").innerText(), "Te enviaremos un correo de confirmación para activar tu cuenta.");
+    assert.equal(await page.locator("#registro-aviso").innerText(), "Según la configuración, podrías necesitar confirmar tu correo antes de iniciar sesión.");
     assert.equal(await page.locator("#enviar-cuenta").innerText(), "Crear cuenta");
     assert.equal(await page.locator("#modo-ayuda").innerText(), "¿Ya tienes cuenta?");
     assert.equal(await page.locator("#modo-cuenta").innerText(), "Iniciar sesión");
@@ -152,6 +152,7 @@ try {
     await page.locator("#email").fill("pending@example.test");
     await page.locator("#enviar-cuenta").click();
     await page.getByRole("status").filter({ hasText: "Revisa tu correo electrónico para confirmar tu cuenta. Después podrás iniciar sesión." }).waitFor();
+    assert.equal(await page.locator("#cuenta-titulo").innerText(), "Revisa tu correo electrónico");
     assert.equal(await page.locator("#cuenta-form").isVisible(), false);
     assert.equal(await page.locator("#volver-login").innerText(), "Volver a iniciar sesión");
     await page.screenshot({ path: `${evidence}/cuenta-confirmacion-${width}.png`, fullPage: true });
@@ -171,6 +172,7 @@ try {
     await page.locator("#password").fill("fixture-pass");
     await page.locator("#enviar-cuenta").click();
     await page.getByText("Sesión iniciada: pending@example.test · comprador", { exact: true }).waitFor();
+    assert.equal(await page.locator("#cuenta-titulo").innerText(), "Mi cuenta");
     assert.equal(await page.locator("#cuenta-form").isVisible(), false);
     assert.equal(await page.locator("#registro-confirmacion").isVisible(), false, "El login no debe mostrar confirmación de correo.");
     assert.equal(await page.locator("#nombre-perfil-lectura").innerText(), "María López");
@@ -187,12 +189,18 @@ try {
     await immediate.page.locator("#enviar-cuenta").click();
     await immediate.page.getByText("Sesión iniciada: instant@example.test · vendedor", { exact: true }).waitFor();
     assert.equal(await immediate.page.locator("#registro-confirmacion").isVisible(), false, "La sesión inmediata no debe mostrar confirmación pendiente.");
+    assert.equal(await immediate.page.locator("#cuenta-titulo").innerText(), "Mi cuenta");
+    assert.match(await immediate.page.locator("#cuenta-descripcion").innerText(), /Gestioná tu cuenta/);
     assert.equal(await immediate.page.locator("#panel-vendedor").isVisible(), true);
     assert.equal(await immediate.page.locator("#mis-conversaciones-cuenta").isVisible(), false);
     assert.equal(await immediate.page.locator("#nombre-perfil-lectura").innerText(), "Vendedora Demo");
     assert.equal(await immediate.page.locator("#nombre-perfil-form").count(), 0);
     assert.equal(await immediate.page.locator("#guardar-nombre").count(), 0);
     assert.deepEqual(registrationNames.slice(-1), ["Vendedora Demo"]);
+    await immediate.page.locator("#salir-cuenta").click();
+    await immediate.page.locator("#cuenta-form").waitFor();
+    assert.equal(await immediate.page.locator("#cuenta-titulo").innerText(), "Iniciar sesión");
+    assert.equal(await immediate.page.locator("#registro-aviso").isVisible(), false);
     checks.push(`registro con sesión inmediata sin estado de confirmación (${width}px)`);
     await immediate.context.close();
   }
