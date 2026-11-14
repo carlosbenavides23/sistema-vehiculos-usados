@@ -663,23 +663,36 @@
     }
   }
 
+  function updatePublicationActions() {
+    one("#vehicle-next-actions").hidden = !savedVehicle;
+    const link = one("#vehicle-public-link");
+    if (savedVehicle) link.href = `/vehiculo/${encodeURIComponent(savedVehicle.id)}?desde=inventario`;
+    else link.removeAttribute("href");
+  }
+
+  one("#vehicle-next-photos").addEventListener("click", () => {
+    one("#vehicle-photos-title").scrollIntoView({ block: "start" });
+    one("#vehicle-photos-title").focus({ preventScroll: true });
+  });
+
   function resetVehicleForm() {
     editingId = null;
     savedVehicle = null;
+    updatePublicationActions();
     pendingCreate = null;
     clearFormErrors();
     historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
     setVehicleType(null);
     form.reset();
     one("#vehicle-form-title").textContent = "Registrar vehículo";
-    one("#vehicle-form-subtitle").textContent = "Completá los datos para registrar un vehículo.";
+    one("#vehicle-form-subtitle").textContent = "1. Completá los datos · 2. Guardá el vehículo · 3. Añadí y guardá sus fotografías.";
     one("#vehicle-basic-title").textContent = "Datos principales";
     one("#vehicle-photo-upload").hidden = true;
     one("#vehicle-photo-list").replaceChildren();
     one("#vehicle-photo-empty").hidden = false;
     one("#vehicle-photo-feedback").textContent = "Guardá el vehículo para habilitar la carga de fotografías.";
     one(".admin-desktop-save span").textContent = "Publicar vehículo";
-    one(".admin-mobile-form-actions span").textContent = "Guardar vehículo";
+    one(".admin-mobile-form-actions span").textContent = "Publicar vehículo";
     one(".admin-photo-card").classList.add("is-unavailable");
     clearPhotoDraft();
     updateDescriptionCount();
@@ -690,6 +703,7 @@
   function populateForm(vehicle) {
     editingId = vehicle.id;
     savedVehicle = vehicle;
+    updatePublicationActions();
     clearFormErrors();
     historicalVehicleSelects.forEach((name) => vehicleFieldValues.clearHistoricalValue(form.elements.namedItem(name)));
     form.reset();
@@ -795,6 +809,7 @@
         ? "Vehículo guardado. Ahora podés agregar fotografías, o hacerlo más tarde desde el inventario."
         : "Los datos del vehículo se guardaron. Las fotografías permanecen independientes.";
       renderPhotos(savedVehicle);
+      updatePublicationActions();
       await loadInventory();
       setStatus(isNew ? "Vehículo registrado en el catálogo." : "Cambios guardados.");
       if (isNew) one("#vehicle-photos-title").focus?.();
@@ -833,7 +848,7 @@
       image.onerror = () => { image.onerror = null; image.src = "/static/img/vehiculo.svg"; };
       const caption = document.createElement("figcaption");
       const label = document.createElement("span");
-      label.textContent = `Foto ${index + 1}`;
+      label.textContent = `Foto ${index + 1} · Guardada`;
       const actions = document.createElement("div");
       const replace = document.createElement("button");
       replace.type = "button";
