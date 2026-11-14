@@ -61,6 +61,7 @@
       <aside id="admin-navigation" class="admin-sidebar" aria-label="Navegación del vendedor">
         <p class="admin-nav-heading">{{ 'Mis publicaciones' if vendedor_panel else 'Administración' }}</p>
         <nav class="admin-nav-list">
+          <a class="admin-nav-link" href="/">{{ lucide_icon('car-front', 20) }}<span>Explorar catálogo</span></a>
           <button class="admin-nav-link is-active" type="button" data-admin-view="inventory" aria-current="page">
             {{ lucide_icon('car-front', 20) }}
             <span>Inventario</span>
@@ -259,7 +260,7 @@
                 <p id="seller-thread-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
                 <form id="seller-reply-form" class="admin-reply-form">
                   <label class="visually-hidden" for="seller-reply-text">Escribí una respuesta</label>
-                  <textarea id="seller-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta…" required></textarea>
+                  <textarea id="seller-reply-text" name="contenido" maxlength="2000" rows="1" placeholder="Escribí una respuesta… (Enter para enviar)" aria-description="Enter para enviar; Shift+Enter para nueva línea" required></textarea>
                   <button id="seller-reply-submit" class="admin-button admin-button-secondary" type="submit">{{ lucide_icon('send', 20) }} Enviar</button>
                 </form>
               </div>

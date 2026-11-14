@@ -171,6 +171,7 @@
     syncMobileNavigation();
     if (authenticated) {
       loadInventory();
+      if (sellerPanel && location.hash === "#conversaciones") one("#seller-chat-nav")?.click();
     } else {
       availabilitySession += 1;
       availabilityUndo = null;
@@ -316,7 +317,7 @@
     const info = document.createElement("div");
     const title = document.createElement("a");
     title.className = "admin-vehicle-name";
-    title.href = `/vehiculo/${encodeURIComponent(vehicle.id)}`;
+    title.href = `/vehiculo/${encodeURIComponent(vehicle.id)}?desde=inventario`;
     title.textContent = vehicleTitle(vehicle);
     const meta = document.createElement("span");
     meta.className = "admin-vehicle-meta";
@@ -388,7 +389,7 @@
     const text = document.createElement("div");
     const title = document.createElement("a");
     title.className = "admin-vehicle-name";
-    title.href = `/vehiculo/${encodeURIComponent(vehicle.id)}`;
+    title.href = `/vehiculo/${encodeURIComponent(vehicle.id)}?desde=inventario`;
     title.textContent = vehicleTitle(vehicle);
     const meta = document.createElement("span");
     meta.className = "admin-vehicle-meta";

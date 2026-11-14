@@ -373,6 +373,11 @@
   nav.addEventListener("click", () => loadInbox());
   one("seller-chat-load-more").addEventListener("click", () => loadInbox({ append: true }));
   one("seller-chat-back").addEventListener("click", returnToList);
+  replyText.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    if (!sendBusy && replyText.value.trim()) replyForm.requestSubmit();
+  });
   replyText.addEventListener("input", saveDraft);
   replyForm.addEventListener("submit", async (event) => {
     event.preventDefault();
