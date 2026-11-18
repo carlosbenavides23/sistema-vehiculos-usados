@@ -24,18 +24,26 @@
   <a class="skip-link" href="#admin-main">Saltar al panel</a>
   <header class="admin-topbar">
     <div class="admin-topbar-inner">
-      <a class="admin-brand" href="/" aria-label="Volver al catálogo">
-        <span class="admin-brand-mark" aria-hidden="true">V.</span>
-        <span>Vehículos usados</span>
-      </a>
+      <div class="header-brand-group">
+        <a class="admin-brand" href="/" aria-label="Volver al catálogo">
+          <span class="admin-brand-mark" aria-hidden="true">V.</span>
+          <span>Vehículos usados</span>
+        </a>
+        {% if vendedor_panel and g.cuenta_vendedor %}
+        <span id="seller-header-identity" class="header-identity" hidden>
+          <strong>{{ g.cuenta_vendedor.nombre_visible or 'Sin nombre visible' }}</strong>
+          <span>Vendedor</span>
+        </span>
+        {% endif %}
+      </div>
       <div class="admin-topbar-actions">
         <span class="admin-topbar-label">{{ 'Panel de vendedor' if vendedor_panel else 'Panel administrativo' }}</span>
         <button id="admin-mobile-menu" class="admin-icon-button admin-menu-button" type="button" aria-label="Mostrar navegación" aria-expanded="false" aria-controls="admin-navigation" hidden>
           {{ lucide_icon('menu', 24) }}
         </button>
-        <button id="admin-logout" class="admin-button admin-button-quiet" type="button" hidden>
+        <button id="admin-logout" class="admin-button admin-button-quiet" type="button" aria-label="Cerrar sesión" hidden>
           {{ lucide_icon('log-out', 20) }}
-          Cerrar sesión
+          <span>Cerrar sesión</span>
         </button>
       </div>
     </div>
@@ -77,10 +85,10 @@
             <span>Registrar vehículo</span>
           </button>
         </nav>
-        <button class="admin-logout-sidebar" type="button" data-admin-logout>
+        {% if not vendedor_panel %}<button class="admin-logout-sidebar" type="button" data-admin-logout>
           {{ lucide_icon('log-out', 20) }}
           Cerrar sesión
-        </button>
+        </button>{% endif %}
       </aside>
 
       <div class="admin-content">

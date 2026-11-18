@@ -56,10 +56,7 @@ try {
     const archivoTab = await context.newPage();
     await archivoTab.goto(info.url+'/vendedor/archivo/'+info.archive[0]);
     await archivoTab.getByText('Consulta histórica <script>sin ejecutar</script>',{exact:true}).waitFor();
-    if (width===390) {
-      await page.locator('#admin-mobile-menu').click();
-      await page.locator('[data-admin-logout]').click();
-    } else await page.locator('#admin-logout').click();
+    await page.locator('#admin-logout').click();
     await page.waitForURL('**/cuenta');
     await archivoTab.waitForURL('**/cuenta');
     assert.equal(await archivoTab.getByText('Consulta histórica <script>sin ejecutar</script>',{exact:true}).count(),0);

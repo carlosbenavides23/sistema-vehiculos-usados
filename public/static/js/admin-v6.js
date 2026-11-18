@@ -44,6 +44,7 @@
   const workspace = one("#admin-workspace");
   const loginError = one("#admin-login-error");
   const logout = one("#admin-logout");
+  const sellerIdentity = one("#seller-header-identity");
   const mobileMenuButton = one("#admin-mobile-menu");
   const adminNavigation = one("#admin-navigation");
   const statusBox = one("#admin-status");
@@ -169,6 +170,7 @@
     auth.hidden = authenticated || readOnly;
     workspace.hidden = !authenticated;
     logout.hidden = !authenticated;
+    if (sellerIdentity) sellerIdentity.hidden = !authenticated;
     syncMobileNavigation();
     if (authenticated) {
       loadInventory();
@@ -192,7 +194,11 @@
       workspace.hidden = true;
       if (!signingOut) location.replace("/cuenta");
     });
-    window.addEventListener("pagehide", () => { workspace.hidden = true; });
+    window.addEventListener("pagehide", () => {
+      workspace.hidden = true;
+      logout.hidden = true;
+      if (sellerIdentity) sellerIdentity.hidden = true;
+    });
     window.addEventListener("pageshow", (event) => { if (event.persisted) location.reload(); });
   }
 
