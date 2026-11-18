@@ -8,6 +8,7 @@
   const status = one("header-session-status");
   const retry = one("header-session-retry");
   const ownerLinks = document.querySelectorAll("[data-owner-navigation]");
+  const profileList = document.body.dataset.perfilVendedor && one("lista-vehiculos");
   const session = window.CuentaSesion;
   let revision = 0;
 
@@ -39,6 +40,7 @@
       const user = await session.read();
       if (epoch !== revision) return;
       render(user);
+      if (profileList) profileList.toggleAttribute("data-seller-contact-hidden", user.rol === "vendedor");
       if (!retry.hidden) feedback();
       retry.hidden = true;
       // El contexto lo fija Flask al renderizar la página, antes de consultar la sesión.
@@ -53,6 +55,7 @@
       if (epoch !== revision || error.stale) return;
       render(null);
       if (error.status === 401) {
+        if (profileList) profileList.removeAttribute("data-seller-contact-hidden");
         if (!retry.hidden) feedback();
         retry.hidden = true;
       } else {
@@ -65,6 +68,7 @@
   function clear() {
     revision += 1;
     render(null);
+    if (profileList) profileList.setAttribute("data-seller-contact-hidden", "");
     retry.hidden = true;
     feedback();
   }

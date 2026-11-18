@@ -285,17 +285,20 @@ def create_app(configuracion=None):
         perfil = perfiles_publicos.obtener(identificador)
         if perfil is None:
             abort(404)
+        vendedor_autenticado = False
         propio = False
         if politica_v7.habilitada(current_app.config):
             try:
                 user = cuentas.identidad()
-                propio = bool(user and user['rol'] == 'vendedor' and user['id'] == str(identificador))
+                vendedor_autenticado = bool(user and user['rol'] == 'vendedor')
+                propio = vendedor_autenticado and user['id'] == str(identificador)
             except (auth_proveedor.ErrorAuth, psycopg.Error):
                 pass
         response = current_app.make_response(render_template('index.html', csrf_token=token_csrf(),
             vehiculo_id=None, chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
             mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
             perfil_vendedor=dict(id=str(identificador), **perfil),
+            ocultar_contacto_perfil=vendedor_autenticado,
             propietario_contextual=cuentas.digest(str(identificador)) if propio else None))
         response.headers['Cache-Control'] = 'private, no-store'
         return cuentas.cookies(response)

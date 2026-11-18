@@ -339,6 +339,7 @@
       enlaceFicha.setAttribute("aria-label", `Ver ficha completa de ${nombre}`);
       const enlaceContacto = tarjeta.querySelector(".detail-contact-link");
       if (enlaceContacto) {
+        enlaceContacto.hidden = Boolean(idPerfil && !disponible);
         enlaceContacto.href = `/vehiculo/${encodeURIComponent(vehiculo.id)}?${new URLSearchParams({ retorno, contactar: "1" })}`;
         enlaceContacto.addEventListener("click", () => guardarPosicion(vehiculo.id));
         enlaceContacto.setAttribute("aria-label", `Contactar al vendedor de ${nombre}`);
@@ -354,7 +355,9 @@
 
     const total = vehiculos.length;
     const filtrosActivos = parametrosCatalogoActivos.size > 0;
-    porId("resumen-listado").textContent = total === 0
+    porId("resumen-listado").textContent = idPerfil
+      ? `${total} ${total === 1 ? "publicación visible" : "publicaciones visibles"}`
+      : total === 0
       ? (filtrosActivos ? "No hay resultados para esta búsqueda." : "Todavía no hay vehículos publicados.")
       : `${total} ${total === 1 ? "vehículo encontrado" : "vehículos encontrados"}`;
     porId("cargando").hidden = true;
