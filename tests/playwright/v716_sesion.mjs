@@ -27,9 +27,10 @@ try {
     ctx.on("page", page => page.on("pageerror", error => errors.push(error.message)));
     return ctx;
   }
-  const header = page => page.getByRole("navigation", {name: "Navegación principal"});
-  const button = (page, name) => header(page).getByRole("button", {name, exact: true});
-  const link = (page, name) => header(page).getByRole("link", {name, exact: true});
+  const header = page => page.getByRole("banner");
+  const nav = page => header(page).getByRole("navigation", {name: "Navegación principal"});
+  const button = (page, name) => nav(page).getByRole("button", {name, exact: true});
+  const link = (page, name) => nav(page).getByRole("link", {name, exact: true});
   const login = async (page, user) => {
     await page.getByLabel("Correo electrónico", {exact: true}).fill(user + "@example.test");
     await page.getByLabel("Contraseña", {exact: true}).fill("local-fixture-password");

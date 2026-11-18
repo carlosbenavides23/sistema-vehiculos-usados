@@ -1,6 +1,23 @@
 /* Pulido localizado de componentes existentes; no cambia la escala de títulos. */
-.header-identity { display: grid; min-width: 0; gap: 2px; line-height: 1.25; overflow-wrap: anywhere; }
+.header-brand-group { display: flex; align-items: center; min-width: 0; gap: clamp(10px, 1.25vw, 24px); }
+.header-brand-group .brand { flex: 0 0 auto; }
+.header-identity {
+  display: grid;
+  min-width: 0;
+  padding-inline-start: clamp(10px, 1.25vw, 24px);
+  border-inline-start: 1px solid var(--color-border-subtle);
+  gap: 2px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 .header-identity > span { color: var(--color-text-secondary); font-size: 14px; }
+.site-header a, .vehicle-card .vehicle-seller { text-decoration: none; }
+.vehicle-card .vehicle-seller { font-weight: 600; }
+.site-header a:is(:hover, :focus-visible),
+.vehicle-card .vehicle-seller:is(:hover, :focus-visible) {
+  text-decoration: underline;
+  text-underline-offset: .18em;
+}
 body[data-user-auth-enabled="true"] .site-header { height: auto; min-height: 76px; }
 body[data-user-auth-enabled="true"] .header-inner { min-height: inherit; padding-block: 8px; }
 body[data-user-auth-enabled="true"] .header-actions { flex-wrap: wrap; }
@@ -8,7 +25,6 @@ body[data-user-auth-enabled="true"] .header-actions { flex-wrap: wrap; }
   body[data-user-auth-enabled="true"] .header-inner { flex-wrap: wrap; }
   body[data-user-auth-enabled="true"] .header-actions { flex: 0 0 100%; gap: 8px; justify-content: flex-start; }
   body[data-user-auth-enabled="true"] .header-actions .explore-link { display: inline-flex !important; align-items: center; min-height: 44px; }
-  body[data-user-auth-enabled="true"] .header-identity { flex-basis: 100%; }
 }
 .publication-next-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 18px; margin: 16px 0; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface, #fff); }
 .publication-next-actions[hidden] { display: none; }
