@@ -169,7 +169,7 @@ try {
     await sp.locator('#seller-chat-nav').click();
     const sellerItem = sp.locator(`#seller-chat-list [data-conversation-id="${info.conversations.active_a}"]`);
     await sellerItem.waitFor();
-    assert.equal((await sellerItem.innerText()).includes('Comprador: Comprador Ana'), true);
+    assert.equal(await sellerItem.locator('strong').innerText(), 'Comprador Ana');
     await sellerItem.click();
     assert.equal(await sp.locator('#seller-thread-contact').innerText(), 'Comprador: Comprador Ana');
     await lostReply(sp,'seller',width);
