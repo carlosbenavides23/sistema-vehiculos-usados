@@ -5,6 +5,7 @@
   const login = one("header-login");
   const logout = one("header-logout");
   const identity = one("header-identity");
+  const displayName = one("header-display-name");
   const status = one("header-session-status");
   const retry = one("header-session-retry");
   const ownerLinks = document.querySelectorAll("[data-owner-navigation]");
@@ -21,12 +22,14 @@
     status.hidden = !message;
   }
 
-  function render(user) {
+  function render(user, checking = false) {
     const seller = user?.rol === "vendedor";
     identity.hidden = !user;
-    one("header-display-name").textContent = user ? user.nombre_visible || "Sin nombre visible" : "";
+    displayName.textContent = user ? user.nombre_visible || "Sin nombre visible" : "";
+    if (user?.rol === "comprador") displayName.setAttribute("href", "/cuenta");
+    else displayName.removeAttribute("href");
     one("header-role").textContent = user ? (seller ? "Vendedor" : "Comprador") : "";
-    login.hidden = Boolean(user);
+    login.hidden = checking || Boolean(user);
     logout.hidden = !user;
     one("header-panel").hidden = !seller;
     one("header-seller-inbox").hidden = !seller;
@@ -67,7 +70,7 @@
 
   function clear() {
     revision += 1;
-    render(null);
+    render(null, true);
     if (profileList) profileList.setAttribute("data-seller-contact-hidden", "");
     retry.hidden = true;
     feedback();
@@ -78,7 +81,8 @@
     logout.disabled = true;
     try {
       const result = await session.logout();
-      login.focus();
+      await restore();
+      if (!login.hidden) login.focus();
       feedback(result.mensaje || "Sesión cerrada.");
     } catch {
       feedback("No pudimos confirmar el cierre de sesión. Volvé a intentarlo.");

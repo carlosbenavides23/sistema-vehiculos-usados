@@ -3,6 +3,7 @@
   const one = id => document.getElementById(id);
   const form = one("cuenta-form");
   const estado = one("cuenta-estado");
+  const contenido = one("cuenta-contenido");
   const redireccion = one("cuenta-redireccion");
   let registro = false;
   let checking = 0;
@@ -48,7 +49,7 @@
 
   function mostrarRedireccion(activa) {
     one("cuenta-encabezado").hidden = activa;
-    one("cuenta-contenido").hidden = activa;
+    contenido.hidden = activa;
     redireccion.hidden = !activa;
   }
 
@@ -90,6 +91,7 @@
     one("nombre-perfil-lectura").textContent = user?.nombre_visible || "Sin nombre visible registrado";
     if (user) feedback(`Sesión iniciada: ${user.email} · ${user.rol}`, "success");
     else feedback(data.mensaje || "", "success");
+    contenido.hidden = false;
   }
 
   function actualizarModo() {
@@ -135,24 +137,33 @@
       if (revision === checking && !submitting) mostrar({ usuario });
     } catch (error) {
       if (revision !== checking || submitting || error.stale) return;
-      if (error.status === 401) {
-        if (!one("cuenta-perfil").hidden) mostrar({});
-      }
-      else feedback("No pudimos comprobar tu sesión. Recargá la página para reintentar.", "error");
+      if (contenido.hidden || !one("cuenta-perfil").hidden) mostrar({});
+      if (error.status !== 401) feedback("No pudimos comprobar tu sesión. Recargá la página para reintentar.", "error");
     }
   }
 
   function ocultarIdentidad() {
     checking += 1;
-    if (!one("cuenta-perfil").hidden) mostrar({});
+    if (!one("cuenta-perfil").hidden) {
+      mostrar({});
+      contenido.hidden = true;
+    }
   }
 
-  document.addEventListener("cuenta-sesion-cambio", () => { ocultarIdentidad(); restaurar(); });
-  window.addEventListener("pagehide", ocultarIdentidad);
+  document.addEventListener("cuenta-sesion-cambio", () => {
+    ocultarIdentidad();
+    if (!submitting) contenido.hidden = true;
+    restaurar();
+  });
+  window.addEventListener("pagehide", () => {
+    ocultarIdentidad();
+    contenido.hidden = true;
+  });
   window.addEventListener("pageshow", event => {
     if (!event.persisted) return;
     if (!redireccion.hidden) {
       mostrarRedireccion(false);
+      contenido.hidden = true;
       one("enviar-cuenta").disabled = false;
       submitting = false;
       feedback("");
@@ -218,7 +229,7 @@
         feedback("No pudimos completar el acceso. Revisá tus datos e intentá nuevamente.", "error");
         return;
       }
-      const destino = destinoSiguienteSeguro() || (!esRegistro && result.usuario.rol === "vendedor" ? "/vendedor" : "");
+      const destino = destinoSiguienteSeguro() || (esRegistro ? "" : result.usuario.rol === "vendedor" ? "/vendedor" : "/");
       registro = false;
       actualizarModo();
       window.CuentaSesion?.changed();

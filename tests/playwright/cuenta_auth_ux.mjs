@@ -171,12 +171,8 @@ try {
     assert.equal(await page.locator("#registro-confirmacion").isVisible(), false);
     await page.locator("#password").fill("fixture-pass");
     await page.locator("#enviar-cuenta").click();
-    await page.getByText("Sesión iniciada: pending@example.test · comprador", { exact: true }).waitFor();
-    assert.equal(await page.locator("#cuenta-titulo").innerText(), "Mi cuenta");
-    assert.equal(await page.locator("#cuenta-form").isVisible(), false);
-    assert.equal(await page.locator("#registro-confirmacion").isVisible(), false, "El login no debe mostrar confirmación de correo.");
-    assert.equal(await page.locator("#nombre-perfil-lectura").innerText(), "María López");
-    assert.equal(await page.locator("#nombre-perfil-form").count(), 0);
+    await page.waitForURL(`${info.url}/`);
+    assert.equal(await page.locator("#cuenta-form").count(), 0);
     checks.push(`login exitoso y credenciales incorrectas sin perder estado (${width}px)`);
     await context.close();
 

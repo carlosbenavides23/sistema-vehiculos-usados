@@ -13,7 +13,7 @@
 .header-identity > span { color: var(--color-text-secondary); font-size: 14px; }
 .site-header a, .vehicle-card .vehicle-seller { text-decoration: none; }
 .vehicle-card .vehicle-seller { font-weight: 600; }
-.site-header a:is(:hover, :focus-visible),
+.site-header a[href]:is(:hover, :focus-visible),
 .vehicle-card .vehicle-seller:is(:hover, :focus-visible) {
   text-decoration: underline;
   text-underline-offset: .18em;
