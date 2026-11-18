@@ -894,32 +894,74 @@ body.dialog-open {
 
 .photo-navigation {
   position: absolute;
-  bottom: 9px;
-  left: 9px;
-  right: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  inset: 0;
+  pointer-events: none;
 }
 
 .photo-navigation button {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  border: 1px solid #ffffffad;
-  background: #193a42df;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: white;
-  font-size: 30px;
-  line-height: 1;
+  pointer-events: auto;
+}
+
+.photo-navigation .photo-prev { inset-inline-start: 2px; }
+.photo-navigation .photo-next { inset-inline-end: 2px; }
+
+.photo-navigation button .lucide-icon {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: 1px solid #ffffffb3;
+  border-radius: 6px;
+  background: #193a42;
+}
+
+.photo-navigation button:hover .lucide-icon { background: #0f272e; }
+
+.photo-navigation button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: -4px;
+  box-shadow: inset 0 0 0 6px #193a42;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .vehicle-art:not(:hover):not(:focus-within) .photo-navigation button {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* También mantiene acceso táctil en equipos con ratón y pantalla táctil. */
+@media (any-pointer: coarse) {
+  .vehicle-art:not(:hover):not(:focus-within) .photo-navigation button {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .photo-count {
-  font-size: 12px;
+  position: absolute;
+  inset-block-end: 8px;
+  inset-inline-end: 8px;
+  max-width: calc(100% - 16px);
+  font-size: 11px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
   color: white;
-  background: #193a42df;
-  border-radius: 20px;
-  padding: 5px 10px;
+  background: #193a42;
+  border-radius: 5px;
+  padding: 3px 7px;
 }
 
 /* Public search and shareable vehicle details */
