@@ -37,15 +37,13 @@
 
   async function api(url, options = {}) {
     const epoch = identityGeneration;
-    if (url !== "/api/cuenta") {
-      const result = await api("/api/cuenta");
-      if (result.usuario?.rol !== "vendedor" || (accountId && accountId !== result.usuario.id)) {
-        expireSession();
-        throw { stale: true };
-      }
-      accountId = result.usuario.id;
+    const user = await window.CuentaSesion.read();
+    if (user.rol !== "vendedor" || (accountId && accountId !== user.id)) {
+      expireSession();
+      throw { stale: true };
     }
     if (epoch !== identityGeneration) throw { stale: true };
+    accountId = user.id;
     const controller = new AbortController();
     requests.add(controller);
     const headers = { Accept: "application/json" };
@@ -437,8 +435,8 @@
   async function recheckIdentity() {
     if (!accountId) return;
     try {
-      const result = await api("/api/cuenta");
-      if (result.usuario?.id !== accountId || result.usuario?.rol !== "vendedor") expireSession();
+      const user = await window.CuentaSesion.read();
+      if (user.id !== accountId || user.rol !== "vendedor") expireSession();
       else restartPolling();
     } catch (error) { if (!error.stale && error.status === 401) expireSession(); }
   }

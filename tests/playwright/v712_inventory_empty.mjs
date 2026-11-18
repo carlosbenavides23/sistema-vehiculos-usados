@@ -33,8 +33,7 @@ try {
       await page.locator('#email').fill(`${name}@example.test`);
       await page.locator('#password').fill('local-fixture-password');
       await page.locator('#enviar-cuenta').click();
-      await page.locator('#salir-cuenta').waitFor();
-      await page.goto(info.url + '/vendedor');
+      await page.waitForURL('**/vendedor');
       await page.waitForFunction(() => document.querySelector('#admin-inventory-list')?.getAttribute('aria-busy') === 'false');
     }
     await login('seller_empty');
@@ -56,8 +55,7 @@ try {
     await p.locator('#email').fill('seller_a@example.test');
     await p.locator('#password').fill('local-fixture-password');
     await p.locator('#enviar-cuenta').click();
-    await p.locator('#salir-cuenta').waitFor();
-    await p.goto(info.url + '/vendedor');
+    await p.waitForURL('**/vendedor');
     await p.locator('#admin-inventory-list tr').first().waitFor({ state: 'attached' });
     await p.locator('#admin-inventory-filters input[name=q]').fill('NoExisteNingunModelo987');
     const response = p.waitForResponse(r => r.url().includes('/api/vendedor/vehiculos?') && r.status() === 200);

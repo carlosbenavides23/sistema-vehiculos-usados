@@ -4,6 +4,9 @@
   const form = one("cuenta-form");
   const estado = one("cuenta-estado");
   let registro = false;
+  let checking = 0;
+  let submitting = false;
+  const session = window.CuentaSesion;
 
   async function api(path, body, method = body ? "POST" : "GET") {
     let response;
@@ -79,7 +82,7 @@
     one("cuenta-perfil").hidden = !user;
     one("nombre-perfil-lectura").textContent = user?.nombre_visible || "Sin nombre visible registrado";
     if (user) feedback(`Sesión iniciada: ${user.email} · ${user.rol}`, "success");
-    else if (data.mensaje) feedback(data.mensaje, "success");
+    else feedback(data.mensaje || "", "success");
   }
 
   function actualizarModo() {
@@ -117,11 +120,30 @@
     one("volver-login").focus();
   }
 
-  api("/api/cuenta").then(data => {
-    if (data.usuario) mostrar(data);
-  }).catch(error => {
-    if (error.status !== 401) feedback(error.message || "No pudimos comprobar tu sesión.", "error");
-  });
+  async function restaurar() {
+    if (submitting) return;
+    const revision = ++checking;
+    try {
+      const usuario = await session.read();
+      if (revision === checking && !submitting) mostrar({ usuario });
+    } catch (error) {
+      if (revision !== checking || submitting || error.stale) return;
+      if (error.status === 401) {
+        if (!one("cuenta-perfil").hidden) mostrar({});
+      }
+      else feedback("No pudimos comprobar tu sesión. Recargá la página para reintentar.", "error");
+    }
+  }
+
+  function ocultarIdentidad() {
+    checking += 1;
+    if (!one("cuenta-perfil").hidden) mostrar({});
+  }
+
+  document.addEventListener("cuenta-sesion-cambio", () => { ocultarIdentidad(); restaurar(); });
+  window.addEventListener("pagehide", ocultarIdentidad);
+  window.addEventListener("pageshow", event => { if (event.persisted) restaurar(); });
+  restaurar();
 
   one("mostrar-password").addEventListener("click", () => {
     const campo = one("password");
@@ -149,6 +171,9 @@
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
+    if (submitting) return;
+    submitting = true;
+    checking += 1;
     const button = one("enviar-cuenta");
     const esRegistro = registro;
     button.disabled = true;
@@ -183,26 +208,30 @@
       mostrar(result);
       one("password").value = "";
       mostrarContrasena(false);
-      const destino = destinoSiguienteSeguro();
+      const destino = destinoSiguienteSeguro() || (!esRegistro && result.usuario.rol === "vendedor" ? "/vendedor" : "");
       if (destino) location.assign(destino);
     } catch (error) {
       feedback(error.message || "Revisá la conexión e intentá nuevamente.", "error");
     } finally {
       button.disabled = false;
+      submitting = false;
     }
   });
 
   one("salir-cuenta").addEventListener("click", async () => {
     const button = one("salir-cuenta");
+    if (submitting) return;
+    submitting = true;
+    checking += 1;
     button.disabled = true;
     try {
-      const result = await api("/api/cuenta/logout", {});
-      window.CuentaSesion?.changed();
+      const result = await session.logout();
       mostrar(result);
     } catch (error) {
-      feedback(error.message || "Revisá la conexión e intentá nuevamente.", "error");
+      feedback("No pudimos confirmar el cierre de sesión. Volvé a intentarlo.", "error");
     } finally {
       button.disabled = false;
+      submitting = false;
     }
   });
 })();

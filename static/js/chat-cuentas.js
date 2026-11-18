@@ -43,11 +43,9 @@
 
   async function api(url, options = {}) {
     const epoch = identityGeneration;
-    if (url !== "/api/cuenta") {
-      const expected = accountId;
-      await verifyAccount();
-      if (expected !== accountId) { sessionExpired(); throw { stale: true }; }
-    }
+    const expected = accountId;
+    await verifyAccount();
+    if (expected !== accountId) { sessionExpired(); throw { stale: true }; }
     if (epoch !== identityGeneration) throw { stale: true };
     const controller = new AbortController();
     requests.add(controller);
@@ -93,6 +91,7 @@
     const link = document.createElement("a");
     const destino = new URL(location.href);
     if (/^\/vehiculo\/[1-9]\d*$/.test(destino.pathname)) destino.searchParams.set("contactar", "1");
+    else if (destino.pathname === "/" && openedBy === trigger) destino.searchParams.set("mensajes", "1");
     link.href = `/cuenta?next=${encodeURIComponent(`${destino.pathname}${destino.search}`)}`;
     link.textContent = "Iniciar sesión";
     link.className = "chat-account-link";
@@ -145,19 +144,16 @@
   }
 
   async function verifyAccount() {
-    const result = await api("/api/cuenta");
-    if (!result.usuario?.id || !["comprador", "vendedor"].includes(result.usuario.rol)) {
-      throw Object.assign(new Error("Inicia sesión para consultar tus conversaciones."), { status: 401 });
-    }
-    if (accountId && accountId !== String(result.usuario.id)) clearPrivateState();
-    accountId = String(result.usuario.id);
-    accountRole = result.usuario.rol;
-    return result.usuario;
+    const user = await window.CuentaSesion.read();
+    if (accountId && (accountId !== String(user.id) || accountRole !== user.rol)) clearPrivateState();
+    accountId = String(user.id);
+    accountRole = user.rol;
+    return user;
   }
 
-  async function requireBuyer() {
+  async function requireBuyer(verifiedUser) {
     try {
-      const user = await verifyAccount();
+      const user = verifiedUser || await verifyAccount();
       if (user.rol !== "comprador") {
         clearPrivateState();
         switchView("list");
@@ -167,10 +163,15 @@
       return true;
     } catch (error) {
       if (error.stale) return false;
-      clearPrivateState();
       switchView("list");
-      if (error.status === 401) setLoginPrompt("Inicia sesión para consultar y enviar mensajes privados.");
-      else setStatus(listStatus, error.message, "error");
+      if (error.status === 401) {
+        clearPrivateState();
+        setLoginPrompt("Inicia sesión para consultar y enviar mensajes privados.");
+      }
+      else {
+        list.replaceChildren();
+        setStatus(listStatus, error.message, "error");
+      }
       return false;
     }
   }
@@ -375,14 +376,24 @@
   }
 
   async function openInbox() {
+    let user;
     try {
-      const user = await verifyAccount();
+      user = await verifyAccount();
       if (user.rol === "vendedor") { location.assign("/vendedor#conversaciones"); return; }
-    } catch (error) { if (error.stale) return; }
+    } catch (error) {
+      if (error.stale) return;
+      openDialog(trigger, "list");
+      if (error.status === 401) sessionExpired();
+      else {
+        list.replaceChildren();
+        setStatus(listStatus, error.message, "error");
+      }
+      return;
+    }
     openDialog(trigger, "list");
     saveDraft();
     switchView("list");
-    if (!await requireBuyer() || !dialog.open) return;
+    if (!await requireBuyer(user) || !dialog.open) return;
     await loadConversations();
   }
 
@@ -519,7 +530,12 @@
     } catch (error) { if (!error.stale && error.status === 401) sessionExpired(); }
   }
   window.addEventListener("focus", recheckIdentity);
-  document.addEventListener("cuenta-sesion-cambio", sessionExpired);
+  document.addEventListener("cuenta-sesion-cambio", () => {
+    sessionExpired();
+    if (dialog.open) closeDialog();
+  });
+  window.addEventListener("pagehide", () => { if (dialog.open) closeDialog(); });
+  window.addEventListener("pageshow", event => { if (event.persisted) recheckIdentity(); });
 
   const ficha = one("ficha-contenido");
   if (ficha && body.dataset.vehiculoId) {

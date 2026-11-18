@@ -16,7 +16,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/filtros-v712.css') }}">
   <script defer src="{{ url_for('static', filename='js/iconos.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/interfaz.js') }}"></script>
-  {% if config.USER_AUTH_ENABLED %}<script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script><script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>{% endif %}
+  {% if config.USER_AUTH_ENABLED %}
+  <script defer src="{{ url_for('static', filename='js/cuenta-sesion.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/navegacion-cuenta.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/chat-cuentas.js') }}"></script>
+  {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/legibilidad-v715.css') }}">
 </head>
 <body data-perfil-vendedor="{{ perfil_vendedor.id if perfil_vendedor else '' }}" data-vehiculo-id="{{ vehiculo_id or '' }}" data-chat-enabled="{{ 'true' if chat_habilitado else 'false' }}" data-user-auth-enabled="{{ 'true' if config.USER_AUTH_ENABLED else 'false' }}" data-icon-sprite="{{ url_for('static', filename='img/icons/lucide-sprite.svg') }}">
@@ -27,17 +31,26 @@
         <span class="brand-symbol" aria-hidden="true">v<span>.</span></span>
         <span>Vehículos usados</span>
       </a>
-      <div class="header-actions">
+      <nav class="header-actions" aria-label="Navegación principal">
         <a class="explore-link" href="/">Explorar vehículos</a>
-        {% if config.USER_AUTH_ENABLED %}<a class="button button-secondary" href="/cuenta">Mi cuenta</a><button id="abrir-chat-cuentas" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo">{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis conversaciones</span></button>{% endif %}
-      </div>
+        {% if config.USER_AUTH_ENABLED %}
+        <a id="header-login" class="button button-secondary" href="/cuenta">Iniciar sesión</a>
+        <span id="header-identity" class="header-identity" hidden><strong id="header-display-name"></strong><span id="header-role"></span></span>
+        <a id="header-panel" class="button button-secondary" href="/vendedor" hidden>Mi panel</a>
+        <a id="header-seller-inbox" class="button button-secondary" href="/vendedor#conversaciones" hidden>Mis conversaciones</a>
+        <button id="abrir-chat-cuentas" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" hidden>{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis conversaciones</span></button>
+        <button id="header-logout" class="button button-secondary" type="button" hidden>Cerrar sesión</button>
+        <button id="header-session-retry" class="button button-secondary" type="button" hidden>Reintentar sesión</button>
+        {% endif %}
+      </nav>
     </div>
   </header>
 
   <main class="shell">
+    {% if config.USER_AUTH_ENABLED %}<p id="header-session-status" class="message" role="status" hidden></p>{% endif %}
     <div id="mensaje" class="message" role="status" aria-live="polite" hidden></div>
     <section id="inventario" class="inventory-section" aria-labelledby="titulo-inventario" aria-busy="true">
-      {% if perfil_vendedor %}<nav class="detail-return-links" aria-label="Navegación del perfil"><a class="back-link" href="/">Volver al catálogo</a>{% if perfil_propio %}<a id="volver-publicaciones" class="back-link" href="/vendedor">Mis publicaciones</a>{% endif %}</nav>{% endif %}
+      {% if perfil_vendedor %}<nav class="detail-return-links" aria-label="Navegación del perfil"><a class="back-link" href="/">Volver al catálogo</a>{% if perfil_propio %}<a id="volver-publicaciones" class="back-link" data-owner-navigation href="/vendedor" hidden>Mis publicaciones</a>{% endif %}</nav>{% endif %}
       <form {% if perfil_vendedor %}hidden{% endif %} id="filtros-catalogo" class="catalog-filters" role="search" aria-label="Buscar y filtrar vehículos">
         <div class="filter-search field"><label for="filtro-q">Buscar vehículos</label><div class="search-control">{{ lucide_icon('search', 20) }}<input id="filtro-q" name="q" type="search" maxlength="120" placeholder="Marca, modelo o ubicación"></div></div>
         <div class="field"><label for="filtro-disponibilidad">Disponibilidad</label><select id="filtro-disponibilidad" name="disponibilidad"><option value="">Todas</option><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select></div>
@@ -69,7 +82,7 @@
 
     <section id="ficha-vehiculo" class="vehicle-detail" aria-labelledby="ficha-titulo" aria-busy="true" hidden>
       <nav class="detail-return-links" aria-label="Volver">
-      {% if volver_publicaciones %}<a class="back-link" href="/vendedor">{{ lucide_icon('arrow-left', 20) }}<span>Volver a mis publicaciones</span></a>{% endif %}
+      {% if volver_publicaciones %}<a class="back-link" data-owner-navigation href="/vendedor" hidden>{{ lucide_icon('arrow-left', 20) }}<span>Volver a mis publicaciones</span></a>{% endif %}
       <a id="volver-catalogo" class="back-link" href="/">{{ lucide_icon('arrow-left', 20) }}<span>Volver al catálogo</span></a>
       </nav>
       <div id="ficha-cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando información del vehículo…</div>
