@@ -27,15 +27,19 @@
   <a class="skip-link" href="#inventario">Saltar al inventario</a>
   <header class="site-header">
     <div class="shell header-inner">
-      <a class="brand" href="/" aria-label="Vehículos usados, inicio">
-        <span class="brand-symbol" aria-hidden="true">v<span>.</span></span>
-        <span>Vehículos usados</span>
-      </a>
+      <div class="header-brand-group">
+        <a class="brand" href="/" aria-label="Vehículos usados, inicio">
+          <span class="brand-symbol" aria-hidden="true">v<span>.</span></span>
+          <span>Vehículos usados</span>
+        </a>
+        {% if config.USER_AUTH_ENABLED %}
+        <span id="header-identity" class="header-identity" hidden><strong id="header-display-name"></strong><span id="header-role"></span></span>
+        {% endif %}
+      </div>
       <nav class="header-actions" aria-label="Navegación principal">
         <a class="explore-link" href="/">Explorar vehículos</a>
         {% if config.USER_AUTH_ENABLED %}
         <a id="header-login" class="button button-secondary" href="/cuenta">Iniciar sesión</a>
-        <span id="header-identity" class="header-identity" hidden><strong id="header-display-name"></strong><span id="header-role"></span></span>
         <a id="header-panel" class="button button-secondary" href="/vendedor" hidden>Mi panel</a>
         <a id="header-seller-inbox" class="button button-secondary" href="/vendedor#conversaciones" hidden>Mis conversaciones</a>
         <button id="abrir-chat-cuentas" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="chat-comprador-dialogo" hidden>{{ lucide_icon('message-circle', 20) }}<span class="header-button-label">Mis conversaciones</span></button>
