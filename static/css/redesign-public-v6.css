@@ -531,8 +531,7 @@
   aspect-ratio: 866 / 444;
   border-radius: 11px;
   background: #dce7e4;
-  /* Encuadra la foto completa sin ampliar archivos pequeños. */
-  object-fit: scale-down;
+  object-fit: contain;
   object-position: center;
 }
 
