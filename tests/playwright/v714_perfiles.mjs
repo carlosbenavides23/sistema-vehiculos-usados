@@ -28,12 +28,20 @@ try {
  for (const selector of ['.vehicle-image','.vehicle-price','.vehicle-location-text','.vehicle-year','.vehicle-mileage']) {
    assert.equal(await toyota.locator(selector).isVisible(),true);
  }
+ await toyota.locator('.vehicle-art').hover();
  await toyota.getByRole('button',{name:'Fotografía siguiente'}).click();
  await toyota.getByText('2 / 5',{exact:true}).waitFor();
  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),1920);
  await p.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
  await p.screenshot({path:out+'/perfil-publico.png'});
- await p.getByRole('link',{name:'Ver ficha completa de Toyota Corolla',exact:true}).click();await p.getByRole('link',{name:'Vendedora Carla',exact:true}).waitFor();await p.getByRole('link',{name:'Volver al perfil del vendedor',exact:true}).click();assert.equal(p.url(),profile);
+ await p.getByRole('link',{name:'Ver ficha completa de Toyota Corolla',exact:true}).click();
+ await p.getByRole('link',{name:'Vendedora Carla',exact:true}).waitFor();
+ const rail = p.getByRole('group',{name:'Seleccionar fotografía'});
+ await p.getByRole('button',{name:'Fotografía anterior',exact:true}).click();
+ assert.equal(await rail.getByRole('button',{name:'Ver fotografía 5 de 5'}).getAttribute('aria-pressed'),'true');
+ assert.ok(await rail.evaluate(node=>node.scrollTop>0));
+ assert.equal(await p.locator('#ficha-contador').innerText(),'5 / 5');
+ await p.getByRole('link',{name:'Volver al perfil del vendedor',exact:true}).click();assert.equal(p.url(),profile);
  await p.getByRole('link',{name:'Ver ficha completa de Nissan Sentra 2',exact:true}).click();await p.getByRole('link',{name:'Vendedora Carla',exact:true}).waitFor();await p.getByRole('button',{name:'Contactar al vendedor',exact:true}).click();await p.getByRole('link',{name:'Iniciar sesión',exact:true}).waitFor();
  const returnLogin = new URL(await p.getByRole('dialog').getByRole('link',{name:'Iniciar sesión',exact:true}).getAttribute('href'), info.url);
  assert.match(returnLogin.searchParams.get('next'), /[?&]contactar=1/);
