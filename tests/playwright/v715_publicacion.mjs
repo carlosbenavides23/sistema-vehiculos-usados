@@ -95,7 +95,7 @@ try {
   await s.locator('#vehicle-next-actions').scrollIntoViewIfNeeded();
   await capture(s, 'fotografia-guardada-1920');
   await s.getByRole('link', {name: 'Ver ficha pública', exact: true}).click();
-  await s.getByRole('heading', {name: 'Suzuki Swift UX ficticio', exact: true}).waitFor();
+  await s.getByRole('heading', {name: /^Suzuki Swift UX ficticio \d{4}$/, level: 1}).waitFor();
   await s.waitForFunction(() => document.querySelector('#ficha-imagen').naturalWidth > 0 && document.querySelector('#ficha-imagen').src.includes('/fixture-images/'));
   assert.equal(await s.locator('#ficha-precio').evaluate(e => getComputedStyle(e).fontSize), '34px');
   await capture(s, 'ficha-publicada-1920');

@@ -47,14 +47,12 @@ body[data-user-auth-enabled="true"] .header-actions { flex-wrap: wrap; }
   body[data-user-auth-enabled] .detail-contact-link,
   body[data-user-auth-enabled] .detail-purchase-specs dd,
   body[data-user-auth-enabled] .feature-value,
-  body[data-user-auth-enabled] .detail-description p { font-size: var(--reading-primary); }
+  body[data-user-auth-enabled] .detail-information p { font-size: var(--reading-primary); }
   body[data-user-auth-enabled] #resumen-listado,
   body[data-user-auth-enabled] .vehicle-badge,
   body[data-user-auth-enabled] .vehicle-price-label,
   body[data-user-auth-enabled] .detail-price-label,
-  body[data-user-auth-enabled] .detail-year,
   body[data-user-auth-enabled] .detail-seller,
-  body[data-user-auth-enabled] .detail-contact-note p,
   body[data-user-auth-enabled] .detail-purchase-specs dt,
   body[data-user-auth-enabled] .feature-label,
   body[data-user-auth-enabled] .chat-privacy-note { font-size: var(--reading-secondary); }

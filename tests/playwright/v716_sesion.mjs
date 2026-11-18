@@ -47,7 +47,7 @@ try {
   assert.equal(await button(buyer, "Mis conversaciones").count(), 0);
   assert.equal(await link(buyer, "Mi panel").count(), 0);
   await buyer.getByRole("link", {name: "Ver ficha completa de Toyota Corolla"}).last().click();
-  await buyer.getByRole("heading", {name: "Toyota Corolla", exact: true}).waitFor();
+  await buyer.getByRole("heading", {name: /^Toyota Corolla \d{4}$/, level: 1}).waitFor();
   await second.goto(url);
   await buyer.getByRole("button", {name: "Contactar al vendedor"}).click();
   const chat = buyer.getByRole("dialog");
@@ -88,6 +88,10 @@ try {
   await login(seller, "seller_a");
   await seller.waitForURL("**/vendedor");
   await seller.getByRole("heading", {name: "Gestioná tus vehículos"}).waitFor();
+  await seller.goto(ficha + "?desde=inventario&contactar=1");
+  await seller.getByRole("link", {name: "Volver a mis publicaciones", exact: true}).waitFor();
+  assert.equal(await seller.getByRole("button", {name: "Contactar al vendedor", exact: true}).count(), 0);
+  assert.equal(await seller.getByRole("dialog").isVisible(), false);
   await seller.goto(url);
   await header(seller).getByText("Vendedora Carla", {exact: true}).waitFor();
   await header(seller).getByText("Vendedor", {exact: true}).waitFor();
