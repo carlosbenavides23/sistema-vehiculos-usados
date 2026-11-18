@@ -1456,3 +1456,65 @@
 .vehicle-seller { flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--color-brand-action); }
 .detail-seller { margin: 0 0 16px; font-size: 15px; }
 .catalog-filters[hidden] { display: none; }
+
+/* Perfil público: la variante se aplica solo al listado del vendedor. */
+.seller-profile-breadcrumb { padding-block: 18px 12px; }
+.seller-profile-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.seller-profile-breadcrumb li + li::before { content: "/"; margin-inline-end: 12px; }
+.seller-profile-breadcrumb .back-link { display: inline; margin: 0; }
+.seller-profile-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-block-end: 20px;
+  padding: clamp(16px, 2vw, 24px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.seller-profile-identity { min-width: 0; }
+.seller-profile-identity > p {
+  margin: 0 0 5px;
+  color: var(--color-brand-action);
+  font-size: 14px;
+  font-weight: 650;
+}
+.seller-profile-identity h1 {
+  margin: 0;
+  font-size: clamp(24px, 2.25vw, 32px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.seller-profile-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.seller-profile-actions #resumen-listado { margin: 0; color: var(--color-text-secondary); font-weight: 600; }
+.seller-profile-actions a { text-decoration: none; }
+.seller-profile-actions a:hover { text-decoration: underline; }
+.seller-profile-list { gap: 12px; }
+.seller-profile-list[data-seller-contact-hidden] .detail-contact-link { display: none; }
+
+@media (min-width: 960px) {
+  .seller-profile-list .vehicle-card {
+    grid-template-columns: minmax(210px, 23%) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .seller-profile-list .vehicle-art { aspect-ratio: 16 / 9; }
+  .seller-profile-list .vehicle-body { gap: 6px 18px; padding-block: 2px; }
+  .seller-profile-list .vehicle-specs { gap: 6px 16px; }
+  .seller-profile-list .vehicle-price-block { min-height: 0; }
+  .seller-profile-list .vehicle-price { margin: 2px 0 6px; }
+  .seller-profile-list .detail-link { margin-top: 8px; }
+  .seller-profile-list .detail-contact-link { margin-top: 6px; }
+}

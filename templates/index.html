@@ -54,7 +54,14 @@
     {% if config.USER_AUTH_ENABLED %}<p id="header-session-status" class="message" role="status" hidden></p>{% endif %}
     <div id="mensaje" class="message" role="status" aria-live="polite" hidden></div>
     <section id="inventario" class="inventory-section" aria-labelledby="titulo-inventario" aria-busy="true">
-      {% if perfil_vendedor %}<nav class="detail-return-links" aria-label="Navegación del perfil"><a class="back-link" href="/">Volver al catálogo</a>{% if propietario_contextual %}<a id="volver-publicaciones" class="back-link" data-owner-navigation="{{ propietario_contextual }}" href="/vendedor" hidden>Mis publicaciones</a>{% endif %}</nav>{% endif %}
+      {% if perfil_vendedor %}
+      <nav class="seller-profile-breadcrumb" aria-label="Ruta de navegación">
+        <ol>
+          <li><a class="back-link" href="/" aria-label="Volver al catálogo">Catálogo</a></li>
+          <li aria-current="page">{{ perfil_vendedor.nombre }}</li>
+        </ol>
+      </nav>
+      {% endif %}
       <form {% if perfil_vendedor %}hidden{% endif %} id="filtros-catalogo" class="catalog-filters" role="search" aria-label="Buscar y filtrar vehículos">
         <div class="filter-search field"><label for="filtro-q">Buscar vehículos</label><div class="search-control">{{ lucide_icon('search', 20) }}<input id="filtro-q" name="q" type="search" maxlength="120" placeholder="Marca, modelo o ubicación"></div></div>
         <div class="field"><label for="filtro-disponibilidad">Disponibilidad</label><select id="filtro-disponibilidad" name="disponibilidad"><option value="">Todas</option><option value="disponible">Disponible</option><option value="vendido">Vendido</option></select></div>
@@ -76,12 +83,25 @@
         <div id="filtros-error" class="filter-errors" role="alert" hidden></div>
         <div id="filtros-seleccionados" class="filter-selected" aria-label="Filtros aplicados" hidden></div>
       </form>
-      <div class="section-heading"><div><p class="catalog-breadcrumb">Inicio / Vehículos usados</p>{% if perfil_vendedor %}<p>Vendedor</p>{% endif %}<h1 id="titulo-inventario">{{ perfil_vendedor.nombre if perfil_vendedor else 'Vehículos publicados' }}</h1><p id="resumen-listado" aria-live="polite">Preparando el catálogo…</p></div></div>
+      {% if perfil_vendedor %}
+      <header class="seller-profile-header">
+        <div class="seller-profile-identity">
+          <p>Vendedor</p>
+          <h1 id="titulo-inventario">{{ perfil_vendedor.nombre }}</h1>
+        </div>
+        <div class="seller-profile-actions">
+          <p id="resumen-listado" aria-live="polite">Cargando publicaciones…</p>
+          {% if propietario_contextual %}<a id="volver-publicaciones" class="button button-secondary" data-owner-navigation="{{ propietario_contextual }}" href="/vendedor" hidden>Mis publicaciones</a>{% endif %}
+        </div>
+      </header>
+      {% else %}
+      <div class="section-heading"><div><p class="catalog-breadcrumb">Inicio / Vehículos usados</p><h1 id="titulo-inventario">Vehículos publicados</h1><p id="resumen-listado" aria-live="polite">Preparando el catálogo…</p></div></div>
+      {% endif %}
       <div id="cargando" class="loading-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span> Cargando vehículos…</div>
       <div id="estado-vacio" class="empty-state" hidden><img src="{{ url_for('static', filename='img/vehiculo.svg') }}" alt="" width="180" height="90"><h3>{{ 'Sin publicaciones visibles' if perfil_vendedor else 'Tu próximo vehículo empieza aquí' }}</h3><p>{{ 'Este vendedor todavía no tiene vehículos publicados que puedan consultarse.' if perfil_vendedor else 'Todavía no hay vehículos registrados.' }}</p></div>
       <div id="estado-sin-resultados" class="empty-state" role="status" aria-live="polite" hidden>{{ lucide_icon('search', 24, 'empty-icon') }}<h3>No encontramos vehículos con esos filtros</h3><p>Prueba otros términos o amplía los rangos de precio y año.</p><button id="limpiar-desde-vacio" class="button button-secondary" type="button">Limpiar búsqueda</button></div>
       <div id="estado-bloqueado" class="empty-state blocked-state" role="alert" hidden>{{ lucide_icon('circle-alert', 24, 'empty-icon empty-icon-error') }}<h3 id="titulo-bloqueado">No pudimos abrir el inventario</h3><p id="detalle-bloqueado"></p><button id="reintentar" class="button button-secondary" type="button">Volver a intentar</button></div>
-      <div id="lista-vehiculos" class="vehicle-grid"></div>
+      <div id="lista-vehiculos" class="vehicle-grid{% if perfil_vendedor %} seller-profile-list{% endif %}"{% if ocultar_contacto_perfil %} data-seller-contact-hidden{% endif %}></div>
     </section>
 
     <section id="ficha-vehiculo" class="vehicle-detail" aria-labelledby="ficha-titulo" aria-busy="true" hidden>
