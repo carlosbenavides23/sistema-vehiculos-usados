@@ -60,6 +60,7 @@
 
   let csrfToken = csrf();
   let authenticated = false;
+  let signingOut = false;
   let readOnly = readonly;
   let vehicles = [];
   let editingId = null;
@@ -185,6 +186,16 @@
     setLoginError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
   });
 
+  if (sellerPanel) {
+    document.addEventListener("cuenta-sesion-cambio", () => {
+      setAuthenticated(false);
+      workspace.hidden = true;
+      if (!signingOut) location.replace("/cuenta");
+    });
+    window.addEventListener("pagehide", () => { workspace.hidden = true; });
+    window.addEventListener("pageshow", (event) => { if (event.persisted) location.reload(); });
+  }
+
   function currentView() {
     return one(".admin-view:not([hidden])")?.dataset.adminPanel || "inventory";
   }
@@ -207,11 +218,16 @@
   }
 
   async function logoutAdmin() {
-    if (!authenticated) return;
+    if (!authenticated || signingOut) return;
     if (!confirmVehicleDeparture()) return;
+    signingOut = true;
     try {
+      if (sellerPanel) {
+        await window.CuentaSesion.logout();
+        location.assign('/cuenta');
+        return;
+      }
       const result = await request("/logout", { method: "POST", body: {} });
-      if (sellerPanel) { window.CuentaSesion?.changed(); location.assign('/cuenta'); return; }
       if (result.csrf_token) {
         csrfToken = result.csrf_token;
         csrfMeta.content = csrfToken;
@@ -219,6 +235,8 @@
     } catch (error) {
       setStatus(error.message, "error");
       if (error.status !== 401) return;
+    } finally {
+      signingOut = false;
     }
     setAuthenticated(false);
     clearPhotoDraft();

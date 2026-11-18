@@ -38,7 +38,8 @@ try {
     await page.locator('#enviar-cuenta').click();
     const response = await loginResponse;
     if (!response.ok()) throw Error(`Login de fixture rechazado (${response.status()}): ${await response.text()}`);
-    await page.waitForFunction(()=>document.querySelector('#cuenta-form').hidden);
+    if (name.startsWith('seller_')) await page.waitForURL('**/vendedor');
+    else await page.waitForFunction(()=>document.querySelector('#cuenta-form')?.hidden);
   }
   async function openBuyer(page) {
     await page.goto(info.url);
@@ -143,7 +144,7 @@ try {
     await page.unrouteAll({behavior:'wait'});
     assert.equal(await page.locator('#chat-comprador-mensajes article').count(),0);
     assert.equal(await page.locator('#chat-comprador-texto').inputValue(),'');
-    await page.locator('#cerrar-chat-comprador').click();
+    await page.locator('#chat-comprador-dialogo').waitFor({state:'hidden'});
     await page.locator('#abrir-chat-cuentas').click();
     assert.equal(await page.getByText('Mensaje inicial del comprador A',{exact:true}).count(),0);
     // Conversación nueva con el vehículo de la otra cuenta: dos envíos seguidos.
@@ -175,8 +176,8 @@ try {
     await sp.screenshot({path:path.join(evidence,`vendedor-${width}.png`)});
     const ap=await seller.newPage(); await ap.goto(info.url+'/cuenta');
     await ap.locator('#salir-cuenta').click();
-    await sp.waitForFunction(()=>document.querySelector('#seller-thread-messages').childElementCount===0);
-    assert.equal(await sp.locator('#seller-reply-text').inputValue(),'');
+    await sp.waitForURL('**/cuenta');
+    assert.equal(await sp.locator('#seller-thread-messages, #seller-reply-text').count(),0);
     checks.push(`A05 vendedor ${width}: logout en otra pestaña elimina DOM y borrador`);
     await seller.close();
   }

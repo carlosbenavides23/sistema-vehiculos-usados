@@ -8,6 +8,9 @@
     limpiarArchivo();
     location.replace("/cuenta");
   });
+  window.addEventListener("pagehide", () => {
+    document.getElementById("archivo").hidden = true;
+  });
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) {
       limpiarArchivo();

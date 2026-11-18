@@ -1,4 +1,5 @@
 import os
+import hashlib
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
@@ -22,6 +23,8 @@ class RetornoContextualTest(unittest.TestCase):
                 self.assertEqual('Volver a mis publicaciones' in result.text, expected)
                 self.assertIn('no-store', result.headers['Cache-Control'])
                 self.assertNotIn(uid, result.text)
+                marker = hashlib.sha256(uid.encode()).hexdigest()
+                self.assertEqual(f'data-owner-navigation="{marker}"' in result.text, expected)
 
     def test_auth_vencido_no_impide_consulta_publica(self):
         app = create_app(dict(TESTING=True, SECRET_KEY='fixture', USER_AUTH_ENABLED=True,

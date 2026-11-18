@@ -38,7 +38,8 @@ try {
     await page.getByLabel('Correo electrónico', {exact: true}).fill(name + '@example.test');
     await page.getByLabel('Contraseña', {exact: true}).fill('local-fixture-password');
     await page.getByRole('button', {name: 'Iniciar sesión', exact: true}).click();
-    await page.getByRole('button', {name: 'Cerrar sesión', exact: true}).waitFor();
+    if (name.startsWith('seller_')) await page.waitForURL('**/vendedor');
+    else await page.getByRole('button', {name: 'Cerrar sesión', exact: true}).waitFor();
     return page;
   }
   async function capture(page, name) {
@@ -46,7 +47,6 @@ try {
     await page.screenshot({path: `${out}/${name}.png`});
   }
   const s = await account('seller_empty');
-  await s.getByRole('link', {name: 'Mis publicaciones', exact: true}).click();
   await s.getByRole('button', {name: 'Registrar mi primer vehículo', exact: true}).click();
   await s.getByRole('heading', {name: 'Registrar vehículo', exact: true}).waitFor();
   assert.equal(await s.locator('#vehicle-photo-upload').isVisible(), false);
