@@ -254,21 +254,22 @@ def create_app(configuracion=None):
     @aplicacion.get("/vehiculo/<int:identificador>")
     def pagina_vehiculo(identificador):
         # La existencia y privacidad del vehículo se resuelven desde el endpoint API.
-        volver_publicaciones = False
+        propietario_contextual = None
         contextual = request.args.get('desde') == 'inventario'
         if contextual and politica_v7.habilitada(current_app.config):
             try:
                 usuario = cuentas.identidad()
                 if usuario and usuario['rol'] == 'vendedor':
                     vehiculo = repositorio('obtener_vehiculo', identificador)
-                    volver_publicaciones = bool(vehiculo and str(vehiculo.get('vendedor_id')) == usuario['id'])
+                    if vehiculo and str(vehiculo.get('vendedor_id')) == usuario['id']:
+                        propietario_contextual = cuentas.digest(usuario['id'])
             except (auth_proveedor.ErrorAuth, psycopg.Error):
                 pass  # El catálogo público sigue disponible sin privilegios.
         respuesta = current_app.make_response(render_template(
             "index.html", csrf_token=token_csrf(), vehiculo_id=identificador,
             chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
             mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
-            volver_publicaciones=volver_publicaciones,
+            propietario_contextual=propietario_contextual,
         ))
         if contextual:
             respuesta.headers['Cache-Control'] = 'private, no-store'
@@ -294,7 +295,8 @@ def create_app(configuracion=None):
         response = current_app.make_response(render_template('index.html', csrf_token=token_csrf(),
             vehiculo_id=None, chat_habilitado=False, tipos_vehiculo=TIPOS_VEHICULO,
             mapa_alias_tipos_vehiculo=MAPA_ALIAS_TIPOS_VEHICULO,
-            perfil_vendedor=dict(id=str(identificador), **perfil), perfil_propio=propio))
+            perfil_vendedor=dict(id=str(identificador), **perfil),
+            propietario_contextual=cuentas.digest(str(identificador)) if propio else None))
         response.headers['Cache-Control'] = 'private, no-store'
         return cuentas.cookies(response)
 

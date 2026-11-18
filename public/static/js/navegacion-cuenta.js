@@ -10,7 +10,6 @@
   const ownerLinks = document.querySelectorAll("[data-owner-navigation]");
   const session = window.CuentaSesion;
   let revision = 0;
-  let owner;
 
   if (document.body.dataset.vehiculoId) {
     login.href = `/cuenta?next=${encodeURIComponent(location.pathname + location.search)}`;
@@ -31,7 +30,7 @@
     one("header-panel").hidden = !seller;
     one("header-seller-inbox").hidden = !seller;
     one("abrir-chat-cuentas").hidden = user?.rol !== "comprador";
-    ownerLinks.forEach(link => { link.hidden = !seller || owner !== user.id; });
+    ownerLinks.forEach(link => { link.hidden = true; });
   }
 
   async function restore() {
@@ -39,13 +38,19 @@
     try {
       const user = await session.read();
       if (epoch !== revision) return;
-      if (owner === undefined) owner = user.rol === "vendedor" ? user.id : null;
       render(user);
       if (!retry.hidden) feedback();
       retry.hidden = true;
+      // El contexto lo fija Flask al renderizar la página, antes de consultar la sesión.
+      if (user.rol === "vendedor" && ownerLinks.length && globalThis.crypto?.subtle) {
+        const bytes = new TextEncoder().encode(user.id);
+        const digest = await crypto.subtle.digest("SHA-256", bytes);
+        if (epoch !== revision) return;
+        const owner = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+        ownerLinks.forEach(link => { link.hidden = link.dataset.ownerNavigation !== owner; });
+      }
     } catch (error) {
       if (epoch !== revision || error.stale) return;
-      if (error.status === 401) owner = null;
       render(null);
       if (error.status === 401) {
         if (!retry.hidden) feedback();
@@ -78,7 +83,7 @@
     }
   });
   retry.addEventListener("click", restore);
-  document.addEventListener("cuenta-sesion-cambio", () => { owner = null; clear(); restore(); });
+  document.addEventListener("cuenta-sesion-cambio", () => { clear(); restore(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) restore(); });
   window.addEventListener("pagehide", clear);
   window.addEventListener("pageshow", event => { if (event.persisted) restore(); });
