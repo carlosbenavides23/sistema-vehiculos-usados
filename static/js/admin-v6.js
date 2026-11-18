@@ -41,6 +41,8 @@
   }
 
   const auth = one("#admin-auth");
+  const sessionLoading = one("#admin-session-loading");
+  const sessionError = one("#admin-session-error");
   const workspace = one("#admin-workspace");
   const loginError = one("#admin-login-error");
   const logout = one("#admin-logout");
@@ -63,6 +65,7 @@
   let authenticated = false;
   let signingOut = false;
   let readOnly = readonly;
+  let sessionCheck = 0;
   let vehicles = [];
   let editingId = null;
   let savedVehicle = null;
@@ -183,18 +186,30 @@
     }
   }
 
-  if (sellerPanel) document.addEventListener("seller-account-session-invalid", () => {
+  function showExpiredSession() {
+    sessionCheck += 1;
+    if (sessionLoading) sessionLoading.hidden = true;
+    if (sessionError) sessionError.hidden = true;
     setAuthenticated(false);
     setLoginError("Tu sesión venció. Inicia sesión de nuevo para continuar.");
-  });
+  }
+
+  function showSessionLoading() {
+    sessionCheck += 1;
+    auth.hidden = true;
+    sessionError.hidden = true;
+    sessionLoading.hidden = readOnly;
+  }
 
   if (sellerPanel) {
+    document.addEventListener("seller-account-session-invalid", showExpiredSession);
     document.addEventListener("cuenta-sesion-cambio", () => {
       setAuthenticated(false);
-      workspace.hidden = true;
+      showSessionLoading();
       if (!signingOut) location.replace("/cuenta");
     });
     window.addEventListener("pagehide", () => {
+      showSessionLoading();
       workspace.hidden = true;
       logout.hidden = true;
       if (sellerIdentity) sellerIdentity.hidden = true;
@@ -208,8 +223,11 @@
 
   async function checkSession() {
     if (readOnly) return;
+    if (sellerPanel) showSessionLoading();
+    const check = sessionCheck;
     try {
       const state = await request("/session");
+      if (check !== sessionCheck) return;
       readOnly = Boolean(state.solo_lectura);
       if (readOnly) {
         one("#admin-readonly").hidden = false;
@@ -217,11 +235,21 @@
         workspace.hidden = true;
         return;
       }
-      setAuthenticated(Boolean(state.autenticado));
+      if (sellerPanel && !state.autenticado) showExpiredSession();
+      else setAuthenticated(Boolean(state.autenticado));
     } catch (error) {
-      setLoginError(error.message);
+      if (check !== sessionCheck) return;
+      if (!sellerPanel) setLoginError(error.message);
+      else if ([401, 403].includes(error.status)) showExpiredSession();
+      else {
+        sessionError.hidden = false;
+        one("#admin-session-error-title").focus();
+      }
+    } finally {
+      if (sessionLoading && check === sessionCheck) sessionLoading.hidden = true;
     }
   }
+  one("#admin-session-retry")?.addEventListener("click", checkSession);
 
   async function logoutAdmin() {
     if (!authenticated || signingOut) return;

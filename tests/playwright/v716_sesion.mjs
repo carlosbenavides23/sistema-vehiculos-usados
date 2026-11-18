@@ -66,7 +66,7 @@ try {
   await button(second, "Mis conversaciones").click();
   await second.getByRole("dialog").getByRole("heading", {name: "Mis conversaciones"}).waitFor();
   await second.getByRole("dialog").getByRole("button").filter({hasText: "Toyota Corolla"}).click();
-  await second.getByText("Consulta ficticia", {exact: true}).first().waitFor();
+  await second.getByRole("log").getByText("Consulta ficticia", {exact: true}).waitFor();
   await buyer.route("**/api/cuenta/logout", route => route.fulfill({status: 503, json: {ok: false}}));
   await button(buyer, "Cerrar sesión").click();
   await buyer.getByText(/No pudimos confirmar el cierre/).waitFor();
@@ -84,10 +84,63 @@ try {
 
   const sellerContext = await context();
   const seller = await sellerContext.newPage();
+  const sellerSession = "**/api/vendedor/session";
   await seller.goto(url + "/cuenta?next=" + encodeURIComponent("https://otro.example/vendedor"));
-  await login(seller, "seller_a");
-  await seller.waitForURL("**/vendedor");
-  await seller.getByRole("heading", {name: "Gestioná tus vehículos"}).waitFor();
+  let releaseSession;
+  const pendingSession = new Promise(resolve => { releaseSession = resolve; });
+  await seller.route(sellerSession, async route => {
+    await pendingSession;
+    await route.continue();
+  }, {times: 1});
+  const sellerLoading = seller.getByText("Cargando panel…", {exact: true});
+  const sellerAccess = seller.getByRole("heading", {name: "Acceso de vendedor"});
+  const workspace = seller.locator("#admin-workspace");
+  const inventory = seller.getByRole("heading", {name: "Gestioná tus vehículos"});
+  try {
+    await login(seller, "seller_a");
+    await seller.waitForURL("**/vendedor");
+    await sellerLoading.waitFor();
+    assert.equal(await sellerAccess.isVisible(), false);
+    assert.equal(await workspace.isVisible(), false);
+    if (process.env.V7203_CAPTURE) await seller.screenshot({path: process.env.V7203_CAPTURE});
+  } finally {
+    releaseSession();
+  }
+  await inventory.waitFor();
+  assert.equal(await sellerLoading.isVisible(), false);
+  assert.equal(await sellerAccess.isVisible(), false);
+
+  await seller.route(sellerSession, route => route.abort(), {times: 1});
+  await seller.reload();
+  await seller.getByRole("heading", {name: "No pudimos cargar el panel"}).waitFor();
+  assert.equal(await sellerLoading.isVisible(), false);
+  assert.equal(await workspace.isVisible(), false);
+  await seller.getByRole("button", {name: "Reintentar", exact: true}).click();
+  await inventory.waitFor();
+  assert.equal(await seller.locator("#admin-session-error").isVisible(), false);
+
+  await seller.route(sellerSession, route => route.fulfill({status: 503, json: {ok: false}}), {times: 1});
+  await seller.reload();
+  await seller.getByRole("button", {name: "Reintentar", exact: true}).waitFor();
+  assert.equal(await sellerLoading.isVisible(), false);
+  assert.equal(await sellerAccess.isVisible(), false);
+
+  await seller.route(sellerSession, route => route.fulfill({status: 401, json: {ok: false}}), {times: 1});
+  await seller.reload();
+  await seller.getByRole("link", {name: "Iniciar sesión con mi cuenta"}).waitFor();
+  assert.equal(await sellerLoading.isVisible(), false);
+  assert.equal(await workspace.isVisible(), false);
+
+  await seller.route(sellerSession, route => route.fulfill({
+    json: {ok: true, autenticado: true, solo_lectura: true},
+  }), {times: 1});
+  await seller.reload();
+  await seller.getByText(/Este ambiente permite únicamente consultar el catálogo/).waitFor();
+  assert.equal(await sellerLoading.isVisible(), false);
+  assert.equal(await sellerAccess.isVisible(), false);
+  assert.equal(await workspace.isVisible(), false);
+  await seller.reload();
+  await inventory.waitFor();
   await seller.goto(ficha + "?desde=inventario&contactar=1");
   await seller.getByRole("link", {name: "Volver a mis publicaciones", exact: true}).waitFor();
   assert.equal(await seller.getByRole("button", {name: "Contactar al vendedor", exact: true}).count(), 0);
@@ -108,6 +161,12 @@ try {
   await link(seller, "Mis conversaciones").click();
   await seller.waitForURL("**/vendedor#conversaciones");
   await seller.getByRole("option").filter({hasText: "Toyota Corolla"}).waitFor();
+  await seller.reload();
+  await seller.getByRole("option").filter({hasText: "Toyota Corolla"}).waitFor();
+  await seller.getByRole("link", {name: "Explorar catálogo"}).click();
+  await seller.waitForURL(url + "/");
+  await seller.goBack();
+  await seller.getByRole("option").filter({hasText: "Toyota Corolla"}).waitFor();
 
   const publicTab = await sellerContext.newPage();
   await publicTab.route("**/api/cuenta", route => route.fulfill({status: 503, json: {ok: false}}), {times: 1});
@@ -123,6 +182,12 @@ try {
   await publicTab.getByRole("heading", {name: "Vehículos publicados"}).waitFor();
   assert.equal(await button(publicTab, "Reintentar sesión").count(), 0);
   assert.equal((await publicTab.request.get(url + "/api/vendedor/vehiculos")).status(), 401);
+  await publicTab.goto(url + "/cuenta");
+  await login(publicTab, "seller_a");
+  await publicTab.waitForURL("**/vendedor");
+  await publicTab.getByRole("button", {name: "Cerrar sesión"}).click();
+  await publicTab.waitForURL("**/cuenta");
+  assert.equal((await publicTab.request.get(url + "/vendedor")).status(), 401);
   assert.deepEqual(errors, []);
   console.log("V7.16: visitante, comprador, vendedor, retorno seguro, caducidad, reintento, cierre confirmado y dos pestañas a 1920 × 1080.");
 } finally {
