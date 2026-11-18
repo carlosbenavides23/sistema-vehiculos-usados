@@ -394,7 +394,6 @@
 }
 
 .vehicle-price-block .vehicle-badge,
-.detail-heading .vehicle-badge,
 .detail-purchase > .vehicle-badge {
   position: static;
   display: inline-flex;
@@ -412,7 +411,6 @@
 }
 
 .vehicle-price-block .vehicle-badge.sold,
-.detail-heading .vehicle-badge.sold,
 .detail-purchase > .vehicle-badge.sold {
   background: #faeae6;
   color: #862f26;
@@ -481,7 +479,7 @@
 .detail-card {
   display: grid;
   grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr);
-  grid-template-areas: "heading heading" "gallery purchase" "description contact-note" "features contact-note";
+  grid-template-areas: "heading heading" "gallery purchase" "information information";
   align-items: start;
   gap: 18px 24px;
   overflow: visible;
@@ -493,9 +491,8 @@
 .detail-heading {
   grid-area: heading;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
 }
 
 .detail-heading h1 {
@@ -507,36 +504,16 @@
   line-height: 1.15;
 }
 
-.detail-heading .vehicle-badge {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 112px;
-  font-size: 12px;
-}
-
-.detail-heading .vehicle-location,
-.detail-heading .detail-year {
+.detail-heading .vehicle-location {
+  grid-area: auto;
+  justify-self: start;
+  justify-content: flex-start;
   display: flex;
   align-items: center;
   min-height: 24px;
   margin: 0;
   color: var(--color-text-primary);
   font-size: 13px;
-}
-
-.detail-heading .vehicle-location {
-  grid-column: 1;
-}
-
-.detail-heading .detail-year {
-  grid-column: 1;
-  gap: 7px;
-}
-
-.detail-year-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: inherit;
 }
 
 .detail-gallery {
@@ -596,9 +573,8 @@
 }
 
 .detail-purchase,
-.detail-description,
-.detail-features,
-.detail-contact-note {
+.detail-information {
+  grid-area: information;
   min-width: 0;
   padding: 22px;
   border: 1px solid var(--color-border-subtle);
@@ -678,54 +654,51 @@
   line-height: 1.45;
 }
 
-.detail-description {
-  grid-area: description;
-}
-
-.detail-features {
-  grid-area: features;
-}
-
-.detail-contact-note {
-  grid-area: contact-note;
-  align-self: start;
-}
-
-.detail-contact-note h2,
-.detail-description h2,
-.detail-features h2 {
+.detail-information h2 {
   margin: 0 0 14px;
   color: var(--color-text-primary);
   font-size: 18px;
   letter-spacing: -.02em;
 }
 
-.detail-description p,
-.detail-contact-note p {
+.detail-information h3 {
+  margin: 0 0 8px;
+  color: var(--color-text-primary);
+  font-size: 15px;
+}
+
+.detail-information p {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
   white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.detail-equipment {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .feature-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 17px 18px;
   margin: 0;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--color-border-subtle);
+  padding: 0;
   list-style: none;
 }
 
-.feature-item {
+.detail-equipment .feature-list .feature-item {
   display: grid;
   gap: 3px;
   min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
+  border-radius: 0;
 }
 
 .feature-label {
@@ -1251,13 +1224,8 @@
 
   .detail-card {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "heading" "gallery" "purchase" "description" "features" "contact-note";
+    grid-template-areas: "heading" "gallery" "purchase" "information";
     gap: 12px;
-  }
-
-  .detail-heading {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 7px 12px;
   }
 
   .detail-heading h1 {
@@ -1266,27 +1234,7 @@
     line-height: 1.22;
   }
 
-  .detail-heading .vehicle-badge {
-    grid-column: 2;
-    grid-row: 2;
-    min-width: 0;
-    min-height: 25px;
-    padding-inline: 10px;
-    font-size: 10px;
-  }
-
   .detail-heading .vehicle-location {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .detail-heading .detail-year {
-    grid-column: 1;
-    grid-row: 3;
-  }
-
-  .detail-heading .vehicle-location,
-  .detail-heading .detail-year {
     min-height: 22px;
     font-size: 11px;
   }
@@ -1307,9 +1255,7 @@
   }
 
   .detail-purchase,
-  .detail-description,
-  .detail-features,
-  .detail-contact-note {
+  .detail-information {
     padding: 15px;
     border-radius: 9px;
   }
@@ -1341,16 +1287,9 @@
     margin-top: 12px;
   }
 
-  .detail-contact-note h2,
-  .detail-description h2,
-  .detail-features h2 {
+  .detail-information h2 {
     margin-bottom: 10px;
     font-size: 16px;
-  }
-
-  .detail-description p,
-  .detail-contact-note p {
-    font-size: 12px;
   }
 
   .feature-list {
@@ -1360,7 +1299,7 @@
     border-top: 0;
   }
 
-  .feature-item {
+  .detail-equipment .feature-list .feature-item {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: center;
     gap: 8px;

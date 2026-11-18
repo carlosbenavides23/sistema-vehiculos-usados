@@ -541,11 +541,11 @@
 
   function renderizarFicha(vehiculo) {
     const disponible = vehiculo.disponibilidad === "disponible";
-    porId("ficha-titulo").textContent = `${vehiculo.marca} ${vehiculo.modelo}`;
-    porId("ficha-estado").textContent = disponible ? "Disponible" : "Vendido";
-    porId("ficha-estado").classList.toggle("sold", !disponible);
+    const titulo = [vehiculo.marca, vehiculo.modelo, vehiculo.anio].filter(Boolean).join(" ");
+    porId("ficha-titulo").textContent = titulo;
+    const ficha = porId("ficha-contenido");
+    ficha.dataset.contactable = String(disponible);
     porId("ficha-ubicacion-valor").textContent = vehiculo.ubicacion || "Ubicación no especificada";
-    porId("ficha-anio-valor").textContent = `Año ${vehiculo.anio}`;
     porId("ficha-precio").textContent = precioLegible(vehiculo.precio_centavos);
     const perfil = vehiculo.vendedor && urlPerfilSeguro(vehiculo.vendedor.url);
     const vendedor = porId("ficha-vendedor"); vendedor.hidden = !perfil;
@@ -565,14 +565,11 @@
     const lista = porId("ficha-caracteristicas");
     lista.replaceChildren();
     const caracteristicas = [];
-    if (vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo) caracteristicas.push(["Tipo", vehiculo.tipo_vehiculo_etiqueta || vehiculo.tipo_vehiculo]);
     if (vehiculo.version) caracteristicas.push(["Versión", vehiculo.version]);
     if (vehiculo.motor) caracteristicas.push(["Motor", vehiculo.motor]);
     if (vehiculo.numero_puertas !== null && vehiculo.numero_puertas !== undefined) caracteristicas.push(["Puertas", String(vehiculo.numero_puertas)]);
     if (vehiculo.capacidad_pasajeros !== null && vehiculo.capacidad_pasajeros !== undefined) caracteristicas.push(["Pasajeros", String(vehiculo.capacidad_pasajeros)]);
     if (vehiculo.color) caracteristicas.push(["Color", vehiculo.color]);
-    if (vehiculo.transmision) caracteristicas.push(["Transmisión", vehiculo.transmision]);
-    if (vehiculo.combustible) caracteristicas.push(["Combustible", vehiculo.combustible]);
     [
       ["aire_acondicionado", "Aire acondicionado"],
       ["ventanas_electricas", "Ventanas eléctricas"],
@@ -598,14 +595,11 @@
     });
     porId("ficha-caracteristicas-seccion").hidden = caracteristicas.length === 0;
     inicializarGaleriaFicha(vehiculo);
-    document.title = `${vehiculo.marca} ${vehiculo.modelo} · Vehículos usados`;
+    document.title = `${titulo} · Vehículos usados`;
     porId("ficha-vehiculo").setAttribute("aria-busy", "false");
     porId("ficha-cargando").hidden = true;
     porId("ficha-error").hidden = true;
-    porId("ficha-contenido").hidden = false;
-    if ((document.body.dataset.chatEnabled === "true" || document.body.dataset.userAuthEnabled === "true") && new URLSearchParams(location.search).get("contactar") === "1") {
-      requestAnimationFrame(() => porId("mostrar-chat")?.click());
-    }
+    ficha.hidden = false;
   }
 
   async function inicializarFicha() {

@@ -356,6 +356,7 @@
   }
 
   async function startContact() {
+    if (one("comprador-chat")?.hidden) return;
     const vehicleId = body.dataset.vehiculoId;
     if (!/^[1-9]\d*$/.test(vehicleId || "")) return;
     openDialog(one("mostrar-chat"), "thread");
@@ -539,13 +540,36 @@
 
   const ficha = one("ficha-contenido");
   if (ficha && body.dataset.vehiculoId) {
-    const revelarContacto = () => {
-      if (ficha.hidden) return;
-      const disponible = one("ficha-estado").textContent === "Disponible";
-      one("comprador-chat").hidden = !disponible;
-    };
-    new MutationObserver(revelarContacto).observe(ficha, { attributes: true, attributeFilter: ["hidden"] });
-    revelarContacto();
+    const contacto = one("comprador-chat");
+    let revision = 0;
+    let abrirAlCargar = new URLSearchParams(location.search).get("contactar") === "1";
+    function ocultarContacto() {
+      revision += 1;
+      contacto.hidden = true;
+    }
+    async function actualizarContacto() {
+      ocultarContacto();
+      if (ficha.hidden || ficha.dataset.contactable !== "true") return;
+      const consulta = revision;
+      let permitido;
+      try {
+        permitido = (await window.CuentaSesion.read()).rol === "comprador";
+      } catch (error) {
+        permitido = error.status === 401;
+      }
+      if (consulta !== revision) return;
+      contacto.hidden = !permitido;
+      if (abrirAlCargar && permitido) {
+        abrirAlCargar = false;
+        startContact();
+      }
+    }
+    new MutationObserver(actualizarContacto).observe(ficha, { attributes: true, attributeFilter: ["hidden"] });
+    document.addEventListener("cuenta-sesion-cambio", actualizarContacto);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) actualizarContacto(); });
+    window.addEventListener("pagehide", ocultarContacto);
+    window.addEventListener("pageshow", event => { if (event.persisted) actualizarContacto(); });
+    actualizarContacto();
   }
 
   if (new URLSearchParams(location.search).get("mensajes") === "1") {
