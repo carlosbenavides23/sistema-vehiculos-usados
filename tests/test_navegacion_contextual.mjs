@@ -19,7 +19,12 @@ function openPage(markers, initial) {
   document.body = {dataset: {}};
   document.querySelectorAll = () => links;
   document.getElementById = id => {
-    if (!elements.has(id)) elements.set(id, new EventTarget());
+    if (!elements.has(id)) {
+      const element = new EventTarget();
+      element.setAttribute = (name, value) => { element[name] = value; };
+      element.removeAttribute = name => { delete element[name]; };
+      elements.set(id, element);
+    }
     return elements.get(id);
   };
   window.CuentaSesion = {async read() {
@@ -29,10 +34,11 @@ function openPage(markers, initial) {
   runInNewContext(script, {window, document, TextEncoder, crypto: {subtle: {async digest(_, bytes) {
     return hash(bytes);
   }}}});
-  return {links, async change(next) {
+  return {links, elements, async change(next) {
     user = next;
     document.dispatchEvent(new Event("cuenta-sesion-cambio"));
     assert.ok(links.every(link => link.hidden));
+    assert.equal(elements.get("header-login").hidden, true, "no se muestra una sesión de visitante mientras se comprueba");
     await setImmediate();
   }};
 }
@@ -54,4 +60,17 @@ test("el contexto emitido por Flask sobrevive al cierre y solo reaparece para el
   const publicPage = openPage([], null);
   await publicPage.change(owner);
   assert.equal(publicPage.links.length, 0);
+});
+
+test("solo el comprador tiene el enlace a Mi cuenta en su nombre visible", async () => {
+  const page = openPage([], null);
+  await setImmediate();
+  const link = page.elements.get("header-display-name");
+  assert.equal(page.elements.get("header-login").hidden, false);
+  assert.equal(link.href, undefined);
+  await page.change({id: "buyer", rol: "comprador", nombre_visible: "Ana"});
+  assert.equal(link.href, "/cuenta");
+  assert.equal(link.textContent, "Ana");
+  await page.change(owner);
+  assert.equal(link.href, undefined);
 });

@@ -37,6 +37,95 @@ try {
     await page.getByRole("button", {name: "Iniciar sesión", exact: true}).click();
   };
   const ficha = url + "/vehiculo/" + vehicles[0];
+  const buyerFlowContext = await context();
+  const buyerFlow = await buyerFlowContext.newPage();
+  await buyerFlow.addInitScript(() => {
+    if (location.pathname !== "/cuenta") return;
+    const seen = {redirecting: false, account: false, formDuringRedirect: false};
+    const inspect = () => {
+      const content = document.getElementById("cuenta-contenido");
+      const loading = document.getElementById("cuenta-redireccion");
+      if (!content || !loading) return;
+      if (!content.hidden && document.getElementById("cuenta-titulo").textContent === "Mi cuenta") seen.account = true;
+      if (!loading.hidden) {
+        seen.redirecting = true;
+        if (!content.hidden && !document.getElementById("cuenta-form").hidden) seen.formDuringRedirect = true;
+      }
+    };
+    new MutationObserver(inspect).observe(document, {attributes: true, childList: true, subtree: true});
+    window.addEventListener("pagehide", () => {
+      inspect();
+      sessionStorage.setItem("v7204-login-transition", JSON.stringify(seen));
+    });
+  });
+  await buyerFlow.goto(url + "/cuenta?next=" + encodeURIComponent("https://otro.example/vehiculo/1"));
+  await buyerFlow.route("**/api/cuenta/registro", route => route.fulfill({
+    status: 202, json: {ok: true},
+  }), {times: 1});
+  await buyerFlow.getByRole("button", {name: "Crear cuenta", exact: true}).click();
+  await buyerFlow.getByLabel("Nombre visible", {exact: true}).fill("Compradora de prueba");
+  await buyerFlow.getByLabel("Correo electrónico", {exact: true}).fill("pendiente@example.test");
+  await buyerFlow.getByLabel("Contraseña", {exact: true}).fill("local-fixture-password");
+  await buyerFlow.getByRole("button", {name: "Crear cuenta", exact: true}).click();
+  await buyerFlow.getByRole("heading", {name: "Revisa tu correo electrónico"}).waitFor();
+  await buyerFlow.getByRole("button", {name: "Volver a iniciar sesión"}).click();
+
+  await buyerFlow.route("**/api/cuenta/login", route => route.abort(), {times: 1});
+  await login(buyerFlow, "buyer_a");
+  await buyerFlow.getByText("Revisá la conexión e intentá nuevamente.").waitFor();
+  await buyerFlow.getByLabel("Contraseña", {exact: true}).fill("incorrecta-fixture");
+  const invalidLogin = buyerFlow.waitForResponse(response => response.url().endsWith("/api/cuenta/login"));
+  await buyerFlow.getByRole("button", {name: "Iniciar sesión", exact: true}).click();
+  assert.equal((await invalidLogin).status(), 401);
+  await buyerFlow.locator("#cuenta-estado[data-type=error]").waitFor();
+
+  let restoreBuyer;
+  const pendingBuyer = new Promise(resolve => { restoreBuyer = resolve; });
+  await buyerFlow.route(url + "/api/cuenta", async route => {
+    if (route.request().headers().referer === url + "/") await pendingBuyer;
+    await route.continue();
+  });
+  try {
+    await login(buyerFlow, "buyer_a");
+    await buyerFlow.waitForURL(url + "/");
+    await buyerFlow.getByRole("link", {name: "Ver ficha completa de Toyota Corolla"}).last().waitFor();
+    assert.deepEqual(await buyerFlow.evaluate(() => JSON.parse(sessionStorage.getItem("v7204-login-transition"))),
+      {redirecting: true, account: false, formDuringRedirect: false});
+    assert.equal(await buyerFlow.locator("#cuenta-form").count(), 0);
+    assert.equal(await link(buyerFlow, "Iniciar sesión").isVisible(), false);
+    assert.equal(await button(buyerFlow, "Mis conversaciones").isVisible(), false);
+  } finally {
+    restoreBuyer();
+  }
+  const myAccount = header(buyerFlow).getByRole("link", {name: "Ana María Rodríguez Benavides del Norte"});
+  await myAccount.waitFor();
+  await header(buyerFlow).getByText("Comprador", {exact: true}).waitFor();
+  assert.equal(await buyerFlow.evaluate(() => document.documentElement.scrollWidth), 1920);
+  if (process.env.V7204_CAPTURE) await buyerFlow.screenshot({path: process.env.V7204_CAPTURE});
+  await button(buyerFlow, "Mis conversaciones").click();
+  await buyerFlow.getByRole("dialog").getByRole("button").filter({hasText: "Toyota Corolla"}).click();
+  await buyerFlow.getByRole("log").getByText("Consulta ficticia", {exact: true}).waitFor();
+  if (process.env.V7204_CHAT_CAPTURE) await buyerFlow.screenshot({path: process.env.V7204_CHAT_CAPTURE});
+  await buyerFlow.getByRole("button", {name: "Cerrar mensajes"}).click();
+  await myAccount.click();
+  await buyerFlow.getByRole("heading", {name: "Mi cuenta"}).waitFor();
+  assert.equal(await buyerFlow.locator("#cuenta-form").isVisible(), false);
+  await buyerFlow.goBack();
+  await myAccount.waitFor();
+  await buyerFlow.reload();
+  await myAccount.waitFor();
+  await buyerFlow.goBack();
+  await buyerFlow.getByRole("heading", {name: "Mi cuenta"}).waitFor();
+  assert.equal(await buyerFlow.locator("#cuenta-form").isVisible(), false);
+  await buyerFlow.goForward();
+  await myAccount.waitFor();
+  assert.equal(await link(buyerFlow, "Iniciar sesión").isVisible(), false);
+  await button(buyerFlow, "Cerrar sesión").click();
+  await link(buyerFlow, "Iniciar sesión").waitFor();
+  assert.equal(await myAccount.isVisible(), false);
+  assert.equal((await buyerFlow.request.get(url + "/api/cuenta")).status(), 401);
+  await buyerFlowContext.close();
+
   const buyerContext = await context();
   const buyer = await buyerContext.newPage();
   const second = await buyerContext.newPage();
@@ -189,7 +278,7 @@ try {
   await publicTab.waitForURL("**/cuenta");
   assert.equal((await publicTab.request.get(url + "/vendedor")).status(), 401);
   assert.deepEqual(errors, []);
-  console.log("V7.16: visitante, comprador, vendedor, retorno seguro, caducidad, reintento, cierre confirmado y dos pestañas a 1920 × 1080.");
+  console.log("V7.20.4: transición al catálogo, identidad, cuenta, historial, conversaciones, errores de acceso y regresiones de sesión a 1920 × 1080.");
 } finally {
   await browser?.close();
   server.stdin.end("stop\n");
