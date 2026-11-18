@@ -192,18 +192,25 @@
     button.className = "chat-conversation-button";
     button.dataset.conversationId = String(conversation.id);
     button.setAttribute("aria-current", String(String(currentConversation?.id) === String(conversation.id)));
+    const info = document.createElement("span");
+    info.className = "chat-conversation-info";
     const title = document.createElement("strong");
     title.textContent = titleOf(conversation);
     const contact = document.createElement("span");
     contact.className = "chat-conversation-contact";
     contact.textContent = `Vendedor: ${conversation.nombre_contacto || "Vendedor"}`;
     const preview = document.createElement("span");
-    const status = conversation.vehiculo_retirado ? "Publicación retirada · historial" : conversation.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
-    preview.textContent = `${status} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
+    preview.className = "chat-conversation-preview";
+    preview.textContent = conversation.ultimo_mensaje || "Sin mensajes";
+    const status = document.createElement("span");
+    status.className = "chat-conversation-status";
+    status.textContent = conversation.vehiculo_retirado ? "Publicación retirada · historial" : conversation.estado === "atendida" ? "Atendida" : "Pendiente de respuesta";
     const time = document.createElement("time");
     time.dateTime = conversation.ultimo_mensaje_en || conversation.updated_at || "";
     time.textContent = formatDate(time.dateTime);
-    button.append(title, contact, preview, time);
+    time.hidden = !time.textContent;
+    info.append(title, contact, status, preview, time);
+    button.append(info);
     button.addEventListener("click", () => openConversation(conversation));
     button.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;

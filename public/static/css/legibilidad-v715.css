@@ -65,8 +65,7 @@ body[data-user-auth-enabled="true"] .header-actions { flex-wrap: wrap; }
   body[data-user-auth-enabled] .buyer-chat-drawer .chat-feedback,
   body[data-user-auth-enabled] .buyer-chat-drawer .chat-compose small,
   body[data-user-auth-enabled] .buyer-chat-drawer .chat-contact-name,
-  body[data-user-auth-enabled] .buyer-chat-drawer .chat-message time,
-  body[data-user-auth-enabled] .buyer-chat-drawer .chat-conversation-button span { font-size: var(--reading-secondary); }
+  body[data-user-auth-enabled] .buyer-chat-drawer .chat-message time { font-size: var(--reading-secondary); }
   .admin-v6 .admin-nav-link, .admin-v6 .admin-topbar-label,
   .admin-v6 .admin-vehicle-name, .admin-v6 .admin-price,
   .admin-v6 .admin-field input, .admin-v6 .admin-field select,
