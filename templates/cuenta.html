@@ -12,14 +12,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/legibilidad-v715.css') }}">
 </head>
 <body class="admin-v6">
-  <header class="admin-topbar">
+  <header id="cuenta-encabezado" class="admin-topbar">
     <div class="admin-topbar-inner">
       <a href="/" class="admin-brand">Vehículos usados</a>
       <a href="/">Volver al catálogo</a>
     </div>
   </header>
   <main class="admin-main">
-    <section class="admin-auth-card" aria-labelledby="cuenta-titulo">
+    <section id="cuenta-contenido" class="admin-auth-card" aria-labelledby="cuenta-titulo">
       <h1 id="cuenta-titulo">Iniciar sesión</h1>
       <p id="cuenta-descripcion" class="admin-auth-copy">Accede a tu cuenta para continuar.</p>
       <p id="cuenta-estado" class="admin-status admin-auth-status" role="status" aria-live="polite" hidden></p>
@@ -81,6 +81,10 @@
       </section>
       <button id="salir-cuenta" class="admin-button admin-button-secondary" type="button" hidden>Cerrar sesión</button>
     </section>
+    <div id="cuenta-redireccion" class="loading-state" role="status" hidden>
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Redirigiendo…</span>
+    </div>
   </main>
 </body>
 </html>

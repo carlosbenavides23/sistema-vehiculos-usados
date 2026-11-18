@@ -3,6 +3,7 @@
   const one = id => document.getElementById(id);
   const form = one("cuenta-form");
   const estado = one("cuenta-estado");
+  const redireccion = one("cuenta-redireccion");
   let registro = false;
   let checking = 0;
   let submitting = false;
@@ -43,6 +44,12 @@
     estado.textContent = message || "";
     estado.dataset.type = type;
     estado.hidden = !message;
+  }
+
+  function mostrarRedireccion(activa) {
+    one("cuenta-encabezado").hidden = activa;
+    one("cuenta-contenido").hidden = activa;
+    redireccion.hidden = !activa;
   }
 
   function normalizeDisplayName(value) {
@@ -142,7 +149,16 @@
 
   document.addEventListener("cuenta-sesion-cambio", () => { ocultarIdentidad(); restaurar(); });
   window.addEventListener("pagehide", ocultarIdentidad);
-  window.addEventListener("pageshow", event => { if (event.persisted) restaurar(); });
+  window.addEventListener("pageshow", event => {
+    if (!event.persisted) return;
+    if (!redireccion.hidden) {
+      mostrarRedireccion(false);
+      one("enviar-cuenta").disabled = false;
+      submitting = false;
+      feedback("");
+    }
+    restaurar();
+  });
   restaurar();
 
   one("mostrar-password").addEventListener("click", () => {
@@ -202,19 +218,26 @@
         feedback("No pudimos completar el acceso. Revisá tus datos e intentá nuevamente.", "error");
         return;
       }
+      const destino = destinoSiguienteSeguro() || (!esRegistro && result.usuario.rol === "vendedor" ? "/vendedor" : "");
       registro = false;
       actualizarModo();
       window.CuentaSesion?.changed();
-      mostrar(result);
       one("password").value = "";
       mostrarContrasena(false);
-      const destino = destinoSiguienteSeguro() || (!esRegistro && result.usuario.rol === "vendedor" ? "/vendedor" : "");
-      if (destino) location.assign(destino);
+      if (destino) {
+        mostrarRedireccion(true);
+        location.assign(destino);
+        return;
+      }
+      mostrar(result);
     } catch (error) {
+      if (!redireccion.hidden) mostrarRedireccion(false);
       feedback(error.message || "Revisá la conexión e intentá nuevamente.", "error");
     } finally {
-      button.disabled = false;
-      submitting = false;
+      if (redireccion.hidden) {
+        button.disabled = false;
+        submitting = false;
+      }
     }
   });
 
