@@ -50,6 +50,18 @@
   </header>
 
   <main id="admin-main" class="admin-main">
+    {% if vendedor_panel %}
+    <div id="admin-session-loading" class="loading-state" role="status" {% if solo_lectura %}hidden{% endif %}>
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Cargando panel…</span>
+    </div>
+    <section id="admin-session-error" class="admin-auth-card" aria-labelledby="admin-session-error-title" hidden>
+      <h1 id="admin-session-error-title" tabindex="-1">No pudimos cargar el panel</h1>
+      <p>Revisá tu conexión e intentá de nuevo.</p>
+      <button id="admin-session-retry" class="admin-button admin-button-primary" type="button">Reintentar</button>
+    </section>
+    {% endif %}
+
     <section id="admin-readonly" class="admin-readonly-card" aria-labelledby="admin-readonly-title" {% if not solo_lectura %}hidden{% endif %}>
       <span class="admin-brand-mark admin-readonly-mark" aria-hidden="true">V.</span>
       <h1 id="admin-readonly-title">{{ 'Panel de vendedor' if vendedor_panel else 'Panel administrativo' }}</h1>
@@ -57,7 +69,7 @@
       <a class="admin-button admin-button-secondary" href="/">Volver al catálogo</a>
     </section>
 
-    <section id="admin-auth" class="admin-auth-card" aria-labelledby="admin-auth-title" {% if solo_lectura %}hidden{% endif %}>
+    <section id="admin-auth" class="admin-auth-card" aria-labelledby="admin-auth-title" {% if vendedor_panel or solo_lectura %}hidden{% endif %}>
       <span class="admin-brand-mark admin-auth-mark" aria-hidden="true">V.</span>
       <h1 id="admin-auth-title">{{ 'Acceso de vendedor' if vendedor_panel else 'Acceso administrativo' }}</h1>
       <p class="admin-auth-copy">Ingresá con tu cuenta para gestionar tus publicaciones.</p>
