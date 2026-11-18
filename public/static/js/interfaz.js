@@ -484,6 +484,7 @@
     const fotos = [...(vehiculo.fotografias || [])]
       .filter((foto) => urlFotoSegura(foto.url))
       .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    miniaturas.hidden = navegacion.hidden = fotos.length < 2;
     const respaldo = "/static/img/vehiculo.svg";
     if (!fotos.length) {
       generacionesFoto.set(imagen, (generacionesFoto.get(imagen) || 0) + 1);
@@ -491,7 +492,6 @@
       animacionesFoto.delete(imagen);
       imagen.src = respaldo;
       imagen.alt = `Ilustración de ${vehiculo.marca} ${vehiculo.modelo}; no hay fotografías publicadas.`;
-      navegacion.hidden = true;
       return;
     }
     let posicion = 0;
@@ -508,10 +508,18 @@
       miniaturas.append(boton);
       return boton;
     });
-    miniaturas.hidden = fotos.length < 2;
     const galeria = imagen.closest(".detail-gallery");
     function mostrar() {
       botones.forEach((boton, indice) => boton.setAttribute("aria-pressed", String(indice === posicion)));
+      const activa = botones[posicion];
+      if (miniaturas.scrollHeight > miniaturas.clientHeight) {
+        const inicio = activa.offsetTop;
+        const fin = inicio + activa.offsetHeight;
+        if (inicio < miniaturas.scrollTop) miniaturas.scrollTop = inicio;
+        else if (fin > miniaturas.scrollTop + miniaturas.clientHeight) {
+          miniaturas.scrollTop = fin - miniaturas.clientHeight;
+        }
+      }
       galeria.setAttribute("aria-busy", "true");
       mostrarFotoPreparada(
         imagen,
@@ -527,7 +535,6 @@
       );
       contador.textContent = `${posicion + 1} / ${fotos.length}`;
     }
-    navegacion.hidden = fotos.length < 2;
     porId("ficha-anterior").onclick = () => {
       posicion = (posicion - 1 + fotos.length) % fotos.length;
       mostrar();
