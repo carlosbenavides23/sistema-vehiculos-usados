@@ -89,6 +89,17 @@
     return `${vehicle.marca || conversation.marca || "Vehículo"} ${vehicle.modelo || conversation.modelo || ""}${vehicle.anio || conversation.anio ? ` · ${vehicle.anio || conversation.anio}` : ""}`.trim();
   }
 
+  function formatInboxDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const today = new Date();
+    const options = date.toDateString() === today.toDateString()
+      ? { timeStyle: "short" }
+      : { day: "numeric", month: "short", ...(date.getFullYear() !== today.getFullYear() && { year: "numeric" }) };
+    return new Intl.DateTimeFormat("es-NI", options).format(date);
+  }
+
   function renderItem(conversation) {
     const button = document.createElement("button");
     button.type = "button";
@@ -97,17 +108,20 @@
     button.setAttribute("role", "option");
     button.setAttribute("aria-selected", String(String(currentConversation?.id) === String(conversation.id)));
     const title = document.createElement("strong");
-    title.textContent = conversationTitle(conversation);
-    const contact = document.createElement("span");
-    contact.className = "admin-chat-contact";
-    contact.textContent = `Comprador: ${conversation.nombre_contacto || "Comprador"}`;
+    title.textContent = conversation.nombre_contacto || "Comprador";
+    const vehicle = document.createElement("span");
+    vehicle.className = "admin-chat-item-vehicle";
+    vehicle.textContent = conversationTitle(conversation);
     const time = document.createElement("time");
     time.dateTime = conversation.ultimo_mensaje_en || conversation.updated_at || "";
-    time.textContent = formatDate(time.dateTime);
+    time.textContent = formatInboxDate(time.dateTime);
     const excerpt = document.createElement("span");
-    const state = conversation.vehiculo_retirado ? "Publicación retirada · solo lectura" : conversation.estado === "atendida" ? "Atendida" : "Pendiente";
-    excerpt.textContent = `${state} · ${conversation.ultimo_mensaje || "Sin mensajes"}`;
-    button.append(title, contact, time, excerpt);
+    excerpt.className = "admin-chat-item-preview";
+    excerpt.textContent = conversation.ultimo_mensaje || "Sin mensajes";
+    const state = document.createElement("span");
+    state.className = "admin-chat-item-state";
+    state.textContent = conversation.vehiculo_retirado ? "Publicación retirada · solo lectura" : conversation.estado === "atendida" ? "Atendida" : "Pendiente";
+    button.append(title, time, vehicle, excerpt, state);
     button.addEventListener("click", () => {
       const latest = conversations.find(row => String(row.id) === button.dataset.conversationId);
       if (latest) openConversation(latest);
