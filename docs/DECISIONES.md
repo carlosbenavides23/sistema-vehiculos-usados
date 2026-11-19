@@ -1,46 +1,64 @@
-# Decisiones y cuestiones pendientes
+# Decisiones técnicas y de alcance — estado al 18-11-2026
 
-## Implementación integral — 29 de octubre de 2026
+**Base documental:** `main` V7.20.5, auditado en V7.21. Las decisiones aquí descritas son las **vigentes**; las superadas se registran al final para conservar la evolución. Véanse [Estado actual](ESTADO_ACTUAL.md), [Arquitectura](ARQUITECTURA.md) y [Evolución](EVOLUCION.md).
 
-| Decisión | Motivo |
+## 1. Decisiones vigentes
+
+| Decisión | Motivo y consecuencia |
 | --- | --- |
-| PostgreSQL 17/Supabase como fuente de verdad, Flask como única API de datos | Catálogo compartido y autorización de escrituras comprensible para Programación Estructurada. |
-| Funciones Python y psycopg, sin ORM | Separar validación, acceso a datos, seguridad y adaptación HTTP con pocos módulos. |
-| USD en centavos e IDs BIGINT IDENTITY seguros para JavaScript | Conserva formato y evita IDs asignados por navegadores o errores de punto flotante. |
-| Opcionales y booleanos triestado | No convertir características no informadas en falsas ni inferirlas desde descripciones. |
-| Placa administrativa | No se entrega públicamente. Una placa visible en una fotografía necesita ocultarse antes de subirla. |
-| Cinco fotos, originales de 10 MB y WebP ≤1 MB/1600 px | Mantiene el bucket existente y permite solicitudes individuales por debajo del límite de funciones Vercel. |
-| Validación y recodificación en Python además del navegador | No confiar en MIME, extensión ni código del cliente; eliminar metadatos y rechazar animaciones/corrupción. |
-| Objetos nuevos sin upsert y coordinación durable | Conservar foto anterior hasta commit, recuperar objetos sin referencia y evitar pérdida ante fallos parciales. |
-| Limpieza reclamada bajo bloqueo, con cancelación de reservas vencidas y concesión de dos minutos | Evitar que el limpiador borre un objeto que otra transacción está confirmando. Previsualizar no modifica datos. |
-| UUID y huella de contenido para altas/cargas | Evitar duplicados tras doble clic, respuesta perdida o reintentos; rechazar reuso con contenido distinto. |
-| Administrador compartido Flask, scrypt y CSRF | Prototipo académico sencillo. No proporciona cuentas individuales, MFA ni atribución de cambios. |
-| Límite de intentos en PostgreSQL | Compartido entre procesos, no reiniciable al borrar cookies, sin infraestructura de pago adicional. |
-| RLS sin políticas públicas y privilegios revocados | La lectura pública pasa por Flask. No habilitar acceso directo solo para eliminar avisos INFO. |
-| Preview siempre de consulta | Impedir que una Preview escriba sobre los seis registros de producción por un error de configuración. |
-| Dependencias directas fijadas | Reproducir Flask, psycopg, dotenv y Pillow comprobados; no introducir un framework frontend. |
+| **Prototipo académico, no producto comercial** | Se pretende demostrar registro, consulta, gestión y contacto entre roles; no pagos ni certificación o moderación propia de un marketplace comercial. |
+| **Flask + Jinja + HTML/CSS/JS nativos** | Alcance limitado, sin necesidad de framework frontend, ORM o despliegue de servicios adicionales. |
+| **PostgreSQL 17 como fuente de verdad** | Inventario compartido y reglas verificables en el servidor. La antigua persistencia de `localStorage` quedó atrás. |
+| **psycopg + SQL parametrizado** | Control explícito de validación, acceso a datos, concurrencia y transacciones. |
+| **Supabase Auth para cuentas y roles comprador/vendedor** | Identidades individuales y verificables; el rol se vincula a la cuenta y no se confía en metadatos editables como autorización. |
+| **Propiedad individual de publicaciones** | Un vendedor solo puede administrar vehículos/fotografías y conversaciones de su ámbito; la propiedad se verifica del lado servidor. |
+| **Nombre visible fijo al registrarse (V7.10)** | Se eliminó su edición posterior para reducir complejidad y mantener identidad estable durante la demostración. |
+| **Catálogo y perfiles públicos sin cuenta** | La consulta de anuncios es la función central; la autenticación se pide al realizar una acción privada como contactar. |
+| **Chat privado comprador/vendedor** | Un contacto conserva el vehículo y los participantes, con historial persistido y reintentos idempotentes. |
+| **Administrador global y chat anónimo retirados (V7.9)** | Unificar permisos en cuentas individuales y conservar historial antiguo de forma autorizada y solo lectura. |
+| **Precio en USD/centavos enteros y IDs generados por PostgreSQL** | Evitar errores de coma flotante e IDs elegidos por el navegador. |
+| **Características opcionales y booleanos triestado** | Lo no informado no equivale a «No»; los campos desconocidos no se inventan desde descripciones. |
+| **Placa privada, fotos públicas revisadas** | El campo matrícula no se entrega en consultas públicas; si la matrícula aparece en una imagen, debe ocultarse manualmente. |
+| **Máximo de cinco fotografías y WebP recodificado** | Compatibilidad con límites de tamaño, reducción de almacenamiento y rechazo de archivos corruptos o metadatos innecesarios. |
+| **Coordinación durable con Storage** | Reservar, confirmar y limpiar sin borrar prematuramente imágenes vigentes; una falla parcial debe ser recuperable. |
+| **Idempotencia de altas, fotos y mensajes** | Evitar duplicados ante doble clic, reintentos y errores de respuesta. |
+| **Sesiones, CSRF y permisos verificados en servidor** | No confiar en botones ocultos ni en identificadores del cliente. |
+| **RLS y privilegios públicos cerrados** | El acceso de datos está mediado por Flask y credenciales privadas del servidor. |
+| **Preview siempre en modo de consulta** | Reducir el riesgo de una rama temporal escribiendo sobre datos remotos. |
+| **Recursos estáticos duplicados mediante sincronización controlada** | Vercel requiere los assets bajo `public/static/`; deben coincidir con `static/`. |
+| **Congelación funcional tras la auditoría** | No añadir funciones ni refactorizar sin un defecto demostrado que lo justifique antes de presentar. |
 
-## Seguridad y operación
+## 2. Decisiones sustituidas durante el desarrollo
 
-La limitación por HMAC de remote_addr puede agrupar a usuarios detrás de un proxy; es una protección conservadora, no una identidad. No se confía en cabeceras reenviadas arbitrarias. La administración debe evolucionar a cuentas individuales si se amplían usuarios o exposición. Rotar FLASK_SECRET_KEY invalida las sesiones; no se publican claves ni contraseñas.
+| Antes | Sustitución / fecha lógica |
+| --- | --- |
+| Datos propios de cada navegador en `localStorage` | PostgreSQL compartido con API Flask (primera migración del proyecto). |
+| Administración por contraseña compartida | Roles individuales de vendedor; login global retirado en V7.9. |
+| Mensajería de visitantes anónimos | Conversaciones privadas de compradores autenticados; escritura anónima retirada en V7.9, historial anterior de solo lectura. |
+| Nombre visible editable en V7.6 | Nombre fijo desde el registro a partir de V7.10 (PR #29). |
+| Fichas con imágenes relativamente pequeñas y contenido repetido | Ficha V7.19–V7.20 con galería protagonista y panel comercial diferenciado. |
+| Regreso genérico después de acciones y login | Navegación contextual y transiciones de sesión V7.13–V7.20.4. |
 
-Las fotos son públicas en el bucket existente. No se agregó reconocimiento de rostros o placas: el equipo revisa el contenido antes de subirlo. Una cola durable recupera fallos de Storage, pero necesita reintentos de mantenimiento; no se activó cron ni servicio externo de pago.
+Las migraciones y notas históricas se mantienen para rastreabilidad, **no** como autorización para reactivar rutas, modificar datos remotos ni volver a ejecutar DDL.
 
-El esquema y las pruebas locales no equivalen a conexión Flask→Supabase o carga Storage remota. Esas comprobaciones dependen de credenciales locales configuradas y deben reportarse por separado. No se prueba escritura sobre los seis registros remotos. No se inventa éxito de un despliegue o de un servicio no ejecutado.
+## 3. Criterio de aceptación y evidencia
 
-## Decisiones históricas
+La auditoría V7.21 confirmó la navegación pública de Production sobre `336bf7f` y, en local, los recorridos autenticados con PostgreSQL 17 aislado y dobles de Auth/Storage. Pasaron 28 pruebas localizadas más 8 con PostgreSQL. No se confirmaron defectos P0/P1 ni P2/P3 que afectaran los recorridos evaluados.
 
-El segundo avance usaba localStorage versionado. La Fase 1 lo reemplazó por PostgreSQL; el valor vehiculos_demo_v1 queda intacto para exportación deliberada. Los seis registros ficticios siguen como conjunto inicial. Los nuevos campos no se rellenan interpretando sus descripciones.
+**Decisión de cierre:** `APTO CON OBSERVACIONES`. Es suficiente para **detener la expansión funcional**, no para afirmar que está todo validado en Production o que la seguridad es equivalente a una plataforma comercial.
 
-La carga demo y la importación se ejecutan explícitamente, nunca al arrancar Flask. El importador previsualiza por defecto, asigna nuevos IDs y omite coincidencias exactas. No sobrescribe datos ni borra el navegador.
+## 4. Pendientes reales de entrega
 
-## Pendientes de decisión o autorización
+1. **Validación remota autorizada:** comprobar con identidades y publicaciones ficticias que login, publicación, fotografías y chat funcionan con Supabase Auth, PostgreSQL y Storage reales; registrar la evidencia sin alterar anuncios ajenos.
+2. **Datos de demostración:** preparar contenido ficticio adecuado y revisar capacidad de almacenamiento; el número de anuncios de una futura demostración es una meta, no un volumen actualmente comprobado.
+3. **Presentación:** ensayar visitante, comprador y vendedor, preparar acceso a cuentas y explicación de arquitectura y límites.
+4. **Operación:** antes de cualquier limpieza de Storage o copia temporal PostgreSQL, verificar alcance y respaldos; ninguna limpieza se autoriza implícitamente.
+5. **Plazos:** confirmar con el equipo/docente las fechas académicas y el fin de publicación descritos en [ROADMAP](ROADMAP.md).
 
-1. Aclarar con el docente el significado de “poner números”. No se interpreta como una función nueva.
-2. Definir alcance, responsable, criterios y evidencia de una posible validación técnica; no afirmar certificación mecánica.
-3. Completar credenciales y verificar los servicios remotos sin usar los seis anuncios como datos de prueba.
-4. Confirmar el acceso administrativo y la operación de limpieza antes de publicar.
-5. Obtener aprobación para Production. Una Preview no autoriza promoción, push ni merge.
-6. Confirmar presentaciones restantes y gestionar el fin de publicación previsto el 27 de noviembre, manteniendo la fecha académica del 30 de noviembre de 2026.
+## 5. Fuera del alcance y política de cambios
 
-Cada ampliación debe actualizar arquitectura, contratos y evidencia. Búsqueda avanzada, precio máximo, chat, pagos, contacto real y cuentas completas permanecen fuera del alcance autorizado.
+No se requiere implementar pagos, financiación, verificación mecánica, reputación, denuncias, motores de recomendación, seguimiento social, monetización, microservicios ni migración a otro lenguaje para concluir el curso.
+
+Solo deben plantearse cambios de aplicación por defectos reproducibles que bloqueen un recorrido principal, afecten autorización, integridad, privacidad o estabilidad de la presentación. Las mejoras estéticas u opciones de producto se registran como posibles ideas, no como tareas pendientes del prototipo.
+
+**Toda nueva operación remota** (migración, despliegue, limpieza, alta masiva, cambio de permisos o configuración) requiere autorización específica y comprobaciones de respaldo. No confundir una Preview con aprobación para Production.
