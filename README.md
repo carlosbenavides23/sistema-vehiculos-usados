@@ -1,6 +1,8 @@
 # Sistema de publicación y consulta de vehículos usados
 
-Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. La fecha de cierre vigente es el **20 de noviembre de 2026**; las entregas académicas están detalladas en [ROADMAP](docs/ROADMAP.md).
+Proyecto académico de Programación Estructurada, Universidad Americana (UAM), Managua, Grupo 7. **Desarrollo funcional congelado** tras V7.20.5 (commit `336bf7f`); auditoría V7.21 del 18 de noviembre de 2026: **APTO CON OBSERVACIONES**. La fecha de cierre técnico documentada es el 20 de noviembre; los hitos y las fechas académicas se explican en [ROADMAP](docs/ROADMAP.md).
+
+> **Documentación definitiva:** [estado actual del sistema](docs/ESTADO_ACTUAL.md) · [evolución desde el prototipo inicial](docs/EVOLUCION.md) · [auditoría final](docs/auditoria-final-v721.md). Los documentos de avances y versiones anteriores se conservan como evidencia **histórica**, no como descripción de las funciones vigentes.
 
 ## Funcionalidades actuales
 
@@ -13,7 +15,7 @@ PostgreSQL 17 de Supabase es la fuente de verdad. Flask consulta, valida y modif
 - Preparación JPEG/PNG/WebP en navegador y validación/recodificación WebP en Python. Persistencia de objetos mediante Supabase Storage, bucket existente `vehiculos`.
 - Sustitución y eliminación con recuperación durable ante fallos parciales de PostgreSQL o Storage.
 
-Los registros iniciales son ficticios. Las cuentas de compradores y vendedores y el chat privado se desarrollan en V7.1–V7.6; pagos y certificación mecánica permanecen fuera del alcance confirmado. El estado realmente verificado de los servicios y las limitaciones de integración se registran en [AVANCE_02](docs/AVANCE_02.md). El cronograma académico vigente está en [ROADMAP](docs/ROADMAP.md).
+**El alcance actual también incluye** cuentas de compradores y vendedores con Supabase Auth, nombre visible fijo desde el registro (V7.10), propiedad individual de anuncios, perfiles públicos de vendedores, bandejas y conversaciones privadas entre comprador y vendedor, y navegación contextual entre catálogo, fichas, cuenta y panel. El login administrativo compartido y el chat anónimo de escritura fueron retirados en V7.9. Los documentos de avances anteriores preservan el estado de sus respectivas fechas. Pagos, certificación mecánica y funciones sociales/comerciales adicionales permanecen fuera del alcance. La auditoría V7.21 distinguió los flujos públicos verificados en Production de los privados verificados en entorno local aislado.
 
 ## Instalación local
 
@@ -87,11 +89,13 @@ En Linux sustituye el ejecutable por `./.venv/bin/python`. La primera orden no b
 
 El token CSRF viaja en `X-CSRF-Token`; una alta o carga reintentada conserva su mismo UUID y contenido. Reutilizarlo con datos diferentes devuelve 409. Los formularios envían únicamente un vehículo, nunca la colección completa. Los precios permanecen en USD y PostgreSQL guarda centavos enteros. Las respuestas API y la página con CSRF llevan `Cache-Control: no-store`.
 
-## Cuentas V7.6: nombres visibles
+## Cuentas y nombres visibles — V7.10 vigente
 
-El registro requiere un nombre visible de 2 a 40 caracteres. Supabase Auth transporta ese valor en la solicitud inicial; el trigger de `auth.users` lo valida y lo persiste junto al rol en la misma transacción, también si el proyecto requiere confirmación de correo. La metadata de Auth no se usa como autorización. Los nombres se guardan en `public.perfiles_usuarios`, vinculados por UUID y sin acceso directo desde `PUBLIC`, `anon` o `authenticated`; Flask actualiza únicamente el perfil de la identidad verificada mediante `PATCH /api/cuenta/nombre-visible` con CSRF. El chat entrega a cada participante solo el nombre visible de la otra parte; las cuentas antiguas sin perfil usan “Comprador” o “Vendedor”.
+Las identidades de comprador y vendedor se crean mediante Supabase Auth, pasando por Flask. El nombre visible (2–40 caracteres) se selecciona durante el registro, se valida y persiste en el perfil asociado; el rol también se asigna de forma controlada. Desde V7.10, **nombre y rol no pueden editarse** desde la cuenta. La ruta antigua `PATCH /api/cuenta/nombre-visible` fue retirada (PR #29). No usar metadatos de cliente como fuente de autorización.
 
-La migración `supabase/migrations/20261112171056_v76_nombres_visibles.sql` debe aplicarse en el entorno objetivo antes de desplegar el código V7.6. No se ejecuta automáticamente ni esta entrega la aplicó en Supabase remoto.
+Los compradores pueden consultar «Mis conversaciones» y los vendedores administran su inventario y bandeja. El chat privado exige identidad verificada y acceso al vehículo o hilo correspondiente. La administración global mediante contraseña y el chat anónimo de escritura dejaron de estar disponibles desde V7.9; los datos históricos se conservan con lectura autorizada.
+
+Las migraciones de V7.1–V7.8 se documentan en sus entregas específicas; **no volver a ejecutarlas por el mero hecho de leer este README**. Para el alcance actual y los límites comprobados, consultar [estado actual](docs/ESTADO_ACTUAL.md) y [auditoría V7.21](docs/auditoria-final-v721.md).
 
 ## Ficha técnica V7.7
 
@@ -162,4 +166,6 @@ Antes de Production: comprobar credenciales y conectividad reales; verificar Sto
 
 ## Documentación
 
-[Arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md), [cuarto avance](docs/AVANCE_04.md) e [instrucciones de mantenimiento](AGENTS.md).
+- **Referencia vigente:** [estado actual V7.21](docs/ESTADO_ACTUAL.md), [evolución del proyecto](docs/EVOLUCION.md), [auditoría final](docs/auditoria-final-v721.md).
+- **Técnica y planificación:** [arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md), [instrucciones de mantenimiento](AGENTS.md).
+- **Historia académica:** [segundo avance](docs/AVANCE_02.md), [tercer avance](docs/AVANCE_03.md), [cuarto avance](docs/AVANCE_04.md) y documentos de cada versión. Su contenido refleja el momento en el que fue redactado.
