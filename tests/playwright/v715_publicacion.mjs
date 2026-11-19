@@ -94,6 +94,46 @@ try {
   await s.getByText('Foto 1 · Guardada', {exact: true}).waitFor();
   await s.locator('#vehicle-next-actions').scrollIntoViewIfNeeded();
   await capture(s, 'fotografia-guardada-1920');
+
+  const paste = (target, mime = 'image/png') => s.locator(target).evaluate(async (element, type) => {
+    const clipboardData = new DataTransfer();
+    if (type === 'text/plain') {
+      clipboardData.setData(type, 'Texto de prueba');
+    } else {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 32;
+      canvas.getContext('2d').fillRect(0, 0, 32, 32);
+      const png = await new Promise(resolve => canvas.toBlob(resolve));
+      clipboardData.items.add(new File([png], 'portapapeles.png', {type}));
+    }
+    return element.dispatchEvent(new ClipboardEvent('paste', {bubbles: true, cancelable: true, clipboardData}));
+  }, mime);
+  const upload = '#vehicle-photo-upload';
+  const preview = s.locator('#vehicle-photo-pending');
+  assert.equal(await paste('#vehicle-description', 'text/plain'), true);
+  assert.equal(await paste(upload, 'text/plain'), true);
+  assert.equal(await preview.isVisible(), false);
+  assert.equal(await paste(upload, 'image/gif'), false);
+  await s.locator('#vehicle-photo-feedback').getByText(/JPEG|PNG|WebP/).waitFor();
+  assert.equal(await preview.isVisible(), false);
+  await paste(upload);
+  await preview.waitFor();
+  await s.getByRole('button', {name: 'Descartar vista previa'}).click();
+  await preview.waitFor({state: 'hidden'});
+  assert.equal(await s.locator('.admin-photo-item').count(), 1);
+  for (let count = 2; count <= 5; count++) {
+    assert.equal(await paste(upload), false);
+    await preview.waitFor();
+    const uploadRequest = s.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/fotografias'));
+    await s.getByRole('button', {name: 'Guardar fotografía', exact: true}).click();
+    assert.match((await uploadRequest).postDataBuffer().toString('latin1'), /Content-Type: image\/webp\r\n/);
+    await s.getByText(`Foto ${count} · Guardada`, {exact: true}).waitFor();
+  }
+  assert.equal(await paste('#vehicle-photos'), false);
+  await s.getByText(/ya tiene cinco fotografías/).waitFor();
+  assert.equal(await preview.isVisible(), false);
+  assert.equal(await s.locator('.admin-photo-item').count(), 5);
+
   await s.getByRole('link', {name: 'Ver ficha pública', exact: true}).click();
   await s.getByRole('heading', {name: /^Suzuki Swift UX ficticio \d{4}$/, level: 1}).waitFor();
   await s.waitForFunction(() => document.querySelector('#ficha-imagen').naturalWidth > 0 && document.querySelector('#ficha-imagen').src.includes('/fixture-images/'));
@@ -104,7 +144,6 @@ try {
   assert.equal(await s.locator('.admin-nav-link').first().evaluate(e => getComputedStyle(e).fontSize), '16px');
   await capture(s, 'inventario-1920');
   const b = await account('buyer_a');
-  await b.getByRole('link', {name: 'Volver al catálogo', exact: true}).click();
   await b.getByLabel('Buscar vehículos', {exact: true}).fill('Toyota');
   await b.getByRole('button', {name: 'Buscar vehículos', exact: true}).click();
   // La semilla local incluye otro Toyota histórico sin propietario.

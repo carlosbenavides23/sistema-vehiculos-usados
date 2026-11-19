@@ -59,6 +59,11 @@
   const description = one("#vehicle-description");
   const photoInput = one("#vehicle-photo-input");
   const photoConfirm = one("#vehicle-photo-upload-confirm");
+  const photoDiscard = one("#vehicle-photo-discard");
+  const photosSection = one("#vehicle-photos");
+  const photoUpload = one("#vehicle-photo-upload");
+  const photoFeedback = one("#vehicle-photo-feedback");
+  const photoLimitMessage = "Este vehículo ya tiene cinco fotografías. Eliminá o sustituí una para hacer cambios.";
   const deleteDialog = one("#admin-photo-delete-dialog");
 
   let csrfToken = csrf();
@@ -709,6 +714,7 @@
     one("#vehicle-photo-preview").removeAttribute("src");
     if (photoInput) photoInput.disabled = false;
     if (photoConfirm) photoConfirm.disabled = false;
+    photoDiscard.disabled = false;
     if (photoInput) {
       photoInput.value = "";
       photoInput.dataset.replacingId = "";
@@ -889,7 +895,8 @@
     list.replaceChildren();
     const photos = [...(vehicle?.fotografias || [])].sort((a, b) => (a.orden || 0) - (b.orden || 0));
     one("#vehicle-photo-empty").hidden = photos.length > 0;
-    one("#vehicle-photo-upload").hidden = !vehicle || photos.length >= 5;
+    photoUpload.hidden = !vehicle || photos.length >= 5;
+    photosSection.tabIndex = vehicle && photoUpload.hidden ? 0 : -1;
     photos.forEach((photo, index) => {
       const figure = document.createElement("figure");
       figure.className = "admin-photo-item";
@@ -918,27 +925,45 @@
   }
 
   function choosePhoto(replacingId = null) {
-    if (!authenticated || !savedVehicle || pendingPhoto) return;
+    if (!authenticated || !savedVehicle || photoInput.disabled) return;
     photoInput.dataset.replacingId = replacingId || "";
     photoInput.click();
   }
 
-  one("#vehicle-photo-upload")?.addEventListener("click", (event) => {
-    if (event.target.closest("input")) return;
-    if (!savedVehicle || pendingPhoto) return;
-  });
-  one("#vehicle-photo-upload")?.addEventListener("keydown", (event) => {
-    if (!["Enter", " "].includes(event.key) || event.target !== one("#vehicle-photo-upload")) return;
+  photoUpload?.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key) || event.target !== photoUpload) return;
     event.preventDefault();
-    if (!savedVehicle || pendingPhoto) return;
-    photoInput.dataset.replacingId = "";
-    photoInput.click();
+    choosePhoto();
   });
-  photoInput?.addEventListener("change", async () => {
+  photoInput?.addEventListener("change", () => {
     const file = photoInput.files?.[0];
     const replacingId = photoInput.dataset.replacingId || null;
     photoInput.value = "";
-    if (!file || !savedVehicle || !window.Fotografias) return;
+    photoInput.dataset.replacingId = "";
+    preparePhoto(file, replacingId);
+  });
+
+  photosSection?.addEventListener("paste", (event) => {
+    if (!authenticated || !savedVehicle || event.target.closest("textarea, input:not([type=file]), [contenteditable]")) return;
+    const clipboard = event.clipboardData;
+    const isImage = (entry) => entry.type.startsWith("image/");
+    const file = Array.from(clipboard?.files || []).find(isImage)
+      || Array.from(clipboard?.items || []).find((item) => item.kind === "file" && isImage(item))?.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    preparePhoto(file);
+  });
+
+  async function preparePhoto(file, replacingId = null) {
+    if (!file || !authenticated || !savedVehicle || !window.Fotografias) return;
+    if (!replacingId && savedVehicle.fotografias?.length >= 5) {
+      photoFeedback.textContent = photoLimitMessage;
+      return;
+    }
+    if (photoPreparing || pendingPhoto) {
+      photoFeedback.textContent = "Guardá o descartá la fotografía actual antes de agregar otra.";
+      return;
+    }
     const generation = ++photoDraftGeneration;
     photoPreparing = true;
     photoInput.disabled = true;
@@ -961,11 +986,18 @@
     } finally {
       if (generation === photoDraftGeneration) photoPreparing = false;
     }
+  }
+
+  photoDiscard?.addEventListener("click", () => {
+    clearPhotoDraft();
+    photoFeedback.textContent = "Vista previa descartada.";
+    (photoUpload.hidden ? photosSection : photoUpload).focus();
   });
 
   photoConfirm?.addEventListener("click", async () => {
     if (!pendingPhoto || !savedVehicle) return;
     photoConfirm.disabled = true;
+    photoDiscard.disabled = true;
     photoInput.disabled = true;
     one("#vehicle-photo-feedback").textContent = "Guardando fotografía…";
     const formData = new FormData();
@@ -979,11 +1011,14 @@
       vehicles = vehicles.map((item) => String(item.id) === String(savedVehicle.id) ? savedVehicle : item);
       clearPhotoDraft();
       renderPhotos(savedVehicle);
-      one("#vehicle-photo-feedback").textContent = result.advertencia || "Fotografía guardada.";
+      photoFeedback.textContent = result.advertencia || "Fotografía guardada.";
+      if (photoUpload.hidden) photoFeedback.textContent += ` ${photoLimitMessage}`;
+      (photoUpload.hidden ? photosSection : photoUpload).focus();
       await loadInventory();
     } catch (error) {
       one("#vehicle-photo-feedback").textContent = `${error.message} La vista previa y la clave de reintento se conservaron.`;
       photoConfirm.disabled = false;
+      photoDiscard.disabled = false;
     } finally { if (!pendingPhoto) photoInput.disabled = false; }
   });
 
