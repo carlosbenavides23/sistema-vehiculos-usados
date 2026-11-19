@@ -229,7 +229,7 @@
             <button class="admin-button admin-button-secondary" type="button" data-admin-view="inventory">Volver al inventario</button>
           </nav>
 
-          <section class="admin-form-card admin-photo-card" aria-labelledby="vehicle-photos-title">
+          <section id="vehicle-photos" class="admin-form-card admin-photo-card" aria-labelledby="vehicle-photos-title" tabindex="-1">
             <div class="admin-form-card-heading"><h2 id="vehicle-photos-title" tabindex="-1">Fotografías</h2><p>Primero guardá el vehículo. Después podrás añadir hasta cinco fotos.</p></div>
             <div id="vehicle-photo-list" class="admin-photo-list"></div>
             <div id="vehicle-photo-empty" class="admin-photo-empty" hidden>{{ lucide_icon('image', 20) }}<span>Todavía no hay fotografías.</span></div>
@@ -237,13 +237,16 @@
               <p class="photo-preview-state">Vista previa sin guardar. Confirmá con «Guardar fotografía».</p>
               <img id="vehicle-photo-preview" alt="Vista previa de la fotografía seleccionada">
               <div><strong id="vehicle-photo-pending-name"></strong><p id="vehicle-photo-pending-detail"></p></div>
-              <button id="vehicle-photo-upload-confirm" class="admin-button admin-button-primary" type="button">Guardar fotografía</button>
+              <div class="admin-photo-pending-actions">
+                <button id="vehicle-photo-upload-confirm" class="admin-button admin-button-primary" type="button">Guardar fotografía</button>
+                <button id="vehicle-photo-discard" class="admin-button admin-button-secondary" type="button">Descartar vista previa</button>
+              </div>
             </div>
-            <label id="vehicle-photo-upload" class="admin-photo-upload" tabindex="0" role="button" aria-label="Agregar fotografía al vehículo" hidden>
+            <label id="vehicle-photo-upload" class="admin-photo-upload" tabindex="0" role="button" aria-label="Agregar fotografía al vehículo" aria-describedby="vehicle-photo-help" hidden>
               <input id="vehicle-photo-input" type="file" accept="image/jpeg,image/png,image/webp">
               {{ lucide_icon('image', 20) }}
               <span>Agregar fotografías</span>
-              <small>Una fotografía por vez · JPEG, PNG o WebP · hasta 10 MB por original</small>
+              <small id="vehicle-photo-help">Seleccioná un archivo o pegá una imagen con Ctrl + V (⌘ + V en Mac). Una por vez · JPEG, PNG o WebP · hasta 10 MB por original.</small>
             </label>
             <p id="vehicle-photo-feedback" class="admin-inline-feedback" role="status" aria-live="polite"></p>
           </section>

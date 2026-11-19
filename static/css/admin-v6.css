@@ -182,6 +182,7 @@
 .admin-photo-pending strong { display: block; overflow-wrap: anywhere; color: #1b3036; font-size: 12px; }
 .admin-photo-pending p { margin: 5px 0 0; color: var(--color-text-muted); font-size: 10px; }
 .admin-photo-pending .admin-button { min-height: 40px; padding: 0 10px; font-size: 11px; }
+.admin-photo-pending-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-photo-upload { min-height: 94px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px dashed #b9cbc2; border-radius: 9px; color: #35574f; background: #f6f8f6; cursor: pointer; text-align: center; font-size: 12px; font-weight: 650; }
 .admin-photo-upload:hover { background: #eaf1ed; }
 .admin-photo-upload > input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
@@ -325,7 +326,8 @@
   .admin-photo-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
   .admin-photo-pending { grid-template-columns: 64px minmax(0, 1fr); gap: 9px; }
   .admin-photo-pending > img { width: 64px; height: 54px; }
-  .admin-photo-pending .admin-button { grid-column: 1 / -1; width: 100%; }
+  .admin-photo-pending-actions { grid-column: 1 / -1; }
+  .admin-photo-pending .admin-button { width: 100%; }
   .admin-auth-card, .admin-readonly-card { margin-top: 76px; padding: 30px 16px 26px; }
   .admin-auth-card h1, .admin-readonly-card h1 { font-size: 23px; }
   .admin-chat-workspace { min-height: 0; display: block; border-radius: 11px; }
