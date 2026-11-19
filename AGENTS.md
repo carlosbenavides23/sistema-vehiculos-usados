@@ -1,50 +1,69 @@
-# Instrucciones para continuar
+# Guía para continuar o mantener el proyecto
 
-Proyecto académico de Programación Estructurada, UAM Managua, Grupo 7. Rama de esta implementación: `feature/supabase-migration`. Fecha límite: 30 de noviembre de 2026. Publicación pública prevista hasta el 27 de noviembre de 2026; no crear una automatización de retirada sin petición expresa.
+**Proyecto:** Sistema de vehículos usados, Grupo 7, Programación Estructurada, UAM Managua.  
+**Estado de referencia:** `main` en `336bf7f` (V7.20.5); auditoría V7.21 del 18-11-2026: **APTO CON OBSERVACIONES**.  
+**Objetivo vigente:** preparar demostración y entrega. **No iniciar otra fase funcional sin un pedido explícito**.
 
-## Antes de editar
+Leer primero [README](README.md), [estado actual](docs/ESTADO_ACTUAL.md), [evolución](docs/EVOLUCION.md), [arquitectura](docs/ARQUITECTURA.md), [decisiones](docs/DECISIONES.md), [roadmap](docs/ROADMAP.md) y [auditoría final](docs/auditoria-final-v721.md). Los avances y documentos de V6/V7 tempranas representan estados **históricos** y pueden contener instrucciones superadas.
 
-Lee README y los documentos de arquitectura, decisiones, avance y roadmap. Inspecciona rama, estado y diff; conserva cambios ajenos y no uses `git reset --hard`. La autorización del usuario en la conversación prevalece sobre restricciones históricas del segundo avance o Fase 1.
+## 1. Antes de cualquier cambio
 
-## Arquitectura y alcance
+1. Inspeccionar rama, estado, últimos commits y diff. No sobrescribir trabajo ajeno ni usar restablecimientos destructivos.
+2. Identificar si la tarea es **documentación**, **preparación de presentación** o **corrección de defecto**. El desarrollo funcional está congelado.
+3. Respetar instrucciones concretas de la solicitud vigente; una nota histórica no autoriza nuevas operaciones.
+4. Mantener separadas las pruebas locales de las comprobaciones reales de Supabase/Vercel. No afirmar que un doble de servicio valida Production.
+5. Para modificaciones, probar exactamente las rutas/recursos afectados; evitar suites costosas sin una razón verificable.
+6. No hacer push, merge, despliegues, migraciones, limpiezas remotas ni cambios de permisos por inferencia. Cada operación requiere autorización acorde a su impacto.
 
-- Python y Flask mediante funciones y módulos, sin ORM ni clases de dominio. Las clases de excepciones y dobles de prueba son auxiliares, no un nuevo modelo de dominio.
-- `vehiculos.py`: validación; `persistencia.py`: anuncios/idempotencia; `persistencia_fotos.py`: transacciones de fotos y recuperación; `limites_login.py`: límite de acceso PostgreSQL; `imagenes.py`: Pillow; `almacenamiento.py`: adaptador REST Storage; `app.py`: HTTP/sesión/CSRF.
-- PostgreSQL 17 es la fuente de verdad. Proyecto autorizado `rtcygltmrtulyeezaaac`, región `us-west-2`; bucket existente `vehiculos`. No crear proyectos, ramas Supabase, buckets ni servicios de pago sin autorización específica.
-- Navegador → Flask para datos y escrituras. Las imágenes públicas se consultan por URL de Storage. JavaScript no recibe credenciales ni usa localStorage operativo.
-- Campo placa solo para administración; no inferir que una foto oculta automáticamente una placa visible. Equipamiento: TRUE=sí, FALSE=no, NULL=no especificado; no inferirlo desde descripciones.
-- No ampliar a buscador avanzado, precio máximo, chat, pagos, contacto real, cuentas completas ni validación técnica oficial sin nueva autorización.
+## 2. Arquitectura y rol de los componentes
 
-## Contratos y límites
+- Backend Python/Flask con funciones y módulos separados; psycopg + SQL parametrizado, sin ORM ni clases de dominio obligatorias.
+- PostgreSQL 17 como fuente de verdad; Supabase Auth para cuentas comprador/vendedor; Supabase Storage para fotos WebP.
+- Frontend HTML/CSS/JavaScript nativo con Jinja. Recursos bajo `static/` y copia de despliegue en `public/static/`.
+- `app.py` gestiona rutas, sesiones, CSRF, autorización y vistas; `vehiculos.py` valida; `persistencia.py` opera anuncios; `persistencia_fotos.py` operaciones de imágenes; `imagenes.py` procesa WebP; `almacenamiento.py` integra Storage; `cuentas.py`/`auth_proveedor.py` manejan cuentas; `persistencia_chat_cuentas.py` mensajes privados.
+- Catálogo y perfiles son públicos; la publicación, fotografía, disponibilidad, retiro y mensajería dependen de **rol/participante/propiedad verificados**.
+- El nombre visible es **fijo desde el registro** (V7.10), como el rol. No volver a añadir una ruta para cambiarlo por asumir que V7.6 describe la versión vigente.
+- La administración con contraseña compartida y las rutas anónimas de chat fueron retiradas en V7.9. Los archivos `admin-v6` son componentes reaprovechados del vendedor, **no permisos globales**. El archivo de chat anónimo conserva historial de solo lectura.
+- No reactivar `/api/admin/*`, escrituras anónimas, login compartido ni rutas obsoletas.
 
-GET catálogo/item devuelven `fotografias` y omiten placa sin sesión. POST anuncio recibe `{vehiculo}` más `Idempotency-Key` UUID; PUT conserva ID y fotos; PATCH cambia disponibilidad. No aceptar la colección completa ni IDs elegidos por el cliente. Precio USD en centavos enteros, máximo 500 anuncios.
+## 3. Seguridad y datos
 
-POST/PUT de fotografías usan multipart con un solo campo `fotografia`, UUID y CSRF; DELETE exige sesión y CSRF. Hasta cinco fotos por vehículo. Originales JPEG/PNG/WebP hasta 10.000.000 bytes se comprimen en navegador a WebP ≤1600 px y ≤1.000.000 bytes, calidad inicial 78 %. El servidor impone solicitud ≤1.100.000 bytes y vuelve a decodificar/recodificar sin metadatos. No Base64 en PostgreSQL ni archivos persistentes en Vercel.
+- Credenciales solo en variables de entorno; `.env` ignorado. `SUPABASE_SECRET_KEY` o alternativa heredada `SUPABASE_SERVICE_ROLE_KEY` son exclusivamente de servidor. No exponer contraseñas, DSN, tokens ni secretos en logs, navegador, capturas o Git.
+- **Toda mutación privada** debe comprobar sesión válida, CSRF, rol y propiedad/participación. No aceptar IDs de propietario desde el cliente ni confiar en la visibilidad de botones.
+- Cookies seguras (HttpOnly/SameSite y Secure en HTTPS), revocación y respuestas privadas sin caché. Los destinos de retorno deben restringirse a URLs internas.
+- Las publicaciones generan IDs en PostgreSQL y emplean UUID/idempotencia donde corresponda. Precios USD en centavos, máximo global de anuncios sujeto a las restricciones de persistencia.
+- La placa es privada del propietario; el frontend público no debe exponerla. La imagen en Storage puede revelar visualmente una placa: revisar los archivos antes de subirlos.
+- Booleanos opcionales son **triestado**: verdadero, falso o no especificado. No inferir campos nuevos de textos libres.
+- Las tablas usan RLS y privilegios directos revocados para usuarios públicos. No abrir políticas para silenciar INFO.
+- Preview Vercel **siempre** fuerza solo lectura, aunque `APP_READ_ONLY=false`. La auditoría V7.21 verificó esa protección localmente; no presupone un ensayo remoto de Preview.
 
-No borres objetos anteriores antes del commit de sustitución. Reserva durable antes de subir, referencias y cola en transacción. `pendientes_limpieza` es de solo lectura; **reclamar_limpieza debe autorizar cada borrado** bajo bloqueo de operación antes de cola, cancelar reservas expiradas y proteger mediante lease de dos minutos. No quitar esas garantías ni usar un listado antiguo como permiso para borrar. Los errores conservan trabajo recuperable.
+## 4. Fotografías y consistencia
 
-## Seguridad
+- Hasta cinco fotografías por vehículo. Originales JPEG/PNG/WebP ≤10.000.000 bytes; preparación de WebP en navegador ≤1600 px/≤1.000.000 bytes y validación/recodificación por Python; solicitud HTTP limitada.
+- No guardar binarios en PostgreSQL ni depender del disco efímero de Vercel.
+- Reservar ruta nueva de Storage y registrar la operación antes de escribir bytes; confirmar metadatos en PostgreSQL y **solo entonces** encolar limpieza de la referencia anterior.
+- La cola de limpieza no autoriza por sí sola a borrar. La reclamación debe verificar bloqueos, reservas vencidas, referencias activas y concesión; un fallo mantiene trabajo recuperable.
+- No ejecutar limpiezas, migraciones ni cargas masivas contra Supabase sin aprobación explícita y verificación de alcance. No emplear anuncios de otros usuarios como datos de prueba.
 
-Secretos en entorno, `.env` ignorado, `.env.example` sin valores reales. `SUPABASE_SECRET_KEY` moderna es preferida; alternativa JWT `SUPABASE_SERVICE_ROLE_KEY`. Nunca imprimir claves, DSN, hash administrativo ni mensajes internos del proveedor.
+## 5. Pruebas y ambientes
 
-Cada escritura verifica administración y CSRF. Cookies HttpOnly/SameSite=Lax y Secure en HTTPS; Vercel fuerza Secure. Límite de cinco intentos/10 minutos reservado atómicamente en PostgreSQL antes del hash; clave HMAC de `remote_addr`, sin confiar en X-Forwarded-For arbitrario. Si falla PostgreSQL, el login falla cerrado. No sustituirlo por memoria de un worker o cookies.
+- Mantener pruebas unitarias/Node y de integración según el README. Ejecutar la suite completa solo cuando el alcance lo justifique.
+- Para pruebas PostgreSQL reales, usar `TEST_DATABASE_URL` apuntando a **loopback** y base de control `grupo7_test*`, con datos ficticios. La fixture crea bases desechables y debe rechazar destinos remotos. Sin esa variable, declarar **omitidas** las pruebas de integración, no aprobadas.
+- Storage/Auth simulados **no** prueban servicios remotos. El informe V7.21 aprobó 28 tests localizados y 8 PostgreSQL aislados; no ejecutó escrituras reales de Production.
+- Verificar sintaxis Python/JS, recursos estáticos, cambios de navegación y `git diff --check` cuando corresponda.
+- En pruebas de navegador priorizar los tres recorridos académicos: visitante; comprador; vendedor. El cierre V7.21 se centró en Chromium 1920 × 1080. No extrapolar ese resultado a todos los dispositivos.
+- Detener servidores/procesos temporales. Antes de borrar copias de PostgreSQL, comprobar que no son los clústeres originales; la auditoría dejó copias detenidas cuya eliminación recursiva estuvo bloqueada por el entorno.
 
-Preview de Vercel es siempre de solo lectura en esta entrega. `APP_READ_ONLY=false` no debe desbloquearlo. Production requiere aprobación final del usuario. La cuenta administrativa compartida no ofrece atribución individual ni MFA; documentar antes de ampliar exposición.
+## 6. Vercel y despliegues
 
-RLS habilitado en las seis tablas y sin privilegios directos para anon/authenticated/PUBLIC. Los avisos INFO RLS sin políticas son deliberados. No añadir políticas abiertas para silenciarlos. Los índices nuevos sin uso no deben eliminarse por un aviso INFO inmediatamente después de crearlos.
+- `app.py` expone la aplicación Flask; `.python-version` fija Python 3.14; `vercel.json` configura el despliegue.
+- `scripts/preparar_vercel.py` sincroniza los archivos estáticos desde `static/` a `public/static/`. Confirmar que las copias sean iguales antes de un despliegue.
+- Production pública estaba READY en el commit `336bf7f` durante la auditoría del 18-11-2026. Esa evidencia **no** garantiza futuras sesiones ni escrituras privadas.
+- Mantener variables por ambiente. No publicar una Preview en modo escritura. No desplegar por el mero hecho de actualizar documentación.
+- Para la presentación, validar los recorridos autenticados reales únicamente con cuentas y publicaciones de demostración autorizadas.
 
-## Migraciones, datos y pruebas
+## 7. Política de cierre
 
-Inspecciona esquema, migraciones, identidad y costos antes de cambios remotos. Versiona SQL y usa Supabase MCP para DDL remoto. No volver a ejecutar la semilla ni modificar los seis anuncios con pruebas. No hacer operaciones destructivas sobre datos reales sin autorización concreta.
+El prototipo **ya cumple el alcance funcional acordado**. No añadir favoritos, red social, pagos, dashboards, reescrituras de lenguaje, nuevas dependencias ni rediseños cosméticos por iniciativa propia. Solo proponer una corrección si hay fallo reproducible de seguridad, integridad o recorrido esencial; documentar evidencia y pruebas.
 
-Las migraciones están en `supabase/migrations`. La tercera añade cuatro tablas de coordinación sin cambiar anuncios existentes. Los cargadores de semillas/importación son explícitos; localStorage antiguo permanece intacto y las exportaciones se respaldan fuera del repositorio.
-
-Sigue README para Windows/Linux y usa el Python del entorno. Suite: `python -m unittest discover -s tests -v`. Para pruebas reales, `TEST_DATABASE_URL` debe indicar un clúster local aislado y base `grupo7_test*` con permiso de crear bases/roles. La fixture crea y elimina solo bases nuevas UUID; nunca admite Supabase. Sin variable, las pruebas reales se omiten. Distingue PostgreSQL real, Pillow real y Storage simulado.
-
-Verifica los cambios con pruebas apropiadas, compilación Python, sintaxis JS, `pip check`, `git diff --check` y revisión del diff. No repitas pruebas amplias sin cambios o fallos que lo justifiquen. Prueba el flujo visual al cambiar frontend. Detén procesos temporales al terminar y no incluyas logs, fixtures, capturas generadas, entornos ni secretos en Git.
-
-## Vercel y Git
-
-`app.py` expone `app`; `.python-version` fija Python 3.14 y `vercel.json` declara Flask. Los recursos que Flask referencia bajo `/static/` también deben estar versionados byte por byte en `public/static/`, que Vercel sirve desde CDN. `scripts/preparar_vercel.py` sincroniza esas copias; no las excluyas de Git ni de `.vercelignore`. No persistir datos en el disco de funciones.
-
-La tarea actual autoriza commits locales verificados, no push, merge a main ni Production. No reescribas historial ni borres ramas. Antes de cualquier publicación confirma destino y autorización. Coordina subagentes con contratos y archivos separados; informa trabajo real, limitaciones y estado final.
+Las fechas históricas de cierre/publicación/entrega están en [ROADMAP](docs/ROADMAP.md) y deben confirmarse con el equipo. No crear una automatización que retire el sitio sin petición expresa. No atribuir certificación, garantías comerciales o pruebas no realizadas al sistema.
