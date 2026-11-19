@@ -1,87 +1,107 @@
-# Arquitectura vigente
+# Arquitectura vigente del sistema de vehículos usados
 
-Aplicación estructurada de catálogo compartido: Python/Flask, PostgreSQL 17, Supabase Storage y frontend HTML/CSS/JavaScript sin compilador. El proyecto remoto autorizado es `rtcygltmrtulyeezaaac`, `us-west-2`. El estado comprobado de los servicios y el despliegue se registra en `AVANCE_02.md`.
+**Referencia:** `main` en `336bf7f` (V7.20.5), revisada para el cierre documental V7.21, 18-11-2026.  
+**Alcance:** prototipo académico de publicación, consulta y contacto entre comprador y vendedor.  
+**Documentos complementarios:** [Estado actual](ESTADO_ACTUAL.md) · [Evolución](EVOLUCION.md) · [Auditoría](auditoria-final-v721.md).
+
+> Las decisiones y diagramas que describían un administrador compartido o chat anónimo de escritura pertenecen a V6 y anteriores. Esta página refleja **la arquitectura posterior a V7.9**.
+
+## 1. Vista general
 
 ```mermaid
 flowchart LR
-  Navegador -->|JSON o multipart + sesión/CSRF| Flask
-  Flask -->|SQL parametrizado, TLS| PostgreSQL
-  Flask -->|WebP, clave solo del servidor| Storage[Supabase Storage]
-  Navegador -->|Lectura de URL pública| Storage
+    Usuario[Visitante / Comprador / Vendedor] --> Navegador[Navegador HTML CSS JS]
+    Navegador -->|GET y API HTTP, cookies, CSRF| Flask[Flask / Jinja en Vercel]
+    Flask -->|psycopg / SQL parametrizado TLS| Postgres[(PostgreSQL 17)]
+    Flask -->|verificar identidad| Auth[Supabase Auth]
+    Flask -->|cargar, sustituir, retirar WebP| Storage[Supabase Storage]
+    Navegador -->|URLs públicas de imágenes| Storage
 ```
 
-## Responsabilidades
+**Una sola aplicación Flask** concentra los contratos HTTP, autenticación contextual y permisos. El navegador no tiene acceso directo a PostgreSQL, no recibe secretos privados de Supabase y no decide quién es propietario de un anuncio. La interfaz usa HTML/CSS/JavaScript nativos; no hay ORM ni framework frontend. En Vercel, el código se ejecuta como función Flask sobre Python 3.14, mientras los recursos bajo `public/static/` se sirven como estáticos.
 
-| Archivo | Responsabilidad |
+## 2. Responsabilidades y separación
+
+| Capa / archivo | Función vigente |
 | --- | --- |
-| `vehiculos.py` | Validación/normalización pura, Decimal a centavos y exportaciones antiguas. |
-| `persistencia.py` | Conexión psycopg, CRUD, IDs de PostgreSQL, límite 500, idempotencia, semillas e importación. |
-| `persistencia_fotos.py` | Metadatos, máximo cinco, reservas durables, sustitución, eliminación y reclamación de limpieza. |
-| `limites_login.py` | Ventanas compartidas de intentos, reservadas atómicamente antes del hash. |
-| `imagenes.py` | Decodificación Pillow, límites, orientación y WebP nuevo sin metadatos. |
-| `almacenamiento.py` | REST de Storage, URLs públicas, errores seguros y procesamiento de cola. |
-| `app.py` | Flask, contratos HTTP, sesión, CSRF, autorización y modo de consulta. |
-| `persistencia_chat.py` | Sesiones anónimas con hash, ownership de conversaciones, mensajes, idempotencia y límites persistentes. |
-| `persistencia_chat_cuentas.py` | Persistencia privada de conversaciones comprador-vendedor, con alcance por rol/participante, idempotencia y paginación para V7.3.1. |
-| `static/js/chat.js` | Panel comprador/administrador; polling incremental, serializado y pausado en segundo plano. |
-| `static/js/interfaz.js` | Formularios, galería, administración y HTTP; conserva UUID ante resultados inciertos. |
-| `static/js/fotografias.js` | Compresión y vista previa de un archivo por vez en navegador. |
+| `app.py` | Flask, plantillas, API HTTP, sesión, CSRF, restricciones de entorno y autorización. |
+| `vehiculos.py`, `tipos_vehiculo.py` | Esquema lógico de datos, validación, normalización, conversiones y tipos. |
+| `persistencia.py` | SQL de catálogo, publicaciones, disponibilidad y consultas transaccionales. |
+| `persistencia_fotos.py` | Referencias de fotografías, reservas, sustituciones, eliminaciones y cola de limpieza. |
+| `imagenes.py` | Decodificación, verificación de límites y recodificación WebP sin metadatos. |
+| `almacenamiento.py` | Adaptador REST de Storage y mantenimiento de objetos. |
+| `cuentas.py`, `auth_proveedor.py`, `nombres_usuarios.py` | Identidad, sesión, rol y perfil visible fijo al registrarse. |
+| `persistencia_chat_cuentas.py` | Conversaciones autenticadas, mensajes, participantes y consultas idempotentes. |
+| `perfiles_publicos.py` | Obtención delimitada de perfiles de vendedores. |
+| `archivo_chat.py` | Archivo histórico de chats anónimos de solo lectura bajo permisos del vendedor. |
+| `templates/`, `static/` | Pantallas, estilos y comportamiento del cliente. |
+| `public/static/` | Copias de recursos que Vercel entrega por CDN; sincronizadas con `static/`. |
 
-No hay ORM, colección global de anuncios, persistencia en archivos de aplicación ni clases de dominio. Los dobles en pruebas no sustituyen PostgreSQL en producción.
+Algunos nombres heredados del frontend contienen `admin-v6`. **El nombre del archivo no implica un rol administrativo global activo**: son componentes reutilizados por el vendedor. `persistencia_chat.py` sigue conteniendo validadores y persistencia histórica necesarios para compatibilidad/archivo, no rutas públicas de escritura anónima.
 
-## Modelo relacional
+## 3. Modelo de datos
 
-`public.vehiculos`: id BIGINT IDENTITY PK; marca/modelo VARCHAR(60), año SMALLINT, kilometraje/precio_centavos BIGINT, ubicación VARCHAR(100), descripción VARCHAR(1000), disponibilidad disponible/vendido y timestamps. Campos opcionales: color(40), placa(20), tipo(40), transmisión/combustible(30) y tres BOOLEAN nullable. USD permanece como moneda y los enteros se restringen al rango seguro de JavaScript. Python valida año 1900 hasta año actual +1; SQL conserva el mínimo estático. `updated_at` se actualiza desde las consultas, sin trigger.
+PostgreSQL 17 es la **fuente de verdad**. Las tablas y migraciones versionadas se encuentran en `supabase/migrations/`. Descripción conceptual:
 
-`public.vehiculo_fotografias`: IDENTITY PK; vehículo FK ON DELETE RESTRICT; ruta única; orden 1..5 y UNIQUE(vehiculo_id,orden); MIME image/webp; tamaño 1..1.000.000; dimensiones 1..1600; timestamp. Los índices de PK/UNIQUE cubren búsquedas por vehículo y restricciones. No contiene binarios ni Base64.
+- **Vehículos:** identificador generado por PostgreSQL, marca, modelo, año, kilometraje, precio en centavos de USD, ubicación, descripción, disponibilidad, ficha técnica, timestamps, propietario `vendedor_id` cuando corresponda y retiro lógico.
+- **Fotografías:** hasta cinco referencias ordenadas por anuncio; cada referencia asocia una ruta de objeto WebP, metadatos y un vehículo. Los binarios no se guardan en la base.
+- **Identidades/perfiles/roles:** UUIDs vinculados a Supabase Auth; rol y nombre visibles definidos al registrar, con reglas de inmutabilidad actuales.
+- **Conversaciones y mensajes:** relación de participantes comprador/vendedor y vehículo, historial privado, estados y claves de idempotencia.
+- **Coordinación:** solicitudes idempotentes, operaciones de imágenes y cola de limpieza recuperable, además de mecanismos de revocación o limitación que requieran las rutas vigentes.
+- **Histórico V6:** conversaciones anónimas previas que pueden leerse mediante el archivo autorizado; no representan un nuevo canal de escritura.
 
-Tablas auxiliares privadas al API público:
+Las operaciones se realizan con funciones Python y SQL parametrizado por psycopg. Se usa TLS hacia PostgreSQL remoto. Las credenciales privilegiadas permanecen en el servidor; las tablas expuestas por el modelo tienen RLS y privilegios públicos revocados conforme a sus migraciones. No se abren políticas de lectura/escritura directa a clientes solo para suprimir avisos del proveedor.
 
-- `admin_login_intentos`: clave HMAC, número de intentos y expiración; índice por expiración y limpieza acotada de ventanas de más de un día.
-- `solicitudes_idempotentes`: UUID de alta, huella del cuerpo normalizado y FK al vehículo. Reutilizar clave con datos distintos se rechaza.
-- `fotografia_operaciones`: UUID, vehículo, foto objetivo/resultado, ruta anterior/nueva, huella y estado pendiente/completada/cancelada. Una reserva caduca después de una hora.
-- `storage_limpieza`: ruta, instante elegible y concesión `reclamada_hasta`; trabajo durable para objetos sin referencia.
+Los datos públicos se **proyectan deliberadamente**: una consulta del catálogo no entrega la placa privada ni atributos internos de identidad. La consulta del perfil público entrega nombre, URL y las publicaciones autorizadas; no correo, credenciales o atributos privados.
 
-RLS está habilitado en las seis tablas y se revocaron privilegios a PUBLIC/anon/authenticated. No hay políticas públicas. Las lecturas públicas pasan por Flask y la conexión privilegiada permanece en el servidor. Los avisos INFO RLS sin políticas reflejan ese cierre; no se añaden políticas abiertas para silenciarlos.
+## 4. Autenticación, roles y permisos
 
-## Consistencia e idempotencia
+La arquitectura vigente tiene **visitante, comprador y vendedor**:
 
-La migración `20261105103900_chat_anonimo.sql` agrega `visitantes_anonimos`, `sesiones_visitante`, `conversaciones`, `mensajes_chat` y `chat_inicio_sesion_limites`. PostgreSQL recibe solo el hash SHA-256 del secreto anónimo; el ID de conversación no autoriza acceso. Cada consulta comprueba la propiedad. La cookie dura 30 días y no depende de la sesión administrativa. Los mensajes se almacenan en PostgreSQL, no en Web Storage del navegador. La tabla admite hasta 4.000 caracteres; el límite HTTP es 2.000. Los envíos de comprador se serializan por visitante y los administrativos por conversación; las claves idempotentes admiten reintentos concurrentes sin duplicar. Las nuevas sesiones se limitan a 20 por hora mediante HMAC de IP: en Vercel se usa `x-vercel-forwarded-for` (cabecera sobrescrita por la plataforma); fuera de Vercel se ignoran cabeceras de proxy. Quienes salen por la misma IP pública/NAT comparten cuota. La IP en claro no se guarda ni se usa como identidad.
+1. Un visitante puede consultar catálogo, fichas y perfiles sin credenciales.
+2. El comprador usa Supabase Auth para iniciar sesión y contactar desde un vehículo disponible. Solo accede a conversaciones donde participa.
+3. El vendedor autenticado puede publicar y operar exclusivamente sobre vehículos de su propiedad, y leer/responder los hilos correspondientes.
+4. Los cambios de propietario no se aceptan desde el cuerpo enviado por el cliente; se comprueban contra identidad y relaciones persistidas.
+5. El nombre visible se selecciona en el registro y permanece fijo desde V7.10. El rol no cambia mediante metadata editable de Auth.
+6. Al cerrar sesión o cambiar de identidad, el frontend invalida las vistas privadas y el backend verifica la sesión para cada ruta que lo requiere.
 
-El listado administrativo conserva su respuesta `conversaciones` y agrega `hay_mas` y `siguiente_cursor`; `cursor_id` pagina lotes de 50 para que la vista pueda cargar historiales largos sin romper clientes existentes. El polling reconcilia filas por ID y conserva el foco del teclado cuando cambia el contenido.
+Las escrituras exigen **CSRF** y contexto autenticado autorizado. Las cookies se configuran con atributos de seguridad; las respuestas privadas y las relacionadas con el token CSRF no deben almacenarse en caché compartida. Los parámetros de retorno están validados para evitar navegación a orígenes externos.
 
-`visitantes_anonimos.auth_user_id` es un espacio de relación nullable para un futuro vínculo con Supabase Auth; esta etapa no crea cuentas ni agrega una FK a una tabla de Auth que no está presente en PostgreSQL local aislado.
+La transición V7.9 eliminó el login global por contraseña y las rutas `/api/admin/*`. `/administracion` redirige a `/cuenta`, y las cookies administrativas heredadas no conceden permisos. También se retiraron las rutas HTTP de escritura del chat anónimo V6. El archivo de mensajes históricos mantiene control de identidad/propiedad y es **solo lectura**.
 
-Las altas bloquean la tabla para comprobar el límite de 500 e insertar la solicitud idempotente en la misma transacción. PostgreSQL genera los IDs. Las fotos bloquean la fila del vehículo, por lo que altas concurrentes no superan cinco órdenes ni duplican una clave de envío.
+## 5. Consistencia de publicaciones y fotografías
 
-Proceso de carga/sustitución:
+- La publicación se crea/actualiza de forma transaccional en PostgreSQL. El servidor, no el navegador, asigna el identificador y comprueba autorización.
+- La idempotencia mediante UUID y huella impide duplicar altas/fotos tras un doble clic, un reintento o una respuesta perdida; el reuso incompatible se rechaza.
+- Cada anuncio admite hasta cinco fotografías. El navegador acepta originales JPEG/PNG/WebP de hasta **10 MB** y prepara WebP de un máximo de **1600 px** y **1 MB**; Flask limita la solicitud y **vuelve a validar y recodificar**, eliminando metadatos.
+- Para sustituir una imagen, se reserva una operación en base, se carga a **una ruta nueva** y posteriormente se confirma su referencia. La antigua permanece hasta que se puede reclamar con seguridad para limpieza.
+- Eliminar una foto retira su referencia y registra el trabajo de limpieza en el mismo commit. Los fallos conservan una cola recuperable.
+- No existe una transacción distribuida entre PostgreSQL y Storage. Se usan reservas durables, bloqueo de filas y concesiones de limpieza para disminuir riesgos de datos y objetos inconsistentes.
 
-1. Python decodifica y recodifica la imagen; deriva su huella.
-2. PostgreSQL reserva UUID/ruta y deja recuperación durable antes de enviar bytes.
-3. Se sube a una ruta nueva, sin upsert. Un 409 solo se acepta tras descargar y comparar bytes mediante tamaño y SHA-256.
-4. PostgreSQL confirma metadatos, estado completado y cola para el objeto anterior en una sola transacción. Una sustitución concurrente incompatible falla sin eliminar la foto vigente.
-5. Tras el commit se intenta procesar una tarea de limpieza. Un error conserva la cola y se informa como limpieza pendiente, sin deshacer el cambio válido.
+La imagen pública puede mostrar una matrícula visible dentro de la foto aunque el campo placa sea privado. El equipo debe revisar los archivos ficticios antes de publicarlos.
 
-Eliminar una foto retira su referencia y encola el objeto en el mismo commit; no borra primero el objeto. La previsualización de limpieza no modifica datos. Cada borrado real requiere reclamar la ruta con bloqueos en orden operación→cola y una lectura actual. La reclamación cancela una reserva expirada antes de autorizar el borrado, excluye referencias activas y usa una concesión de dos minutos. Así una confirmación que cruza el vencimiento no puede competir con el borrado. Un crash deja una reserva o cola recuperable, no exige borrar fotografías anteriores por suposición.
+## 6. Interfaz y navegación
 
-No hay transacción distribuida entre PostgreSQL y Storage. Los objetos huérfanos son recuperables mediante la cola y el comando de mantenimiento. No se barre todo el bucket.
+- Catálogo compartido con texto, filtros y orden.
+- Fichas enlazables y galería de hasta cinco fotos, con miniaturas y controles V7.20.
+- Perfiles públicos de vendedores y enlaces a otras publicaciones.
+- Cuentas: inicio/registro, identidad y navegación por rol.
+- Compradores: contacto contextual desde anuncio, bandeja e historial.
+- Vendedores: inventario, alta/edición, fotografías, disponibilidad, retiro y respuesta de mensajes.
 
-## HTTP y seguridad
+La interfaz prioriza la continuidad: contacto recuperado tras login, retorno al catálogo/perfil/inventario según el origen y protección de cambios sin guardar. El contenido de mensajes se inserta como texto, sin interpretar HTML del usuario.
 
-Los contratos completos están en README. GET lista/item devuelve fotos y omite placa sin sesión. POST/PUT de anuncios recibe solo `{vehiculo}`; PATCH recibe `{disponibilidad}`. POST alta y POST/PUT de fotos exigen UUID. Fotos usan multipart individual; DELETE se autoriza igual que otras escrituras. Errores: JSON `ok=false,mensaje,errores?`; el cliente no recibe trazas, DSN ni mensajes internos de proveedores.
+## 7. Ambientes, despliegue y comprobación
 
-Sesión Flask firmada con clave de entorno; contraseña scrypt de entorno, máximo 1024 caracteres antes del hash; cookie HttpOnly/SameSite=Lax y Secure en HTTPS/Vercel. Cada mutación requiere CSRF. El token rota al entrar/salir. Página/API usan no-store y nosniff. No hay sesiones administrativas almacenadas en memoria de un worker.
+- **Local y pruebas:** Flask + PostgreSQL 17 loopback aislado para integraciones; dobles de Supabase Auth/Storage donde se necesita aislamiento.
+- **Preview:** barrera de solo lectura forzada desde servidor; no habilitar escrituras por un cambio de variable accidental. En V7.21 esa política se comprobó localmente, **no en una Preview remota**.
+- **Production:** `https://sistema-vehiculos-usados.vercel.app/`. La auditoría confirmó READY de `main` en `336bf7f` y navegación pública con fotografía WebP. **No** se probaron escrituras ni sesiones privadas reales en esa auditoría.
+- **Archivos estáticos:** Flask referencia `/static/`; las copias de `public/static/` deben mantenerse idénticas mediante `scripts/preparar_vercel.py`.
 
-El límite es cinco intentos por diez minutos para HMAC(remote_addr), reservados atómicamente en PostgreSQL y liberados tras acceso correcto. No depende de cookies ni confía en X-Forwarded-For arbitrario. Si un proxy concentra varias direcciones, el límite será conservador y compartido. No reemplaza MFA ni atribución individual; la administración sigue siendo compartida.
+El cierre funcional se determinó mediante V7.21: 28 pruebas localizadas y 8 pruebas PostgreSQL, además de recorridos de navegador. El resultado **APTO CON OBSERVACIONES** no acredita una auditoría de seguridad completa ni uso comercial.
 
-El navegador acepta originales de hasta 10 MB y prepara WebP ≤1600 px, calidad inicial 78 y ≤1 MB. Flask limita cada solicitud a 1.1 MB, solo acepta un archivo, rechaza animaciones/corrupción y vuelve a codificar sin EXIF/ICC/XMP. Una clave secreta moderna viaja solo en apikey; el JWT service_role heredado usa apikey/Bearer. HTTPS es obligatorio y se rechazan redirecciones para no reenviar secretos.
+## 8. Límites de diseño y decisiones históricas
 
-## Ambientes y Vercel
+La elección de Flask + SQL + JavaScript nativo responde al alcance académico; una reescritura en PHP, microservicios, arquitectura de red social o pagos no forma parte del objetivo. Los documentos de V6, V7.1–V7.8 y los informes de avance preservan condiciones históricas de aquellas entregas y no deben utilizarse para reactivar permisos retirados.
 
-El chat anónimo V6 está deshabilitado por defecto con `CHAT_ENABLED=false`; Preview y modo de solo lectura lo fuerzan apagado. La habilitación V7 de cuentas usa `USER_AUTH_ENABLED`, una segunda autorización `V7_PRODUCTION_ENABLED` solo en Production y validación sintáctica de Auth/PostgreSQL/sesión. Preview sigue siendo de solo lectura aunque `APP_READ_ONLY=false`. La migración V7 está preparada, no ejecutada en Supabase. Definir la retención y el borrado de mensajes es requisito para habilitar públicamente el chat anónimo.
-
-Desarrollo usa `.env` ignorado. PostgreSQL remoto siempre requiere TLS, con prepared statements desactivados para Transaction Pooler. La excepción sin TLS exige opt-in y loopback fijo; rechaza redirecciones hostaddr/service del destino local.
-
-Vercel detecta `app.py:app`, usa Python 3.14 y una función con 60 segundos. Los recursos referenciados por las plantillas se versionan en `public/static/` para servirlos por CDN; `scripts/preparar_vercel.py` sincroniza esas copias desde `static/`. No hay fotos ni datos persistentes en el disco de Vercel. Preview es siempre de solo lectura, aun con APP_READ_ONLY=false. Production necesita variables propias y aprobación final. No existe promoción ni push implícito.
-
-Las pruebas reales crean bases PostgreSQL locales nuevas con UUID. Storage remoto requiere credenciales y una verificación autorizada separada: los dobles y el arnés de navegador no acreditan una carga al servicio. La evidencia distingue esos alcances.
+**Sin operaciones remotas autorizadas por esta documentación:** leer o actualizar estas páginas no habilita migraciones, limpiezas, escrituras en Supabase, cambios en Vercel ni publicación de cuentas de demostración. Para tareas operativas consultar [README](../README.md) y [AGENTS](../AGENTS.md).
