@@ -1,30 +1,61 @@
-# Estado y trabajo futuro
+# Roadmap y cierre del proyecto
 
-Fecha de cierre del proyecto: **20 de noviembre de 2026**.
+**Actualizado:** 18 de noviembre de 2026.  
+**Estado:** cierre funcional de la versión V7.20.5, auditoría V7.21 **APTO CON OBSERVACIONES**, preparación de entrega académica.
 
-| Hito académico | Fecha |
-| --- | --- |
-| Tercer avance | 30 de octubre de 2026 |
-| Cuarto avance | 6 de noviembre de 2026 |
-| Quinto avance | 13 de noviembre de 2026 |
-| Cierre del proyecto | 20 de noviembre de 2026 |
+El roadmap refleja el **estado actual**, no un compromiso de ampliar funcionalidades. Para la historia de entregas consultar [Evolución](EVOLUCION.md); para capacidades y restricciones actuales consultar [Estado actual](ESTADO_ACTUAL.md).
 
-| Elemento | Estado | Criterio pendiente |
+## 1. Hitos académicos documentados
+
+| Hito | Fecha documentada | Situación |
 | --- | --- | --- |
-| Higiene del repositorio | Integrada en main previamente | Mantener secretos, entornos y archivos generados fuera de Git. |
-| Segundo avance | Histórico, completado | Su persistencia localStorage quedó reemplazada; evidencia preservada en AVANCE_02. |
-| Tercer avance | Implementado en `feature/tercer-avance`; pendiente de revisión | Catálogo con filtros combinables y orden, y ficha compartible; mantener intacta la placa pública y las protecciones de administración. |
-| Cuarto avance | Programado | 6 de noviembre de 2026. Alcance funcional por confirmar con el equipo docente. |
-| Quinto avance | Programado | 13 de noviembre de 2026. Alcance funcional por confirmar con el equipo docente. |
-| PostgreSQL | Implementado y probado localmente con PostgreSQL 17 real | Verificar Flask contra el proyecto remoto cuando estén configuradas las credenciales. Los seis anuncios remotos se conservan. |
-| Características opcionales | Implementadas | Equipamiento triestado y placa solo administrativa; comprobados en API y navegador. |
-| Fotografías | Código completo y flujo local verificado | Comprobar credenciales y operaciones contra Supabase Storage real en datos autorizados separados. No acreditar el doble local como prueba remota. |
-| Administración | Implementada | Sesión/CSRF, scrypt, límite persistente e idempotencia; revisar responsabilidad compartida y secretos antes de exposición. |
-| Vercel | Configuración preparada | Verificar conectividad y, si es viable sin costo, Preview de solo lectura; no publicar Production sin aprobación. |
-| Presentación final | Pendiente | Demostrar únicamente lo realmente probado y completar documentación antes de la fecha límite. |
+| Tercer avance | 30 de octubre de 2026 | Histórico: su alcance se integró y evolucionó. |
+| Cuarto avance | 6 de noviembre de 2026 | Histórico: su alcance se integró y evolucionó. |
+| Quinto avance | 13 de noviembre de 2026 | Fecha registrada en el roadmap anterior; verificar entrega académica por separado. |
+| Auditoría final de aceptación | 18 de noviembre de 2026 | Ejecutada, **APTO CON OBSERVACIONES**. |
+| Cierre técnico registrado | 20 de noviembre de 2026 | Fecha originalmente prevista para el cierre del proyecto; desarrollo funcional ya congelado. |
+| Fin de publicación previsto | 27 de noviembre de 2026 | Fecha indicada en `AGENTS.md` histórico; no implica una retirada automática. |
+| Fecha límite académica registrada | 30 de noviembre de 2026 | Referencia histórica de `AGENTS.md`; confirmar con el docente/equipo. |
 
-Las tres migraciones del proyecto autorizado cubren esquema inicial, semillas y coordinación de administración/fotos/idempotencia. Las seis tablas tienen RLS y el acceso directo público está cerrado. Los avisos INFO por ausencia de políticas abiertas e índices recién creados se documentan sin relajar permisos ni eliminar índices necesarios.
+Las fechas anteriores proceden de documentos del propio proyecto, que no siempre usaron la misma definición de «cierre». **No se afirma que exista una orden de apagar el sitio** ni se programa su retirada.
 
-Antes de Production: configuración privada por ambiente, conexión TLS/pooler, comprobación remota real, revisión de fotos públicas, acceso del equipo, recuperación/limpieza y aprobación del despliegue definitivo. Preview permanece siempre de consulta en esta entrega; un ambiente de escritura separado requiere un cambio explícito posterior.
+## 2. Estado de los entregables técnicos
 
-Chat, pagos, contacto real, cuentas completas y validación técnica oficial permanecen fuera del alcance confirmado. El docente debe aclarar “poner números” y cualquier alcance de certificación antes de desarrollarlos.
+| Entregable | Estado al corte | Observación |
+| --- | --- | --- |
+| PostgreSQL como fuente de verdad | Implementado | Persistencia y pruebas de integración con PostgreSQL 17 aislado. |
+| Catálogo, búsqueda, filtros y fichas | Implementado | Navegación principal pública comprobada en Production. |
+| Fotografías y galería WebP | Implementado | Consulta de WebP remota aprobada; escrituras reales de Storage no probadas en V7.21. |
+| Cuentas y roles comprador/vendedor | Implementado | Autorización y flujos verificados con Auth simulado; verificación remota de login pendiente. |
+| Inventario individual y retiro | Implementado | Pruebas de propietario, CSRF y concurrencia aprobadas en local. |
+| Mensajería autenticada | Implementado | Recorridos y reintentos comprobados en local; envío remoto real pendiente de validación. |
+| Perfil público de vendedor | Implementado | Perfil comprobado en Production. |
+| Supresión de administración V6 | Implementado | V7.9 retiró login global y escritura anónima; se conserva archivo histórico autorizado. |
+| Preview de solo lectura | Implementado | Política comprobada con configuración local simulada; Preview remoto no verificado en V7.21. |
+| Despliegue público Vercel | READY a la fecha auditada | Coincide con `main`, SHA `336bf7f`. |
+| Auditoría V7.21 | Completada | 28 pruebas localizadas y 8 PostgreSQL; sin defectos confirmados en escenarios auditados. |
+| Documento de estado y evolución | Preparado en rama documental | Debe revisarse y fusionarse antes de considerarlo versión oficial de `main`. |
+
+## 3. Pendientes para la presentación
+
+No son nuevas funcionalidades:
+
+1. **Validar en Production con datos ficticios controlados:** acceso comprador/vendedor, publicación de demostración, carga de foto y conversación. Evitar tocar publicaciones reales que no sean de prueba y respetar límites de datos/servicios.
+2. **Preparar la demostración:** cuentas, anuncios con fotografías y un hilo de prueba que permita mostrar el flujo completo sin depender de registros improvisados.
+3. **Ensayar:** visitante busca y ve una ficha; comprador contacta y lee/responde; vendedor crea/edita, gestiona fotos y responde.
+4. **Revisar disponibilidad:** dominio público, recursos, servicio Auth y almacenamiento antes de exponer.
+5. **Cerrar documentación:** aprobar los documentos vigentes y conservar los históricos sin confundir versiones.
+6. **Decidir al final del curso** si mantener o retirar el sitio; no ejecutarlo automáticamente.
+
+## 4. Política de congelación
+
+No abrir funcionalidades de pagos, red social, estadísticas, reescrituras tecnológicas ni rediseños cosméticos. Solo contemplar correcciones localizadas si se confirma un error grave de funcionamiento, seguridad, integridad de datos o preparación de la demostración. Toda corrección debe probarse nuevamente y documentar su alcance.
+
+**No ejecutar cambios remotos por este roadmap.** Un documento es una planificación, no una autorización de migraciones, modificaciones en Supabase, despliegues o purgas.
+
+## 5. Referencias
+
+- [Auditoría final V7.21](auditoria-final-v721.md)
+- [Estado actual](ESTADO_ACTUAL.md)
+- [Evolución del proyecto](EVOLUCION.md)
+- [Decisiones](DECISIONES.md)
